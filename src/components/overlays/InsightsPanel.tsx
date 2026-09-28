@@ -12,6 +12,7 @@ import { effectiveEstimate, formatDuration } from '@/domain/estimates';
 import { isOverdue, overdueBy } from '@/domain/dates';
 import type { Item } from '@/domain/types';
 import type { TranslationKey } from '@/i18n';
+import { plainTitle } from '@/domain/markdown';
 
 interface InsightsPanelProps {
   open: boolean;
@@ -91,7 +92,7 @@ export function InsightsPanel({
             {late.slice(0, 4).map((item) => (
               <div key={item.id} onClick={() => { onOpenTask(item.id); onClose(); }} role="button" tabIndex={0}>
                 <i />
-                <span>{item.content}</span>
+                <span>{plainTitle(item.content)}</span>
                 <time>{overdueBy(item)}d</time>
               </div>
             ))}

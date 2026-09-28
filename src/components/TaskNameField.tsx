@@ -22,7 +22,9 @@ function tokenAtCaret(
   value: string, caret: number,
 ): { sigil: '@' | '#'; query: string; start: number } | null {
   const before = value.slice(0, caret);
-  const match = before.match(/(^|\s)([@#])([\p{L}\p{N}_/-]*)$/u);
+  /* A project's name can hold any character but a space (#102); a tag's
+     keeps to letters, digits, `_` and `-`, as the parser reads it. */
+  const match = before.match(/(^|\s)(#)(\S*)$/u) ?? before.match(/(^|\s)(@)([\p{L}\p{N}_/-]*)$/u);
   if (!match) return null;
   return {
     sigil: match[2] as '@' | '#',
@@ -321,7 +323,9 @@ export function TaskNameField({
    */
   const clicked = (at: number) => {
     const span = spans.find((s) => at > s.start && at < s.end);
-    if (!span) return;
+    // A link is shown, not read — there is nothing here for a click to turn
+    // down and hand back to plain text; it is plain text already.
+    if (!span || span.kind === 'link') return;
     if (span.refused) restore(span.refused);
     else if (span.kind) refuse({ start: span.start, end: span.end, kind: span.kind });
   };

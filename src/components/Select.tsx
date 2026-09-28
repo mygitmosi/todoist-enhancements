@@ -248,7 +248,10 @@ export function Select({
         {current?.marker !== undefined && (
           <span className="hash" style={markerStyle(current.marker)}>#</span>
         )}
-        <span className="fselect-value">{current?.face ?? current?.label ?? placeholder ?? ''}</span>
+        {/* Cut with an ellipsis when it is long; the whole of it on hover. */}
+        <span className="fselect-value" title={current?.face ?? current?.label}>
+          {current?.face ?? current?.label ?? placeholder ?? ''}
+        </span>
         <Icon name="caret" size="sm" />
       </button>
       {list && createPortal(list, document.body)}

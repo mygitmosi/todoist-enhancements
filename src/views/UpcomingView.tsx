@@ -12,6 +12,7 @@ import { useStore } from '@/store/store';
 import { viewPrefs } from '@/store/prefs';
 import { applyFilters, rootItems, sortItems } from '@/store/selectors';
 import { upcomingItems } from '@/domain/views';
+import type { GroupKey } from '@/domain/types';
 import { summariseLoad } from '@/domain/load';
 import { dueDate, daysBetween, formatRelativeDay, toApiDate } from '@/domain/dates';
 import { addDays, startOfDay } from 'date-fns';
@@ -23,7 +24,8 @@ interface UpcomingViewProps {
   onAddTaskTo: (placement: TaskPlacement) => void;
 }
 
-/** How many day columns the board shows at once. */
+/** The groupings Upcoming offers: time only. */
+const UPCOMING_GROUPS: GroupKey[] = ['day', 'week', 'month'];
 
 /**
  * Upcoming — strictly future dates, fifteen days at a time.
@@ -36,6 +38,10 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
   const { snapshot, items, childrenOf } = useData();
   const prefs = useStore((s) => s.prefs);
   const current = viewPrefs(prefs, 'upcoming');
+  /* Upcoming answers "when?", so it only groups by time: a day (the
+     default), a week or a month. A grouping saved before this (project,
+     priority, tag, none) reads as days (#98). */
+  const group = UPCOMING_GROUPS.includes(current.group) ? current.group : 'day';
   const [horizon, setHorizon] = useState(prefs.upcomingHorizonDays);
 
   const scoped = useMemo(() => {
@@ -94,7 +100,7 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
             <DisplayMenu
               viewKey="upcoming"
               modes={['list', 'board']}
-              groups={['day', 'week', 'month', 'project', 'priority', 'label', 'none']}
+              groups={UPCOMING_GROUPS}
             />
             <button className="btn accent" onClick={onInsights}>
               <Icon name="trend" />
@@ -107,7 +113,19 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
       />
 
 
-      {current.mode === 'board' ? (
+      {group !== 'day' ? (
+        /* A week or a month is a span, not a date, so its column takes no
+           drop: the day columns are where a date is changed by hand. */
+        <ModeSurface
+          items={scoped}
+          childrenOf={childrenOf}
+          mode={current.mode === 'board' ? 'board' : 'list'}
+          group={group}
+          sort={current.sort}
+          order="day"
+          onOpen={onOpen}
+        />
+      ) : current.mode === 'board' ? (
         <ModeSurface
           items={scoped}
           childrenOf={childrenOf}
@@ -118,7 +136,7 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
           onOpen={onOpen}
           boardColumns={columns}
         />
-      ) : current.group === 'none' || current.group === 'day' ? (
+      ) : (
         <div className="mode">
           {columns.map((column) => (
             <TaskGroup
@@ -135,16 +153,6 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
           ))}
           {scoped.length === 0 && <p className="empty">{t('task.noTasks')}</p>}
         </div>
-      ) : (
-        <ModeSurface
-          items={scoped}
-          childrenOf={childrenOf}
-          mode="list"
-          group={current.group}
-          sort={current.sort}
-          order="day"
-          onOpen={onOpen}
-        />
       )}
 
       <div style={{ marginTop: 'var(--s5)', display: 'flex', justifyContent: 'center' }}>

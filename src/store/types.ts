@@ -1,7 +1,7 @@
 /** The shape of the store, shared by the slices that build it (see store.ts). */
 import type { StateCreator } from 'zustand';
 import type { Command } from '@/api/commands';
-import type { DisplayPriority, Item, Note, Snapshot, ViewPrefs } from '@/domain/types';
+import type { CompletedItem, DisplayPriority, Item, Note, Snapshot, ViewPrefs } from '@/domain/types';
 import type { RecurrenceReading } from '@/domain/recurrence';
 import type { Locale } from '@/i18n';
 import type { DropTarget } from '@/domain/dnd';
@@ -109,6 +109,18 @@ export interface AppState {
    */
   setEstimates: (entries: Array<{ id: string; minutes: number }>) => Promise<void>;
   toggleTask: (id: string) => Promise<void>;
+  /**
+   * The Logbook row a task was just opened from (#103): the date it was
+   * completed on, and what the panel can show if Todoist cannot be asked.
+   */
+  logbookEntry: CompletedItem | null;
+  setLogbookEntry: (entry: CompletedItem | null) => void;
+  /**
+   * Makes sure a task the snapshot does not hold — one completed before this
+   * device's last sync — is there to open, fetched from Todoist with its
+   * comments. `gone` is a task Todoist no longer has.
+   */
+  loadTask: (id: string) => Promise<'ready' | 'gone' | 'offline'>;
   /**
    * Ticks several tasks off as one act: one request, one toast and one undo
    * that puts them all back. A recurring task rolls on to its next date.
@@ -269,7 +281,7 @@ export type Slice<T> = StateCreator<AppState, [], [], T>;
 
 export type SyncSlice = Pick<AppState, 'ready' | 'connected' | 'snapshot' | 'syncState' | 'syncError' | 'pendingCount' | 'demo' | 'resolvedIds' | 'signInError' | 'init' | 'connect' | 'startDemo' | 'disconnect' | 'refresh' | 'startPolling' | 'apply'>;
 export type PreferencesSlice = Pick<AppState, 'prefs' | 'walkthrough' | 'setPrefs' | 'setViewPrefs' | 'setLocale' | 'ensurePreferencesTask' | 'beginTourPreview' | 'endTourPreview' | 'setWalkthrough'>;
-export type TasksSlice = Pick<AppState, 'updateTask' | 'setRecurrence' | 'setEstimates' | 'toggleTask' | 'completeTasks' | 'removeTask' | 'removeTasks' | 'restoreTasks' | 'createTask' | 'setTaskLabels' | 'setTaskPriority' | 'skipOccurrence' | 'skipOccurrences' | 'reorderSubtasks'>;
+export type TasksSlice = Pick<AppState, 'logbookEntry' | 'setLogbookEntry' | 'loadTask' | 'updateTask' | 'setRecurrence' | 'setEstimates' | 'toggleTask' | 'completeTasks' | 'removeTask' | 'removeTasks' | 'restoreTasks' | 'createTask' | 'setTaskLabels' | 'setTaskPriority' | 'skipOccurrence' | 'skipOccurrences' | 'reorderSubtasks'>;
 export type TasksMoveSlice = Pick<AppState, 'sendTo' | 'sendManyTo' | 'updateMany' | 'moveMany' | 'moveTask'>;
 export type StructureSlice = Pick<AppState, 'createLabel' | 'setLabelFavourite' | 'reorderLabels' | 'reorderProjects' | 'nestProject' | 'createProject' | 'archiveProject' | 'deleteProject' | 'duplicateProject' | 'updateProjectFields' | 'createSection' | 'moveSection' | 'removeSection' | 'updateSectionFields'>;
 export type UiSlice = Pick<AppState, 'toasts' | 'undoStack' | 'draggingTaskId' | 'draggingSectionId' | 'nesting' | 'outdenting' | 'draggingProjectId' | 'draggingTag' | 'selection' | 'selectionAnchor' | 'toast' | 'dismissToast' | 'pushUndo' | 'undo' | 'consumeUndo' | 'setDraggingSection' | 'setDraggingTag' | 'setNesting' | 'setOutdenting' | 'setDraggingProject' | 'toggleSelection' | 'setSelectionAnchor' | 'selectRange' | 'clearSelection' | 'setDragging'>;

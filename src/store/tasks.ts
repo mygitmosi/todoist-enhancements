@@ -1,7 +1,8 @@
 /** Tasks: creating, editing, ticking, recurring, deleting and restoring. */
 import { command, addItem, completeItem, deleteItem, newUuid, reorderItems, uncompleteItem, updateItem } from '@/api/commands';
 import * as idb from '@/db/idb';
-import { isUncompletable, toTodoistPriority, type Item, type Snapshot } from '@/domain/types';
+import { fetchComments, fetchTask, itemFromCompleted } from '@/api/tasks';
+import { isUncompletable, toTodoistPriority, type Item, type Note, type Snapshot } from '@/domain/types';
 import { withEstimate } from '@/domain/estimates';
 import { toApiDate } from '@/domain/dates';
 import { translate } from '@/i18n';
@@ -74,6 +75,48 @@ export function nextOrderKey(
 }
 
 export const createTasksSlice: Slice<TasksSlice> = (set, get) => ({
+  logbookEntry: null,
+  setLogbookEntry(entry) {
+    set({ logbookEntry: entry });
+  },
+  async loadTask(id) {
+    const state = get();
+    if (state.snapshot.items[id]) return 'ready';
+    const entry = state.logbookEntry;
+    const fallback = entry && (entry.task_id ?? entry.id) === id ? itemFromCompleted(entry) : null;
+
+    /* Kept in the snapshot, ticked: every list already leaves a ticked task
+       out, a project's "show completed" is where it belongs anyway, and the
+       panel, its edits and its untick then work on it as on any other. Once
+       opened, it opens again offline. */
+    const keep = (item: Item, notes: Note[] = []) => {
+      set((current) => {
+        const snapshot = {
+          ...current.snapshot,
+          items: { ...current.snapshot.items, [item.id]: item },
+          notes: { ...current.snapshot.notes, ...Object.fromEntries(notes.map((note) => [note.id, note])) },
+        };
+        schedulePersist(snapshot);
+        return { snapshot };
+      });
+    };
+
+    if (state.demo) {
+      if (!fallback) return 'gone';
+      keep(fallback);
+      return 'ready';
+    }
+    if (!navigator.onLine) return 'offline';
+    try {
+      const item = await fetchTask(id);
+      if (!item || item.is_deleted) return 'gone';
+      const notes = await fetchComments(id).catch(() => []);
+      keep(item, notes);
+      return 'ready';
+    } catch {
+      return 'offline';
+    }
+  },
   async updateTask(id, args) {
     await get().apply([updateItem(id, args)], (snapshot) => patchItem(snapshot, id, args));
   },

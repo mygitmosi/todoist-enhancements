@@ -96,17 +96,39 @@ function BulkMenu({
         e.preventDefault();
         e.stopPropagation();
         items[step > 0 ? 0 : items.length - 1].focus();
-        return;
       }
+    };
+    /*
+     * Escape closes the whole panel, in one press, from wherever the focus
+     * is inside it — including the Date panel's own typed field.
+     *
+     * That field is a DateField, self-contained everywhere else it is used,
+     * and its own Escape handling calls `stopPropagation` on purpose: it is
+     * one layer of a dialog elsewhere (TaskDetail), and one Escape should
+     * only ever close the layer the focus is actually on. Here the field is
+     * the whole content of a small dropdown, not a layer of anything, and a
+     * `stopPropagation` a few DOM levels down a React tree stops the native
+     * event before it ever reaches a plain `document.addEventListener` —
+     * React's own delegated listener sits below `document`, and calling
+     * `stopPropagation` there keeps the event from climbing any further.
+     * Caught here in the capture phase, this runs before that ever happens.
+     */
+    const onEscape = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
+      /* Caught here, this is the only handler this key reaches: capturing on
+         `document` fires before the event can travel down to the field and
+         back up, so nothing downstream is left to also act on it (the
+         selection's own Escape included). */
       e.stopPropagation();
       closeFromKeys();
     };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
+    document.addEventListener('keydown', onEscape, true);
     return () => {
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
+      document.removeEventListener('keydown', onEscape, true);
       /* Closing takes the focused choice with it, and the cursor with that:
          the next key then opened the search instead of acting on the tasks.
          The focus goes back where it came from, when that is still there. */
@@ -393,6 +415,11 @@ export function BulkBar() {
                 value={date}
                 label={t('task.schedule')}
                 placeholder={t('bulk.pickDate')}
+                /* Opened by picking "Date" from the bar below, so it is
+                   already the thing being chosen — asking for a second click
+                   before the typed field even appears read as "there is
+                   nowhere to type" (#97 follow-up). */
+                openOnMount
                 onChange={(next) => {
                   setDate('');
                   if (!next) return;

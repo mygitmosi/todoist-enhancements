@@ -30,6 +30,7 @@ import { useStore } from './store/store';
 import type { Accent, Theme } from './store/prefs';
 import { ACCENT_TOKENS, accentFamily, hexToHsl } from './domain/accent';
 import { useT } from './hooks/useT';
+import { useSelectionBlocks } from './hooks/useSelectionBlocks';
 import { useKeyboard } from './hooks/useKeyboard';
 import { useData } from './hooks/useData';
 import { navigate, useRoute, type Route } from './hooks/useRoute';
@@ -454,6 +455,7 @@ function AppShell({
   /* Every key the app answers, in one listener. It is called here rather than
      in `App` because deleting a task asks for confirmation, and the dialog
      that asks lives inside this shell. */
+  useSelectionBlocks();
   useKeyboard({
     openTask,
     openSearch,
@@ -535,7 +537,7 @@ function AppShell({
             <ProjectView projectId={route.id} revealSectionId={route.sectionId} {...viewProps} />
           )}
           {route.view === 'review' && <ReviewView onOpen={openTask} />}
-          {route.view === 'insights' && <InsightsView />}
+          {route.view === 'insights' && <InsightsView onOpen={openTask} />}
           {route.view === 'settings' && <SettingsView />}
         </section>
 

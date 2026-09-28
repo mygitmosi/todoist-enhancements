@@ -1,4 +1,5 @@
 import { readNaturalDate } from './nlp';
+import { findLinks } from './markdown';
 import { readRecurrence, type RecurrenceLang } from './recurrence';
 import { parseDurationInput } from './estimates';
 import { colorValue } from './colors';
@@ -29,7 +30,7 @@ import type { DisplayPriority, Snapshot } from './types';
  */
 
 export type HighlightKind =
-  'date' | 'recurrence' | 'project' | 'priority' | 'label' | 'duration';
+  'date' | 'recurrence' | 'project' | 'priority' | 'label' | 'duration' | 'link';
 
 export interface Highlight {
   start: number;
@@ -41,6 +42,12 @@ export interface Highlight {
    * prose has none and wears the accent instead.
    */
   tone?: string;
+  /**
+   * A link is shown, not read: it stays in the name that is saved, so it
+   * only ever gets an underline in the mirror, never a claim on the text
+   * `strip` takes out.
+   */
+  keep?: boolean;
 }
 
 /** A stretch of the name, by position in it. */
@@ -75,12 +82,31 @@ export interface Shorthand {
 const fold = (text: string): string =>
   text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '');
 
+/** Characters a sentence can end with, straight after a name. */
+const TRAILING = /[.,;:!?…)\]}"'»]$/u;
+
+/**
+ * The longest start of `text` that names something: the whole of it, or it
+ * with the punctuation that closes a sentence taken off the end, one mark at a
+ * time. `length` is how much of `text` the name used.
+ */
+function readName<T>(text: string, find: (name: string) => T | undefined): { found: T; length: number } | null {
+  let candidate = text;
+  while (candidate) {
+    const found = find(candidate);
+    if (found) return { found, length: candidate.length };
+    if (!TRAILING.test(candidate)) return null;
+    candidate = candidate.slice(0, -1);
+  }
+  return null;
+}
+
 export function parseShorthand(
   raw: string, snapshot: Snapshot, naturalDates: boolean, refused: TextRange[] = [],
 ): Shorthand {
   const ranges: Highlight[] = [];
-  const claim = (start: number, length: number, kind: HighlightKind, tone?: string) =>
-    ranges.push({ start, end: start + length, kind, tone });
+  const claim = (start: number, length: number, kind: HighlightKind, tone?: string, keep?: boolean) =>
+    ranges.push({ start, end: start + length, kind, tone, keep });
 
   /** Whether a candidate covers ground the caller has already turned down. */
   const isRefused = (start: number, length: number) =>
@@ -104,31 +130,39 @@ export function parseShorthand(
      a task that belongs in a section of a project should not need the project
      said here and the section chosen in a field underneath. */
   let projectClaim: { start: number; length: number; tone: string } | null = null;
-  for (const project of raw.matchAll(/#([\p{L}\p{N}_-]+)(\/([\p{L}\p{N}_-]+))?/gu)) {
-    if (isRefused(project.index!, project[0].length)) continue;
-    const wanted = fold(project[1]);
-    const found = Object.values(snapshot.projects).find(
-      (p) => !p.is_deleted && !p.is_archived && fold(p.name) === wanted,
-    );
-    if (!found) continue;
-    projectId = found.id;
+  /* Any name Todoist allows, not just letters and digits: `#aliasdigital.`,
+     `#R&D`, `#Maison 🏡` once its space is gone (#102). The token runs to the
+     next space; a `/` in it names a section. Punctuation that ends a sentence
+     straight after a project (`… #Perso.`) is let go of when the name without
+     it is the one that exists — and kept when the name ends with it. */
+  const projects = Object.values(snapshot.projects).filter((p) => !p.is_deleted && !p.is_archived);
+  const findProject = (text: string) => projects.find((p) => fold(p.name) === fold(text));
+  for (const token of raw.matchAll(/(?:^|\s)#(\S+)/gu)) {
+    const hash = token.index! + token[0].indexOf('#');
+    const [projectText, ...rest] = token[1].split('/');
+    const sectionText = rest.length > 0 ? rest.join('/') : null;
+    const project = readName(projectText, findProject);
+    if (!project) continue;
+    const whole = project.length === projectText.length;
+    const tokenLength = 1 + (whole && sectionText !== null ? token[1].length : project.length);
+    if (isRefused(hash, tokenLength)) continue;
+    projectId = project.found.id;
     sectionId = null;
 
-    const named = project[3] ? fold(project[3]) : null;
-    const section = named
-      ? Object.values(snapshot.sections).find(
-        (s) => s.project_id === found.id && !s.is_deleted && !s.is_archived
-          && fold(s.name) === named,
-      )
-      : undefined;
-    if (section) sectionId = section.id;
+    const section = whole && sectionText
+      ? readName(sectionText, (text) => Object.values(snapshot.sections).find(
+        (s) => s.project_id === project.found.id && !s.is_deleted && !s.is_archived
+          && fold(s.name) === fold(text),
+      ))
+      : null;
+    if (section) sectionId = section.found.id;
 
     /* A section that does not exist leaves the project claimed and the rest of
        the text alone: half a match is still a project you named. */
     projectClaim = {
-      start: project.index!,
-      length: named && !section ? project[1].length + 1 : project[0].length,
-      tone: colorValue(found.color),
+      start: hash,
+      length: 1 + project.length + (section ? 1 + section.length : 0),
+      tone: colorValue(project.found.color),
     };
   }
   if (projectClaim) {
@@ -220,6 +254,14 @@ export function parseShorthand(
     }
   }
 
+  /* A link, marked last and never over ground something else already
+     claimed — a URL's own `#fragment` is not a project, but a name typed
+     with both is read as whichever came first. */
+  for (const span of findLinks(raw)) {
+    if (isRefused(span.start, span.end - span.start)) continue;
+    claim(span.start, span.end - span.start, 'link', undefined, true);
+  }
+
   const clean = dedupe(ranges);
   return {
     content: strip(raw, clean),
@@ -288,7 +330,7 @@ const mask = (raw: string, ranges: TextRange[]): string => {
 const strip = (raw: string, ranges: Highlight[]): string => {
   let out = '';
   let cursor = 0;
-  for (const range of [...ranges].sort((a, b) => a.start - b.start)) {
+  for (const range of [...ranges].filter((r) => !r.keep).sort((a, b) => a.start - b.start)) {
     out += raw.slice(cursor, range.start);
     cursor = range.end;
   }

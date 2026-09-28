@@ -16,7 +16,7 @@ import { displayTaskContent, isUncompletable, toDisplayPriority, type Item } fro
 import { effectiveEstimate, formatDuration } from '@/domain/estimates';
 import { deadlineDate, dueDate, formatRelativeDay, formatTime, hasTime, isOverdue, isToday, overdueBy } from '@/domain/dates';
 import { markerStyle } from '@/domain/colors';
-import { renderInlineMarkdown } from '@/domain/markdown';
+import { renderInlineMarkdown, renderTitle } from '@/domain/markdown';
 
 /**
  * Whether rows draw the subtasks nested under them.
@@ -252,6 +252,9 @@ export function TaskRow({
            the same gesture every file list has used for thirty years, and the
            only one that does not cost the plain click its meaning. */
         onClick={(e) => {
+          /* A link in the title or the description is followed, in a new
+             tab; it does not also open the task (#101). */
+          if ((e.target as Element).closest('a[href]')) return;
           if (e.shiftKey) {
             e.preventDefault();
             e.currentTarget.focus({ preventScroll: true });
@@ -272,6 +275,10 @@ export function TaskRow({
           onOpen(item.id);
         }}
         onKeyDown={(e) => {
+          /* Enter on a control inside the row — a menu's "Pick a date", one
+             of its options — is that control's own press, not a request to
+             open the task. */
+          if (e.target !== e.currentTarget) return;
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             if (e.shiftKey) { pickRange(e.metaKey || e.ctrlKey); return; }
@@ -316,7 +323,11 @@ export function TaskRow({
         )}
 
         <span className="tmain">
-          <span className="ttitle">{displayTaskContent(item)}</span>
+          {/* Formatted as Todoist formats a title: a link is a link. */}
+          <span
+            className="ttitle"
+            dangerouslySetInnerHTML={{ __html: renderTitle(displayTaskContent(item)) }}
+          />
 
           {item.description && (
             /* The row shows the formatted line, not the Markdown syntax. */

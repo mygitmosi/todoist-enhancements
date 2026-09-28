@@ -10,6 +10,7 @@ import { rootItems } from '@/store/selectors';
 import { toDisplayPriority, SYSTEM_LABELS, weekLabel } from '@/domain/types';
 import { readEstimate, withEstimate } from '@/domain/estimates';
 import type { TranslationKey } from '@/i18n';
+import { plainTitle } from '@/domain/markdown';
 
 interface IssuesProps {
   open: boolean;
@@ -152,7 +153,7 @@ export function Issues({ open, onClose, onOpen }: IssuesProps) {
                       <Icon name="check" />
                     </span>
                     <div>
-                      <strong>{item.content}</strong>
+                      <strong>{plainTitle(item.content)}</strong>
                       <p>{t(conflict.messageKey as TranslationKey, conflict.messageValues)}</p>
                       <div className="opts">
                         {conflict.options.map((option) => (

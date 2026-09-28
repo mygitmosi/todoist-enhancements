@@ -13,7 +13,7 @@ import {
   effectiveEstimate, formatDuration, withEstimate,
 } from '@/domain/estimates';
 import { deadlineDate, dueDate, formatRelativeDay, toApiDate } from '@/domain/dates';
-import { renderMarkdown } from '@/domain/markdown';
+import { plainTitle, renderMarkdown, titleLinks } from '@/domain/markdown';
 import { parseShorthand, type TextRange } from '@/domain/shorthand';
 import { dueForDate, readRecurrence } from '@/domain/recurrence';
 import { EstimateField } from '../EstimateField';
@@ -210,7 +210,7 @@ function EditableSubtask({ child, onOpen }: { child: Item; onOpen: (id: string) 
       ) : (
         <button className="subtasktitle" onClick={() => onOpen(child.id)}>
           <span style={child.checked ? { textDecoration: 'line-through', color: 'var(--faint)' } : undefined}>
-            {displayTaskContent(child)}
+            {plainTitle(displayTaskContent(child))}
           </span>
         </button>
       )}
@@ -294,6 +294,43 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   const confirm = useConfirm();
 
   const item = taskId ? snapshot.items[taskId] : null;
+  const loadTask = useStore((s) => s.loadTask);
+  const logbookEntry = useStore((s) => s.logbookEntry);
+  /* A task completed before the last sync is not in the snapshot: it is
+     fetched from Todoist, and the panel says so meanwhile (#103). */
+  const [missing, setMissing] = useState<'loading' | 'gone' | 'offline' | null>(null);
+  const present = !!item;
+  useEffect(() => {
+    if (!taskId || present) { setMissing(null); return; }
+    let live = true;
+    setMissing('loading');
+    void loadTask(taskId).then((result) => { if (live) setMissing(result === 'ready' ? null : result); });
+    return () => { live = false; };
+  }, [taskId, present, loadTask]);
+
+  /* The list the panel walks with ▲ ▼ (#104): the rows of the page behind it,
+     top to bottom, as they are drawn. Remembered, so a task ticked off or
+     moved out of the list still knows where it was and ▼ goes on from there.
+     A task opened from nowhere in the list (search, the Logbook) has none. */
+  const walk = useRef<{ ids: string[]; at: number } | null>(null);
+  const walked = useRef(false);
+  const onPage = taskId
+    ? [...new Set([...document.querySelectorAll<HTMLElement>('.screen.active [data-task-id]')]
+      .map((row) => row.dataset.taskId ?? ''))].filter(Boolean)
+    : [];
+  const here = taskId ? onPage.indexOf(taskId) : -1;
+  if (here >= 0) walk.current = { ids: onPage, at: here };
+  else if (walk.current && walk.current.ids[walk.current.at] !== taskId) walk.current = null;
+  const previousId = walk.current && walk.current.at > 0 ? walk.current.ids[walk.current.at - 1] : null;
+  const nextId = walk.current && walk.current.at < walk.current.ids.length - 1
+    ? walk.current.ids[walk.current.at + 1] : null;
+  const step = (id: string | null) => {
+    if (!id) return;
+    walked.current = true;
+    onOpen(id);
+  };
+  const stepRef = useRef({ previousId, nextId, step });
+  stepRef.current = { previousId, nextId, step };
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -372,6 +409,16 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
         return;
       }
 
+      /* The next and previous task, as Todoist's ▲ ▼ and its J / K. */
+      const walkTo = event.key === 'ArrowDown' || event.key === 'j' ? stepRef.current.nextId
+        : event.key === 'ArrowUp' || event.key === 'k' ? stepRef.current.previousId
+          : undefined;
+      if (walkTo !== undefined) {
+        event.preventDefault();
+        stepRef.current.step(walkTo);
+        return;
+      }
+
       const prop = PANEL_KEYS[event.key.toLowerCase()];
       if (!prop) return;
       const row = panelRef.current?.querySelector<HTMLElement>(`[data-prop="${prop}"]`);
@@ -430,8 +477,28 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
     [item?.description],
   );
 
-  if (!item) return null;
+  if (!item) {
+    if (!taskId || !missing) return null;
+    return (
+      <Overlay open onClose={onClose} label={t('detail.title')}>
+        <p className={`detail-missing${missing === 'loading' ? ' loading' : ''}`} role="status">
+          {t(missing === 'loading' ? 'detail.loading' : missing === 'gone' ? 'detail.gone' : 'detail.offline')}
+        </p>
+      </Overlay>
+    );
+  }
 
+  /* When it was completed: its own date once ticked, or the Logbook's for a
+     recurring task, which rolled on and is shown as its next occurrence. A
+     one-off task unticked from the Logbook is just active again — it has no
+     "next occurrence" to explain, so the banner has nothing left to say. */
+  const fromLogbook = logbookEntry && (logbookEntry.task_id ?? logbookEntry.id) === item.id
+    ? logbookEntry : null;
+  const completedOn = item.checked
+    ? (item.completed_at ?? fromLogbook?.completed_at ?? null)
+    : (item.due?.is_recurring ? fromLogbook?.completed_at ?? null : null);
+
+  const links = titleLinks(item.content);
   const priority = toDisplayPriority(item.priority);
   const due = dueDate(item);
   const deadline = deadlineDate(item);
@@ -562,7 +629,14 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   }
 
   return (
-    <Overlay open onClose={onClose} label={t('detail.title')}>
+    <Overlay
+      open
+      onClose={onClose}
+      label={t('detail.title')}
+      returnFocusTo={() => (walked.current && taskId
+        ? document.querySelector<HTMLElement>(`.screen.active [data-task-id="${taskId}"]`)
+        : null)}
+    >
       <header className="detail-top">
         {/*
           * Where the task is, as the way back rather than as a caption.
@@ -593,7 +667,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
             <span className="crumbstep" key={parent.id}>
               <span className="crumb-sep">/</span>
               <button className="crumblink" onClick={() => onOpen(parent.id)}>
-                {parent.content}
+                {plainTitle(parent.content)}
               </button>
             </span>
           ))}
@@ -603,11 +677,33 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
               one sentence. */}
           <span className="crumbstep crumbself">
             <span className="crumb-sep">/</span>
-            <span className="crumbhere" aria-current="page">{displayTaskContent(item)}</span>
+            <span className="crumbhere" aria-current="page">{plainTitle(displayTaskContent(item))}</span>
           </span>
         </nav>
 
         <div className="detail-tools">
+          {walk.current && (
+            <span className="detail-walk">
+              <button
+                className="iconbtn"
+                aria-label={t('detail.previousTask')}
+                title={`${t('detail.previousTask')} (K)`}
+                disabled={!previousId}
+                onClick={() => step(previousId)}
+              >
+                <Icon name="caret-up" />
+              </button>
+              <button
+                className="iconbtn"
+                aria-label={t('detail.nextTask')}
+                title={`${t('detail.nextTask')} (J)`}
+                disabled={!nextId}
+                onClick={() => step(nextId)}
+              >
+                <Icon name="caret" />
+              </button>
+            </span>
+          )}
           <div className="menuwrap">
             <button
               className="iconbtn"
@@ -657,6 +753,15 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
 
       <div className="detail-body" ref={panelRef}>
         <div className="detail-main">
+          {completedOn && (
+            <p className="detail-done">
+              <Icon name="check" size="sm" />
+              {t(item.checked ? 'detail.completedOn' : 'detail.completedNext', {
+                date: new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })
+                  .format(new Date(completedOn)),
+              })}
+            </p>
+          )}
           <div className={`detail-headline${item.checked ? ' done' : ''}`}>
             {isUncompletable(item) ? (
               <span className={`check p${priority} nocheck`} aria-hidden="true" />
@@ -710,6 +815,20 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                 * up afterwards. Enter saves, Escape puts it back, and the two
                 * buttons say so for anyone who does neither.
                 */}
+              {/* The title is edited as written, so its links are kept
+                  under it, ready to follow, as Todoist shows them clickable
+                  in its task view (#101). */}
+              {!titleDirty && links.length > 0 && (
+                <div className="titlelinks">
+                  {links.map((link, at) => (
+                    <a key={`${link.href}-${at}`} href={link.href} target="_blank" rel="noopener noreferrer">
+                      <Icon name="link" size="sm" />
+                      <span>{link.label}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+
               {titleDirty && (
                 <div className="titleactions">
                   {/* Pressed before the field can lose the caret, or the blur
@@ -755,9 +874,25 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                   }}
                 />
               ) : (
-                <button
+                /* Not a <button>: the description holds links, and a link
+                   inside a button is followed by some browsers and swallowed
+                   by others (#101). A click on a link follows it; anywhere
+                   else, or Enter, edits. */
+                <div
+                  role="button"
+                  tabIndex={0}
                   className={`descview${item.description ? '' : ' placeholder'}`}
-                  onClick={() => setEditingDescription(true)}
+                  onClick={(e) => {
+                    if ((e.target as Element).closest('a[href]')) return;
+                    setEditingDescription(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setEditingDescription(true);
+                    }
+                  }}
                   aria-label={t('detail.description')}
                 >
                   {item.description ? (
@@ -765,7 +900,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                   ) : (
                     t('detail.descriptionPlaceholder')
                   )}
-                </button>
+                </div>
               )}
             </div>
           </div>

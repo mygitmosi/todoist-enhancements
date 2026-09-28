@@ -28,6 +28,7 @@ import {
 } from '@/domain/review';
 import type { TranslationKey } from '@/i18n';
 import { byChildOrder } from '@/domain/orderKey';
+import { plainTitle } from '@/domain/markdown';
 
 /** The destination each action stands for, in the drop table's own terms. */
 const targetFor = (action: ReviewAction): DropTarget => {
@@ -443,7 +444,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
         )}
 
         <button className="reviewname" onClick={() => onOpen(item.id)}>
-          <span className="ttitle">{displayTaskContent(item)}</span>
+          <span className="ttitle">{plainTitle(displayTaskContent(item))}</span>
           <span className="meta">
             {due && (
               <span className={s.id === 'overdue' ? 'late' : undefined}>
@@ -655,7 +656,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
     const live = snapshot.items[taskId];
     const body = (
       <>
-        <span className="ttitle">{done.content}</span>
+        <span className="ttitle">{plainTitle(done.content)}</span>
         <span className="meta">
           <span>{formatRelativeDay(new Date(done.completed_at), locale)}</span>
           {project && !project.inbox_project && (
@@ -932,7 +933,7 @@ function Estimates({
                 <Icon name="check" />
               </span>
               <button className="reviewname" tabIndex={-1} onClick={() => onOpen(item.id)}>
-                <span className="ttitle">{item.content}</span>
+                <span className="ttitle">{plainTitle(item.content)}</span>
                 {project && !project.inbox_project && (
                   <span className="meta">
                     <span className="proj" style={markerStyle(project.color, false)}>

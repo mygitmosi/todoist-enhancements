@@ -73,10 +73,13 @@ export function DisplayMenu({
     'estimate-asc', 'estimate-desc', 'label',
   ];
 
+  /* A grouping this page no longer offers reads as its first one, which is
+     what the page draws. */
+  const shownGroup = groups.includes(current.group) ? current.group : groups[0];
   // How many settings this view carries beyond the defaults.
   const changed =
     countActiveFilters(current.filters) +
-    (current.group !== base.group ? 1 : 0) +
+    (shownGroup !== base.group ? 1 : 0) +
     (current.sort !== base.sort ? 1 : 0) +
     (current.mode !== base.mode ? 1 : 0);
 
@@ -133,7 +136,7 @@ export function DisplayMenu({
           <div className="panelgrid">
             <Select
               label={t('toolbar.group')}
-              value={current.group}
+              value={shownGroup}
               onChange={(value) => setViewPrefs(viewKey, { group: value as GroupKey })}
               options={groups.map((group) => ({
                 value: group,

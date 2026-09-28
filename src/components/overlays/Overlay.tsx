@@ -9,6 +9,12 @@ interface OverlayProps {
   variant?: 'sheet' | 'side';
   /** 'full' fills the window, for a sheet that stands in for a whole page. */
   size?: 'sm' | 'md' | 'search' | 'full';
+  /**
+   * Where the focus goes on close, asked at that moment; the element that
+   * had it on open when this gives nothing. A task panel that has walked
+   * down a list hands the keyboard to the last task shown (#104).
+   */
+  returnFocusTo?: () => HTMLElement | null;
 }
 
 /**
@@ -31,7 +37,7 @@ const FOCUSABLE = [
  * where it came from on close, and the page behind held still throughout.
  */
 export function Overlay({
-  open, onClose, children, label, variant = 'sheet', size = 'md',
+  open, onClose, children, label, variant = 'sheet', size = 'md', returnFocusTo,
 }: OverlayProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
@@ -46,6 +52,8 @@ export function Overlay({
      the callback it reads does not. */
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+  const returnRef = useRef(returnFocusTo);
+  returnRef.current = returnFocusTo;
 
   useEffect(() => {
     if (!open) return;
@@ -114,7 +122,7 @@ export function Overlay({
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = overflow;
-      restoreTo.current?.focus?.();
+      (returnRef.current?.() ?? restoreTo.current)?.focus?.();
     };
     /* `open` and nothing else. See closeRef above. */
   }, [open]);

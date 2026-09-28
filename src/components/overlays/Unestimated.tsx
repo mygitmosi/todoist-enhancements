@@ -7,6 +7,7 @@ import { EstimateField } from '../EstimateField';
 import { formatDuration } from '@/domain/estimates';
 import { toDisplayPriority, type Item } from '@/domain/types';
 import { markerStyle } from '@/domain/colors';
+import { plainTitle } from '@/domain/markdown';
 
 interface EstimateBulkProps {
   /** The tasks to put a number on. */
@@ -106,7 +107,7 @@ export function EstimateBulk({ items, onOpen, onDone, resetKey }: EstimateBulkPr
                       tabIndex={-1}
                       onClick={() => onOpen(item.id)}
                     >
-                      <span className="ttitle">{item.content}</span>
+                      <span className="ttitle">{plainTitle(item.content)}</span>
                       {project && !project.inbox_project && (
                         <span className="meta">
                           <span className="hash" style={markerStyle(project.color)}>#</span>

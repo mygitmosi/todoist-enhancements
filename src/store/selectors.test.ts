@@ -64,3 +64,25 @@ describe('groupItems', () => {
     expect(keys('priority')).toEqual(['p1', 'p2', 'p3', 'p4']);
   });
 });
+
+describe('sortItems by priority (#98 follow-up)', () => {
+  const due = (date: string) => ({ date, is_recurring: false, string: '', lang: 'en', timezone: null });
+
+  it('breaks a tie between same-priority tasks by their date, soonest first', () => {
+    const items = [
+      item({ id: 'later', priority: 4, due: due('2026-10-05') }),
+      item({ id: 'sooner', priority: 4, due: due('2026-10-01') }),
+      item({ id: 'undated', priority: 4 }),
+    ];
+    expect(sortItems(items, 'priority', () => []).map((i) => i.id))
+      .toEqual(['sooner', 'later', 'undated']);
+  });
+
+  it('still puts a higher priority first, whatever its date', () => {
+    const items = [
+      item({ id: 'p2-soon', priority: 3, due: due('2026-10-01') }),
+      item({ id: 'p1-late', priority: 4, due: due('2026-10-20') }),
+    ];
+    expect(sortItems(items, 'priority', () => []).map((i) => i.id)).toEqual(['p1-late', 'p2-soon']);
+  });
+});

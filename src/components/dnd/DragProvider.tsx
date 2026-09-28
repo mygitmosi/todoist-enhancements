@@ -100,6 +100,16 @@ const ACCEPTS: Record<ReturnType<typeof dragKind>, Array<ReturnType<typeof dropK
  * row is as wide as the page and by area it always beat the narrow sidebar
  * destinations.
  */
+/**
+ * The page still scrolls up and down under a drag; a board does not scroll
+ * sideways by itself. Held near its edge, dnd-kit's scroll sped up until it
+ * reached the last column, and the drop landed there whatever the pointer
+ * had been aiming at (#100). The board turns its own pages instead.
+ */
+const AUTO_SCROLL = {
+  canScroll: (element: Element) => !element.classList.contains('board'),
+};
+
 const collisionsForKind: CollisionDetection = (args) => {
   const accepted = ACCEPTS[dragKind(String(args.active.id))];
   const hits = pointerWithin(args).filter(
@@ -221,6 +231,10 @@ export function DragProvider({ children }: { children: ReactNode }) {
   const apply = useStore((s) => s.apply);
   const toast = useStore((s) => s.toast);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  /* The tasks a drag carries when it starts on a picked row: the whole
+     selection, in the order it is drawn, a subtask left to go with its
+     picked parent (#105). Empty for a task dragged on its own. */
+  const [carrying, setCarrying] = useState<string[]>([]);
   const setDragging = useStore((s) => s.setDragging);
   const moveSection = useStore((s) => s.moveSection);
   const reorderProjects = useStore((s) => s.reorderProjects);
@@ -337,6 +351,41 @@ export function DragProvider({ children }: { children: ReactNode }) {
     setDraggingSection(isSection ? id.slice('section:'.length) : null);
     setDraggingProject(isProject ? id.slice('project-row:'.length) : null);
     setDraggingTag(id.startsWith(TAG_DRAG_PREFIX) ? id.slice(TAG_DRAG_PREFIX.length) : null);
+
+    const block = isSection || isProject || isSubtask ? [] : carriedWith(taskIdOf(id));
+    setCarrying(block);
+    document.documentElement.classList.toggle('carrying-selection', block.length > 1);
+  }
+
+  /** The picked tasks a drag of `id` takes along, top to bottom as drawn. */
+  function carriedWith(id: string): string[] {
+    const { selection } = useStore.getState();
+    if (selection.length < 2 || !selection.includes(id)) return [];
+    const picked = new Set(selection);
+    const drawn = [...document.querySelectorAll<HTMLElement>('.screen.active [data-task-id]')]
+      .map((row) => row.dataset.taskId ?? '');
+    const order = [...new Set([...drawn.filter((at) => picked.has(at)), ...selection])];
+    const hasPickedAncestor = (taskId: string) => {
+      let parent = snapshot.items[taskId]?.parent_id ?? null;
+      while (parent) {
+        if (picked.has(parent)) return true;
+        parent = snapshot.items[parent]?.parent_id ?? null;
+      }
+      return false;
+    };
+    return order.filter((taskId) => snapshot.items[taskId] && !hasPickedAncestor(taskId));
+  }
+
+  function onDragCancel() {
+    setDraggingId(null);
+    setDragging(null);
+    setDraggingSection(null);
+    setNesting(false);
+    setOutdenting(false);
+    setDraggingProject(null);
+    setDraggingTag(null);
+    setCarrying([]);
+    document.documentElement.classList.remove('carrying-selection');
   }
 
   /* The indent has to be visible while it is being made, not discovered on
@@ -362,6 +411,9 @@ export function DragProvider({ children }: { children: ReactNode }) {
     setOutdenting(false);
     setDraggingProject(null);
     setDraggingTag(null);
+    const carried = carrying;
+    setCarrying([]);
+    document.documentElement.classList.remove('carrying-selection');
 
     /* Pulled out to the left, a subtask leaves its parent and stays where it
        is otherwise: same project, same section, now at the top level. The
@@ -595,6 +647,16 @@ export function DragProvider({ children }: { children: ReactNode }) {
          below is the order that was on the screen, so the page the sort leaves
          behind is the page you were looking at. */
       if (list.viewKey) setViewPrefs(list.viewKey, { sort: 'manual' });
+      /* Dropped out of a selection, the whole selection lands there, as one
+         block in the order it was drawn (#105). */
+      if (carried.length > 1 && carried.includes(item.id)) {
+        if (carried.includes(row.id)) return;
+        useStore.getState().clearSelection();
+        const block = carried.map((id) => snapshot.items[id]).filter((it): it is Item => !!it);
+        if (list.order === 'day') await orderManyInList(block, item, row, list);
+        else await reorderMany(block, item, row, list);
+        return;
+      }
       if (list.order === 'day') await orderInList(item, row, list);
       else await reorderTask(item, row, list);
       return;
@@ -685,6 +747,147 @@ export function DragProvider({ children }: { children: ReactNode }) {
    * both things at once — this day, and here in it — so what the group would
    * have done to a task dropped on it plainly is done first.
    */
+  /**
+   * Where a block lands in a list: the dragged task's own rule, for all of
+   * them. Dragged down, the block goes after the row it was dropped on;
+   * dragged up, or from another list, before it.
+   */
+  function spliceBlock(ids: string[], block: string[], dragged: string, row: string): string[] {
+    const from = ids.indexOf(dragged);
+    const onto = ids.indexOf(row);
+    const moving = new Set(block);
+    const rest = ids.filter((id) => !moving.has(id));
+    const at = rest.indexOf(row);
+    if (at < 0) return ids;
+    const down = from >= 0 && from < onto;
+    return [...rest.slice(0, at + (down ? 1 : 0)), ...block, ...rest.slice(at + (down ? 1 : 0))];
+  }
+
+  /** A block dropped between rows of a list ordered by day (My week, Upcoming). */
+  async function orderManyInList(block: Item[], dragged: Item, row: Item, list: RowList) {
+    const ids = spliceBlock(list.ids, block.map((it) => it.id), dragged.id, row.id);
+    const before = Object.fromEntries(
+      ids.filter((id) => snapshot.items[id]).map((id) => [id, snapshot.items[id].day_order]),
+    );
+    const after = Object.fromEntries(ids.map((id, index) => [id, index + 1]));
+
+    const changes = block.map((it) => ({
+      it,
+      mutation: list.target ? dropMutation(it, list.target) : null,
+      was: { due: it.due, labels: it.labels, project_id: it.project_id, section_id: it.section_id },
+    }));
+    const fieldsOf = (mutation: ReturnType<typeof dropMutation>) =>
+      mutation?.update ?? (mutation?.move ? { ...mutation.move, parent_id: null } : {});
+    const place = (orders: Record<string, number>, fields: Map<string, Record<string, unknown>>) =>
+      (snap: typeof snapshot) => {
+        const items = { ...snap.items };
+        for (const [id, day_order] of Object.entries(orders)) {
+          if (items[id]) items[id] = { ...items[id], day_order };
+        }
+        for (const [id, patch] of fields) if (items[id]) items[id] = { ...items[id], ...patch } as Item;
+        return { ...snap, items };
+      };
+
+    await apply(
+      [
+        ...changes.flatMap(({ it, mutation }) => [
+          ...(mutation?.update ? [updateItem(it.id, mutation.update)] : []),
+          ...(mutation?.move ? [moveItem(it.id, moveArgs(mutation.move))] : []),
+        ]),
+        updateDayOrders(after),
+      ],
+      place(after, new Map(changes.map(({ it, mutation }) => [it.id, fieldsOf(mutation)]))),
+    );
+
+    const moved = changes.filter(({ mutation }) => mutation);
+    if (moved.length === 0) return;
+    const what = list.target ? whatHappened(list.target) : null;
+    toast(
+      what ? t('drop.blockMoved', { count: block.length, what }) : t('drop.blockReordered', { count: block.length }),
+      () => {
+        void apply(
+          [
+            ...moved.map(({ it, mutation, was }) => (mutation?.move
+              ? moveItem(it.id, moveArgs({ project_id: was.project_id, section_id: was.section_id }))
+              : updateItem(it.id, { due: was.due, labels: was.labels }))),
+            updateDayOrders(before),
+          ],
+          place(before, new Map(moved.map(({ it, was }) => [it.id, was]))),
+        );
+      },
+    );
+  }
+
+  /** A block dropped between rows of a project, a section or a parent's subtasks. */
+  async function reorderMany(block: Item[], dragged: Item, row: Item, list: RowList) {
+    const container = { project_id: row.project_id, section_id: row.section_id, parent_id: row.parent_id };
+    const joins = (it: Item) => it.project_id !== container.project_id
+      || (it.section_id ?? null) !== (container.section_id ?? null)
+      || (it.parent_id ?? null) !== (container.parent_id ?? null);
+    const joining = block.filter(joins);
+
+    // The row's own siblings, laid out as the screen shows them (see reorderTask).
+    const siblings = siblingTasks(snapshot.items, row);
+    const shown = list.ids.filter((id) => siblings.includes(id));
+    const arranged = [...siblings];
+    siblings
+      .map((id, at) => (shown.includes(id) ? at : -1))
+      .filter((at) => at >= 0)
+      .forEach((at, index) => { arranged[at] = shown[index]; });
+    if (!arranged.includes(row.id)) return;
+    const next = spliceBlock(arranged, block.map((it) => it.id), dragged.id, row.id);
+
+    const moveTo = (it: Item) => (container.parent_id
+      ? moveItem(it.id, { parent_id: container.parent_id })
+      : moveItem(it.id, moveArgs({ project_id: container.project_id, section_id: container.section_id })));
+    const moveBack = (it: Item) => (it.parent_id
+      ? moveItem(it.id, { parent_id: it.parent_id })
+      : moveItem(it.id, moveArgs({ project_id: it.project_id, section_id: it.section_id })));
+
+    // Every task whose number this changes, where the block left and where it lands.
+    const touched = new Set([...next, ...block.flatMap((it) => siblingTasks(snapshot.items, it))]);
+    const before = [...touched]
+      .filter((id) => snapshot.items[id])
+      .map((id) => ({
+        id, child_order: snapshot.items[id].child_order, order_key: snapshot.items[id].order_key ?? null,
+      }));
+    const keys = keysInOrder(next.length);
+    const after = next.map((id, index) => ({ id, child_order: index + 1, order_key: keys[index] }));
+    const numbers = (orders: Array<{ id: string; child_order: number }>) =>
+      reorderItems(orders.map(({ id, child_order }) => ({ id, child_order })));
+    const place = (
+      homes: Map<string, Partial<Item>>,
+      orders: Array<{ id: string; child_order: number; order_key: string | null }>,
+    ) => (snap: typeof snapshot) => {
+      const items = { ...snap.items };
+      for (const [id, fields] of homes) if (items[id]) items[id] = { ...items[id], ...fields };
+      for (const { id, child_order, order_key } of orders) {
+        if (items[id]) items[id] = { ...items[id], child_order, order_key };
+      }
+      return { ...snap, items };
+    };
+
+    await apply(
+      [...joining.map(moveTo), numbers(after)],
+      place(new Map(joining.map((it) => [it.id, container])), after),
+    );
+
+    const label = joining.length > 0
+      ? t('drop.blockMoved', { count: block.length, what: whereItLanded(container) })
+      : t('drop.blockReordered', { count: block.length });
+    toast(label, () => {
+      void apply(
+        [...joining.map(moveBack), numbers(before)],
+        place(
+          new Map(joining.map((it) => [it.id, {
+            project_id: it.project_id, section_id: it.section_id, parent_id: it.parent_id,
+          }])),
+          before,
+        ),
+      );
+    });
+  }
+
   async function orderInList(item: Item, row: Item, list: RowList, landAfter = false) {
     const ids = [...list.ids];
     const onto = ids.indexOf(row.id);
@@ -979,16 +1182,25 @@ export function DragProvider({ children }: { children: ReactNode }) {
     <DndContext
       sensors={sensors}
       collisionDetection={collisionsForKind}
+      autoScroll={AUTO_SCROLL}
       onDragStart={onDragStart}
       onDragMove={onDragMove}
       onDragEnd={onDragEnd}
+      onDragCancel={onDragCancel}
     >
       {children}
       {/* Without a modifier the preview stays at the row's original position
           instead of following the pointer. */}
       <DragOverlay dropAnimation={null} modifiers={[anchorLeftOfCursor]}>
         {dragging && (
-          <div className={`dragoverlay${outdenting ? ' outdent' : ''}`}>{dragging.content}</div>
+          <div
+            className={`dragoverlay${outdenting ? ' outdent' : ''}${carrying.length > 1 ? ' stacked' : ''}`}
+          >
+            <span className="dragtitle">{dragging.content}</span>
+            {/* A selection is carried as a stack with its count, as Todoist
+                draws it (#105). */}
+            {carrying.length > 1 && <span className="dragcount">{carrying.length}</span>}
+          </div>
         )}
         {draggingSection && (
           <div className="dragoverlay section">{draggingSection.name || '—'}</div>

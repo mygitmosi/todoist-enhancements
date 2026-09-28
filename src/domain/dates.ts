@@ -111,6 +111,11 @@ const TEMPLATES: Record<DateFormat, (p: Record<string, string>) => string> = {
   numeric: (p) => `${p.day}/${p.month}/${p.year}`,
 };
 
+/** "Tuesday", for a date whose number is already written beside it. */
+export const weekdayName = (date: Date, locale: 'en' | 'fr'): string =>
+  new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { weekday: 'long' })
+    .format(date);
+
 export function formatDay(
   date: Date,
   locale: 'en' | 'fr',

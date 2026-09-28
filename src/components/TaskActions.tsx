@@ -16,7 +16,7 @@ import { useConfirm } from './overlays/Confirm';
 import { withEstimate, effectiveEstimate, formatDuration } from '@/domain/estimates';
 import { EstimateField } from './EstimateField';
 import { DateField } from './DateField';
-import { formatDay, formatDayOrName, toApiDate } from '@/domain/dates';
+import { formatDay, formatDayOrName, toApiDate, weekdayName } from '@/domain/dates';
 import { readNaturalDate } from '@/domain/nlp';
 import { dueForDate, readRecurrence } from '@/domain/recurrence';
 import { dateSuggestions, type DateSuggestion } from '@/domain/dateWords';
@@ -27,10 +27,6 @@ import { updateItem, moveItem } from '@/api/commands';
 import type { Item, Snapshot } from '@/domain/types';
 import { byChildOrder, bySectionOrder } from '@/domain/orderKey';
 
-/** "Tuesday", for a date whose number is already on the line beside it. */
-const weekdayName = (date: Date, locale: 'en' | 'fr'): string =>
-  new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { weekday: 'long' })
-    .format(date);
 
 /** A word with its case and accents set aside, so "Été" is found by "ete". */
 const fold = (value: string): string =>
@@ -91,13 +87,15 @@ function useMenuPlacement(menu: string) {
     const anchor = node?.parentElement;
     if (!node || !anchor) return;
     const menuBox: HTMLDivElement = node;
-    const clip = clippingAncestor(anchor);
+    const clipY = clippingAncestor(anchor, 'y');
+    const clipX = clippingAncestor(anchor, 'x');
 
     const place = () => {
       const margin = 8;
-      const area = clip?.getBoundingClientRect();
-      const limitTop = Math.max(margin, area ? area.top : 0);
-      const limitBottom = Math.min(window.innerHeight - margin, area ? area.bottom : Infinity);
+      const areaY = clipY?.getBoundingClientRect();
+      const areaX = clipX?.getBoundingClientRect();
+      const limitTop = Math.max(margin, areaY ? areaY.top : 0);
+      const limitBottom = Math.min(window.innerHeight - margin, areaY ? areaY.bottom : Infinity);
       const box = anchor.getBoundingClientRect();
       menuBox.style.maxHeight = '';
       menuBox.style.right = '';
@@ -106,8 +104,8 @@ function useMenuPlacement(menu: string) {
       /* Sideways too: a menu hangs leftwards from the buttons at the right of
          the row, and in a board's first column that is past the board's left
          edge. Slid back inside, never further than the box that clips it. */
-      const limitLeft = Math.max(margin, area ? area.left : 0);
-      const limitRight = Math.min(window.innerWidth - margin, area ? area.right : Infinity);
+      const limitLeft = Math.max(margin, areaX ? areaX.left : 0);
+      const limitRight = Math.min(window.innerWidth - margin, areaX ? areaX.right : Infinity);
       const across = menuBox.getBoundingClientRect();
       const shift = across.left < limitLeft
         ? Math.min(limitLeft - across.left, Math.max(0, limitRight - across.right))
@@ -137,12 +135,14 @@ function useMenuPlacement(menu: string) {
     const changed = new MutationObserver(place);
     changed.observe(menuBox, { childList: true, subtree: true });
     window.addEventListener('resize', place);
-    clip?.addEventListener('scroll', place, { passive: true });
+    clipY?.addEventListener('scroll', place, { passive: true });
+    clipX?.addEventListener('scroll', place, { passive: true });
     return () => {
       observer.disconnect();
       changed.disconnect();
       window.removeEventListener('resize', place);
-      clip?.removeEventListener('scroll', place);
+      clipY?.removeEventListener('scroll', place);
+      clipX?.removeEventListener('scroll', place);
     };
   }, [menu]);
 
@@ -150,10 +150,26 @@ function useMenuPlacement(menu: string) {
 }
 
 /** The nearest box above `node` that cuts off what overflows it, if any. */
-function clippingAncestor(node: HTMLElement): HTMLElement | null {
+/**
+ * The nearest ancestor that actually clips this axis.
+ *
+ * `overflow-x: auto` alone makes a browser resolve `overflow-y` to `auto`
+ * too — a spec rule meant for `overflow: auto` shorthand, paid for by every
+ * element that only meant to scroll sideways. The board is exactly that: it
+ * scrolls right, never down, but `getComputedStyle` reports its `overflow-y`
+ * as `auto` regardless, and a menu placed near a short column read that as a
+ * real ceiling and folded itself into a sliver at the column's own height
+ * instead of using the page below the board. Read from the box instead of
+ * the declaration: an ancestor only clips an axis when it is actually
+ * carrying more than it can show on it.
+ */
+function clippingAncestor(node: HTMLElement, axis: 'x' | 'y'): HTMLElement | null {
   for (let at = node.parentElement; at && at !== document.body; at = at.parentElement) {
     const style = getComputedStyle(at);
-    if (style.overflowX !== 'visible' || style.overflowY !== 'visible') return at;
+    const clips = axis === 'x'
+      ? style.overflowX !== 'visible' && at.scrollWidth > at.clientWidth + 1
+      : style.overflowY !== 'visible' && at.scrollHeight > at.clientHeight + 1;
+    if (clips) return at;
   }
   return null;
 }

@@ -91,17 +91,22 @@ test('after a priority change, T and V still reach the selection, and the panels
   const picked = (await titles(page)).slice(0, 3);
   for (const title of picked) await row(page, title).click({ modifiers: ['ControlOrMeta'] });
 
-  // A priority that re-sorts the list, then T: the Date panel, not the search.
+  // A priority that re-sorts the list, then T: the Date panel, its typed
+  // field already open and ready (#97 follow-up — it used to take a second
+  // click before there was anywhere to type).
   await page.keyboard.press('4');
   await page.keyboard.press('1');
   await page.keyboard.press('t');
   const date = page.getByRole('menu', { name: 'Date' });
   await expect(date).toBeVisible();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('dialog').getByRole('textbox')).toBeFocused();
   await page.keyboard.press('ArrowDown');
-  await expect(date.locator(':focus')).toHaveCount(1);
+  await expect(page.locator('.dateday:focus')).toBeVisible();
+  // One Escape closes the whole panel, field and all, not just the field.
   await page.keyboard.press('Escape');
   await expect(date).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('toolbar')).toContainText('3 selected');
 
   // V: the Move panel; Escape closes it even from its search field.

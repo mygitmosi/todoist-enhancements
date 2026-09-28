@@ -342,6 +342,7 @@ export interface ViewPrefs {
 const defaultGroup = (viewKey?: string): GroupKey => {
   if (!viewKey) return 'none';
   if (viewKey === 'someday' || viewKey.startsWith('label:')) return 'project';
+  if (viewKey === 'upcoming') return 'day';
   return 'none';
 };
 
@@ -359,6 +360,8 @@ const defaultGroup = (viewKey?: string): GroupKey => {
 export const defaultViewPrefs = (viewKey?: string): ViewPrefs => ({
   mode: 'list',
   group: defaultGroup(viewKey),
-  sort: 'priority',
+  /* Upcoming is read in time order: by date (then Todoist's own order within
+     a day) inside each day, week or month (#98). */
+  sort: viewKey === 'upcoming' ? 'due' : 'priority',
   filters: defaultFilters(),
 });

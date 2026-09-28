@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDndMonitor } from '@dnd-kit/core';
 import { TaskGroup } from './TaskGroup';
 import { Icon } from './Icon';
 import { DraggableTask } from './dnd/DraggableTask';
@@ -7,6 +8,7 @@ import { useStore } from '@/store/store';
 import type { DisplayMode, GroupKey, Item, SortKey } from '@/domain/types';
 import { groupItems, sortItems } from '@/store/selectors';
 import { formatRelativeDay } from '@/domain/dates';
+import { differenceInCalendarWeeks } from 'date-fns';
 import { formatDuration } from '@/domain/estimates';
 import { summariseLoad } from '@/domain/load';
 import { Droppable } from './dnd/Droppable';
@@ -71,6 +73,18 @@ function useGrouped(props: ModeSurfaceProps) {
       noLabel: t('common.none'),
       priority: (p) => t(`common.p${p}` as TranslationKey),
       day: (d) => (d ? formatRelativeDay(d, locale) : t('common.none')),
+      week: (monday) => {
+        const weeks = differenceInCalendarWeeks(monday, new Date(), { weekStartsOn: 1 });
+        if (weeks === 0) return t('group.thisWeek');
+        if (weeks === 1) return t('date.nextWeek');
+        return t('group.weekOf', {
+          date: new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(monday),
+        });
+      },
+      month: (first) => {
+        const name = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(first);
+        return name.charAt(0).toUpperCase() + name.slice(1);
+      },
       scheduled: t('section.scheduled'),
       available: t('section.available'),
     });
@@ -102,6 +116,19 @@ function ListSurface(props: ModeSurfaceProps) {
   );
 }
 
+/** A column is never narrower than this: below it a title stops being readable. */
+const COLUMN_MIN = 272;
+/** Nor wider than this, past which a column stops reading as a column. */
+const COLUMN_MAX = 420;
+/** How close to the board's edge a held card has to be to turn the page. */
+const EDGE_ZONE = 48;
+/** How long it is held there before the first turn, and between the next ones. */
+const EDGE_DWELL_MS = 450;
+const EDGE_REPEAT_MS = 900;
+
+const columnGap = (board: HTMLElement): number =>
+  parseFloat(getComputedStyle(board).columnGap || '16') || 16;
+
 function BoardSurface(props: ModeSurfaceProps) {
   const { t, locale } = useT();
   const groups = useGrouped(props);
@@ -113,6 +140,9 @@ function BoardSurface(props: ModeSurfaceProps) {
 
   const boardRef = useRef<HTMLDivElement>(null);
   const [reach, setReach] = useState({ left: false, right: false });
+  /* How many columns make a page, and how wide each one is so that exactly
+     that many fill the board: no column is ever half on screen (#99). */
+  const [page, setPage] = useState<{ count: number; width: number } | null>(null);
 
   /* The arrows are shown only when the board actually overflows, and each
      one goes dark at its end. Measured from the scroll position rather than
@@ -121,6 +151,12 @@ function BoardSurface(props: ModeSurfaceProps) {
     const board = boardRef.current;
     if (!board) return;
     const measure = () => {
+      const gap = columnGap(board);
+      const available = board.clientWidth;
+      const fit = Math.max(1, Math.floor((available + gap) / (COLUMN_MIN + gap)));
+      const count = Math.min(fit, columns.length);
+      const width = Math.min(COLUMN_MAX, (available - (count - 1) * gap) / count);
+      setPage((was) => (was?.count === count && Math.abs(was.width - width) < 0.5 ? was : { count, width }));
       const max = board.scrollWidth - board.clientWidth;
       setReach({ left: board.scrollLeft > 1, right: board.scrollLeft < max - 1 });
     };
@@ -134,13 +170,54 @@ function BoardSurface(props: ModeSurfaceProps) {
     };
   }, [columns.length]);
 
+  /** Turns a whole page: the next columns take exactly the place of these. */
   const step = (direction: -1 | 1) => {
     const board = boardRef.current;
-    const first = board?.querySelector<HTMLElement>('.col');
-    if (!board || !first) return;
-    const gap = parseFloat(getComputedStyle(board).columnGap || '16') || 16;
-    board.scrollBy({ left: direction * (first.offsetWidth + gap), behavior: 'smooth' });
+    if (!board || !page) return;
+    const stride = page.width + columnGap(board);
+    const at = Math.round(board.scrollLeft / stride);
+    board.scrollTo({ left: (at + direction * page.count) * stride, behavior: 'smooth' });
   };
+
+  /* A card held at the board's edge turns the page, once, then again every
+     so often while it stays there — the drag's own way to reach a column
+     that is not on screen, at a pace a drop can still be aimed at. */
+  const edgeTimer = useRef<number | null>(null);
+  const edgeSide = useRef<-1 | 0 | 1>(0);
+  const stopTurning = () => {
+    if (edgeTimer.current !== null) window.clearTimeout(edgeTimer.current);
+    edgeTimer.current = null;
+    edgeSide.current = 0;
+  };
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  useDndMonitor({
+    onDragMove(event) {
+      const board = boardRef.current;
+      const start = event.activatorEvent as PointerEvent | null;
+      if (!board || !start || typeof start.clientX !== 'number') return;
+      const x = start.clientX + event.delta.x;
+      const y = start.clientY + event.delta.y;
+      const rect = board.getBoundingClientRect();
+      const inside = y >= rect.top && y <= rect.bottom;
+      const side: -1 | 0 | 1 = !inside ? 0
+        : x <= rect.left + EDGE_ZONE && board.scrollLeft > 1 ? -1
+        : x >= rect.right - EDGE_ZONE && board.scrollLeft < board.scrollWidth - board.clientWidth - 1 ? 1
+        : 0;
+      if (side === edgeSide.current) return;
+      stopTurning();
+      edgeSide.current = side;
+      if (side === 0) return;
+      const turn = () => {
+        stepRef.current(side);
+        edgeTimer.current = window.setTimeout(turn, EDGE_REPEAT_MS);
+      };
+      edgeTimer.current = window.setTimeout(turn, EDGE_DWELL_MS);
+    },
+    onDragEnd: stopTurning,
+    onDragCancel: stopTurning,
+  });
+  useEffect(() => stopTurning, []);
 
   if (columns.length === 0) return <p className="empty">{t('task.noTasks')}</p>;
 
@@ -172,7 +249,11 @@ function BoardSurface(props: ModeSurfaceProps) {
           </span>
         </div>
       )}
-      <div className={`board${props.group === 'day' ? ' days' : ''}`} ref={boardRef}>
+      <div
+        className={`board${props.group === 'day' ? ' days' : ''}`}
+        ref={boardRef}
+        style={page ? ({ '--colw': `${page.width}px` } as React.CSSProperties) : undefined}
+      >
         {columns.map((column) => {
           /* The column's own header line: time, what is still unestimated and,
              where the column is a day, how full it is. */

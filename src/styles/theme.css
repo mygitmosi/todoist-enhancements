@@ -121,11 +121,39 @@
 /* One statement, one colour. */
 .task{--row-marked:color-mix(in srgb, var(--accent) 13%, var(--surface));}
 
+/*
+ * The cursor is a border, picked is a fill.
+ *
+ * They used to share one look — a filled background, both — on the idea
+ * that one clear way of saying "this row" beat two competing marks. In
+ * practice that made deselecting a row from the keyboard (⌘-click to drop
+ * it out of a selection) look like it had not worked: the row kept the
+ * cursor from the click, and the cursor wore picked's own fill, so a picked
+ * row that stopped being picked could still look exactly as it had. A
+ * border reads as "the keyboard is here" without borrowing picked's colour
+ * for it, so the two states can no longer be mistaken for each other.
+ */
+/*
+ * A plain `outline` was tried first: `outline-offset` pushes a ring out on
+ * all four sides alike, and there is no gutter above or below a row the way
+ * there is one on each side of it — rows sit flush against their neighbours,
+ * so the same offset that reaches picked's own width on the sides also spilt
+ * into the row above and below, reading as a border taller than the row it
+ * was meant to mark. A pseudo-element sized by hand keeps the two axes
+ * apart: flush top and bottom, out to picked's own edge on the sides.
+ */
 .task:focus-visible{
   outline:none;
+  position:relative;
   border-radius:var(--r-md);
-  background:var(--row-marked);
-  box-shadow:-10px 0 0 0 var(--row-marked), 10px 0 0 0 var(--row-marked);
+}
+.task:focus-visible::after{
+  content:'';
+  position:absolute;
+  inset:0 -10px;
+  border-radius:inherit;
+  box-shadow:inset 0 0 0 2px var(--accent);
+  pointer-events:none;
 }
 /* A row reached by Tab rather than by the arrows is the same place; the mouse
    clicking one is not, and `:focus-visible` is exactly that distinction. */
@@ -138,6 +166,15 @@
   background:var(--row-marked);
   box-shadow:-10px 0 0 0 var(--row-marked), 10px 0 0 0 var(--row-marked);
 }
+/* Picked and the cursor at once: the fill stays, the border joins it rather
+   than replacing it. */
+.task.picked:focus-visible{
+  box-shadow:-10px 0 0 0 var(--row-marked), 10px 0 0 0 var(--row-marked);
+}
+/* Picked rows that touch are one block: the ends they share are square, so
+   the tint runs through the seam (#106, marked by useSelectionBlocks). */
+.task.picked.join-down{border-bottom-left-radius:0;border-bottom-right-radius:0}
+.task.picked.join-up{border-top-left-radius:0;border-top-right-radius:0}
 
 .task:last-child{border-bottom:0}
 .ttitle{font-size:var(--fs-14);font-weight:400;color:var(--text)}
@@ -227,7 +264,27 @@
   text-align:left;font:inherit;font-size:var(--fs-14);line-height:1.6;color:var(--text);
 }
 .descview:hover{border-color:var(--border-strong)}
+.descview{cursor:text}
+.descview:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
+.descview a{cursor:pointer}
 .descview.placeholder{color:var(--faint)}
+
+/* A title's links, under it: the field shows the Markdown as written, and
+   these are the same links ready to follow (#101). */
+.titlelinks{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 0}
+.titlelinks a{
+  display:inline-flex;align-items:center;gap:5px;max-width:100%;
+  padding:2px 8px;border-radius:999px;background:var(--hover);
+  color:var(--info);font-size:var(--fs-12);text-decoration:none;
+}
+.titlelinks a span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.titlelinks a:hover{text-decoration:underline}
+/* A link in a row's title reads as one, and is still part of the title:
+   the same colour as the rest of it, underlined, as Todoist draws it — not
+   the blue of an ordinary hyperlink, which read as a different task
+   altogether sitting inside this one's title. */
+.ttitle a{color:inherit;text-decoration:underline;text-underline-offset:2px}
+.ttitle code{font-size:.92em;padding:0 3px;border-radius:3px;background:var(--hover)}
 .descfield{
   width:calc(100% + 12px);margin:var(--s2) 0 0 -6px;padding:6px;
   /* The height is set from the text as it is typed, so the field and the
@@ -489,7 +546,7 @@
   display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
   gap:var(--s3);padding-top:var(--s2);border-top:1px solid var(--border);
 }
-.cfield{display:grid;gap:4px;min-width:0}
+.cfield{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;min-width:0}
 .cfield > span:first-child{font-size:var(--fs-11);font-weight:600;color:var(--faint)}
 .cfield input,.cfield select{
   height:32px;box-sizing:border-box;padding:0 8px;width:100%;
@@ -663,6 +720,10 @@
   border-bottom:1px solid var(--border);font-size:var(--fs-13);
 }
 .logrow .ic{color:var(--ok)}
+/* A row that opens its task says so the way a task row does. */
+.logrow.opens{cursor:pointer;border-radius:var(--r-sm)}
+.logrow.opens:hover{background:var(--hover)}
+.logrow.opens:focus-visible{outline:none;background:var(--hover);box-shadow:inset 0 0 0 2px var(--accent)}
 /* Inside a filled tick the glyph is white, whatever the row's default is. */
 .logrow .logtick .ic{color:#fff}
 /* A project keeps its own colour here as it does everywhere else; this rule
@@ -827,26 +888,24 @@
 .crepeat:hover{border-color:var(--accent)}
 
 /* ---------- Kanban ---------- */
-/* Columns keep one width and the board scrolls sideways when there are more
-   than fit, the way a board is expected to behave. Wrapping them onto a
-   second row kept the page's width but turned a board into a grid, and a
-   column squeezed to fit four across left its titles unreadable. */
+/* The board turns in pages: its width is shared out so that a whole number
+   of columns fills it exactly (--colw, measured in ModeSurface), and a scroll
+   always comes to rest on a column's edge. A column cut in half at the right
+   read as a layout fault and was a trap for a drop (#99, #100). Wrapping the
+   columns onto a second row was tried first and turned a board into a grid. */
 .board{
   display:flex;
   gap:var(--s4);
   overflow-x:auto;
   overscroll-behavior-x:contain;
-  scroll-snap-type:x proximity;
+  scroll-snap-type:x mandatory;
   padding-bottom:var(--s3);
   align-items:flex-start;
   scrollbar-width:thin;
 }
 /* Each column is wrapped by its drop zone, so the wrapper is the flex item.
-   A column takes its share of whatever width the board has, down to 272px and
-   no further — below that a title stops being readable, and past 420px a
-   column stops reading as a column. Grow, never shrink: seven days across a
-   laptop still scroll rather than being squeezed into slivers. */
-.board > *{flex:1 0 min(272px,80vw);max-width:420px;min-width:0;scroll-snap-align:start}
+   Before the first measure it falls back to the old share: 272px at least. */
+.board > *{flex:0 0 var(--colw,min(272px,80vw));min-width:0;scroll-snap-align:start}
 .col{max-width:none;max-height:none}
 /* The arrows sit above the board on the right, and only when there is
    somewhere to go. */
@@ -1131,10 +1190,12 @@
 /* ==========================================================================
    Select — one control, drawn by us rather than by the operating system
    ========================================================================== */
-.fselect{position:relative;display:grid;gap:4px;min-width:0}
+/* One column that can shrink below its content: a long "project / section"
+   is cut with an ellipsis rather than widening the form around it (#102). */
+.fselect{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:4px;min-width:0}
 .fselect-label{font-size:var(--fs-11);font-weight:600;color:var(--faint)}
 .fselect-face{
-  width:100%;min-height:34px;padding:0 10px;display:flex;align-items:center;gap:8px;
+  width:100%;min-width:0;min-height:34px;padding:0 10px;display:flex;align-items:center;gap:8px;
   border:1px solid var(--border);border-radius:var(--r-sm);
   background:var(--surface);color:var(--text);font-size:var(--fs-13);font-weight:600;
   text-align:left;cursor:pointer;
@@ -1463,6 +1524,10 @@
 /* A guess has no colour of its own. A duration has none either: an estimate is
    a number, not a thing with a colour in Todoist. */
 .nmark.duration{--mark:var(--faint)}
+/* A link is not a chip: nothing here is being taken out of the name and
+   handed to a field, it stays exactly as typed. An underline is all Todoist
+   draws for one while it is being written, so that is all this draws too. */
+.nmark.link{background:transparent;box-shadow:none;text-decoration:underline;text-decoration-color:var(--text);text-underline-offset:3px}
 
 /* The list that opens on @ or #. */
 .namepicker{
@@ -2146,7 +2211,7 @@
 .listbox .opt.sectionopt .ic{color:var(--faint)}
 
 /* ---------- The calendar ---------- */
-.datefield{display:grid;gap:4px;min-width:0}
+.datefield{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;min-width:0}
 .datepanel{position:fixed;z-index:95;width:278px;padding:var(--s3)}
 .datepanel .pickersearch{position:static;margin:calc(var(--s3) * -1) calc(var(--s3) * -1) var(--s3);padding:var(--s2) var(--s3)}
 .pickersuggestions{display:grid;margin:-4px 0 var(--s3);border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden}
@@ -2155,6 +2220,24 @@
 .pickersuggestions small{color:var(--faint)}
 .pickerreading{margin:-4px 0 var(--s3);padding:7px 8px;border-radius:var(--r-sm);background:var(--hover);font-size:var(--fs-12)}
 .pickerreading.none{color:var(--faint)}
+
+/* The row's own typed date field (⌘S / the schedule icon): the same look as
+   the calendar's own search, so the highlighted candidate is actually
+   visible while walking the list with the arrow keys (#97 follow-up — this
+   had no styling at all, so the highlight moved with nothing to show it). */
+.schedulefield{
+  width:100%;padding:8px 10px;margin-bottom:var(--s2);
+  border:1px solid var(--border);border-radius:var(--r-sm);
+  background:var(--surface);color:var(--text);font-size:var(--fs-13);
+}
+.schedulefield:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.schedulesuggest{display:grid;margin:-4px 0 var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden}
+.scheduleoption{display:flex;justify-content:space-between;gap:10px;padding:7px 8px;text-align:left;font-size:var(--fs-12)}
+.scheduleoption:hover,.scheduleoption.on{background:var(--hover)}
+.scheduleoption small{color:var(--faint)}
+.schedulepreview{margin:-4px 0 var(--s2);padding:7px 8px;border-radius:var(--r-sm);background:var(--hover);font-size:var(--fs-12)}
+.schedulepreview.none{color:var(--faint)}
+
 .datepanel-quick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--s3)}
 .datepanel-quick button{
   min-height:28px;padding:0 10px;border-radius:var(--r-full);
@@ -2185,6 +2268,9 @@
 .dateday.today{box-shadow:inset 0 0 0 1px var(--border-strong);font-weight:700}
 .dateday.chosen{background:var(--accent);color:#fff;font-weight:700;box-shadow:none}
 .dateday.chosen:hover{background:var(--accent-dark)}
+/* The day the keyboard is on. Outside the cell, so it still reads on the
+   filled chosen day and beside today's ring. */
+.dateday:focus-visible{outline:2px solid var(--accent);outline-offset:1px;position:relative;z-index:1}
 /* A day outside the field's bounds: still drawn, so the edge of what can
    be picked is visible, but plainly not a choice. */
 .dateday:disabled{color:var(--faint);opacity:.4;cursor:default}
@@ -2555,3 +2641,36 @@
 @media (min-width:721px) and (max-width:1080px){
   .dashboard-bento > .card.w6:has(.chart-plot.compare){grid-column:1 / -1}
 }
+
+/* A task opened from the Logbook (#103): when it was completed, above its
+   title, and what the panel says while it is fetched or when it is gone. */
+.detail-done{
+  display:flex;align-items:center;gap:6px;margin:0 0 var(--s2);
+  color:var(--muted);font-size:var(--fs-12);
+}
+.detail-done .ic{color:var(--accent)}
+.detail-missing{margin:0;padding:var(--s5) var(--s4);color:var(--muted);text-align:center}
+.detail-missing.loading{color:var(--faint)}
+/* ▲ ▼ in the task panel's header, beside its menu (#104). */
+.detail-walk{display:inline-flex;gap:2px;margin-right:4px}
+.detail-walk .iconbtn:disabled{opacity:.35;cursor:default}
+/* A selection carried by a drag (#105): the dragged card on a stack of two
+   more, with the count in a badge, and the picked rows left behind faded. */
+.dragoverlay.stacked{position:relative;overflow:visible}
+.dragtitle{display:block;overflow:hidden;text-overflow:ellipsis}
+.dragoverlay.stacked::before,
+.dragoverlay.stacked::after{
+  content:"";position:absolute;inset:0;z-index:-1;
+  border-radius:inherit;background:var(--surface);
+  border:1px solid var(--border);box-shadow:var(--shadow-sm, 0 1px 2px rgba(0,0,0,.08));
+}
+.dragoverlay.stacked::before{transform:translate(5px,5px)}
+.dragoverlay.stacked::after{transform:translate(10px,10px);z-index:-2}
+.dragcount{
+  position:absolute;top:-9px;right:-9px;z-index:1;
+  min-width:22px;height:22px;padding:0 6px;border-radius:999px;
+  display:grid;place-items:center;
+  background:var(--accent);color:#fff;font-size:var(--fs-12);font-weight:700;
+  font-variant-numeric:tabular-nums;box-shadow:0 0 0 2px var(--surface);
+}
+.carrying-selection .task.picked{opacity:.45}

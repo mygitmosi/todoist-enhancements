@@ -4,6 +4,62 @@ The changelog marks every line with :
 - 🎨 something existing that has been redesigned or reworded
 - 🐛 a bug or regression that was fixed
 
+## 1.15.0
+
+The calendar and boards work from the keyboard, links in titles and
+descriptions open, a completed task opens from the Logbook, a selection
+drags as one, and the task panel walks the list it was opened from.
+
+🆕 **The calendar grid works from the keyboard.** Arrow keys move the
+focused day, Home/End jump to the ends of its week, Page Up/Down turn a
+month (⇧: a year), and Enter or Space picks it — everywhere a date is
+picked: a task row, the bulk bar, the composer, the task panel. The typed
+field's own suggestions are now visible while walking them with the arrow
+keys, and the bulk bar's date field opens with its typed field already
+there instead of a closed button needing a second click.
+
+🆕 **Boards turn in pages.** A board's width is shared out so a whole
+number of columns always fills it — no column is ever left half on screen —
+and the arrows turn a full page at a time. A card held at the board's edge
+during a drag turns the page itself, instead of racing to the last column.
+
+🆕 **Upcoming groups by day, week or month**, in the list and on the board,
+sorted by date inside each group by default.
+
+🆕 **Links in task titles and descriptions open.** `[label](url)`, a bare
+`https://` address, and now a bare address with no scheme (`free.fr`) are
+all read as links, drawn as part of the title — the same colour, underlined
+— rather than in an ordinary hyperlink's blue.
+
+🆕 **A completed task opens from the Logbook.** A click or Enter opens its
+task panel, ticked and struck through; ↑ / ↓ walk the Logbook's own rows
+too. Unticking a one-off task there no longer shows a "next occurrence"
+line meant for a recurring one.
+
+🆕 **▲ ▼ walk the list from the task panel.** Two arrows in its header,
+and J / K or ↑ / ↓ from the keyboard, open the previous or next task in the
+order of the page behind it, remembering that order even once a task is
+ticked off or moved out of it.
+
+🆕 **Dragging a selection carries all of it.** The dragged card sits on a
+stack with a badge giving the count, the rest of the picked rows fade while
+it is held, and dropping between two rows lands the whole selection there
+as one block, in the order it was drawn.
+
+🎨 **A `#project` picked from the composer's list is always read**, whatever
+characters its name has (`aliasdigital.`, `R&D`, an emoji), and a long
+"project / section" value in a field is cut with an ellipsis instead of
+scrolling the composer sideways.
+
+🎨 **Selected rows next to each other read as one block**, as in Things,
+rather than a stack of separate pills with a notch at every seam.
+
+🐛 **The keyboard cursor and a picked row no longer share one look.** A
+row that had just stopped being picked used to keep the picked colour from
+the click that dropped it — the cursor is a border now, picked a fill, flush
+with the row itself top and bottom and out to picked's own edge on the
+sides.
+
 ## 1.14.0
 
 The keyboard on a selection, links and email addresses to copy, menus that

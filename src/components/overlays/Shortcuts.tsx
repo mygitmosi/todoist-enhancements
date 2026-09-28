@@ -100,6 +100,7 @@ const SECTIONS: Array<{ title: TranslationKey; join?: Join; rows: Row[] }> = [
   {
     title: 'keys.inAnOpenTask',
     rows: [
+      [[['↑', '↓'], ['K', 'J']], 'keys.walkTasks'],
       [[['P']], 'detail.project'],
       [[['T']], 'detail.startDate'],
       [[['D']], 'detail.deadline'],
