@@ -153,7 +153,8 @@ export default defineConfig({
         clientsClaim: true,
         cleanupOutdatedCaches: true,
         // The Todoist API is never cached: the app owns its own offline cache in IndexedDB.
-        navigateFallbackDenylist: [/^\/api/],
+        // corrected from: navigateFallbackDenylist: [/^\/api/],
+        navigateFallbackDenylist: [/^\/api/, /^\/oauth/],
         runtimeCaching: [],
       },
     }),
