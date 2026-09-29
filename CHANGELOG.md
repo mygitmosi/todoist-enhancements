@@ -4,61 +4,116 @@ The changelog marks every line with :
 - 🎨 something existing that has been redesigned or reworded
 - 🐛 a bug or regression that was fixed
 
+The app shows each release's lines in its "What's new" window, so they are
+written for the people using it: say where the thing is (the page, the
+button, the key), what it does for them, in plain words, and keep em dashes
+out. The window opens once after an update for every release, whatever kinds
+of lines it holds. Inside a release the app lists the lines by impact, new
+things first, then redesigns, then fixes, so write them in the order you
+want within each kind: the most visible, most frequent case first. The
+French translation lives in CHANGELOG.fr.md.
+
+## 1.17.1
+
+Insights counts the right days again, and the What's new window now opens after every update, with the most visible changes first.
+
+🎨 **What's new opens after every update.** It used to open only when a release had something new. Now every release opens it once, and its lines are listed from the most visible to the least: new things, then redesigns, then fixes.
+
+🐛 **Insights shows the right days.** The day view showed nothing, the last day of every period was left out, and a day went missing between the parts of a quarter or a year. A task completed in the first hours of a period, in France before 2 in the morning, was also missed. Every day of the period you pick is now counted.
+
+## 1.17.0
+
+A round of fixes: the time you type with a date is kept, nothing is created twice, links stay links, and the app copes better with bad connections and blocked browsers.
+
+🐛 **A time typed with a date is kept.** Typing "tomorrow at 14:30" in a task's date now saves 14:30, in the new task window, the task panel, a row's date menu and the bar for several tasks. A deadline stays a day, and says so when you type a time in it.
+
+🐛 **Adding a task twice by double-clicking.** The new task window now accepts one save at a time, from the button or from the keyboard. Two tasks with the same name typed on purpose are still two tasks.
+
+🐛 **A link no longer changes your task.** `https://example.com/p1` used to make the task P1, and a link ending in `/daily` made it repeat. Links are now read as links, and what you type beside them still works.
+
+🐛 **Months are read properly.** "14 juillet" is July (it was June), "1er juillet" and "July 1st" are understood, and words like "2 maisons" or "2 decks" are no longer taken for dates. A date such as 12/03 follows Settings, Date format.
+
+🐛 **Save and Cancel under a task's title work from the keyboard.** Enter and Space now do what a click does.
+
+🐛 **Upcoming moves on at midnight.** Left open overnight, it now gains the new last day by itself, so a task that just came into range no longer stays hidden until you leave the page.
+
+🐛 **A dialog over another dialog.** Escape now closes only the one in front, Tab goes round both buttons of a confirmation, and the task panel behind it no longer answers the keys.
+
+🐛 **Deleting a task with its subtasks.** Selecting a parent and its subtasks deletes the branch once, without a false "Todoist refused this", and a late undo brings each task back once.
+
+🐛 **A custom accent follows dark mode.** When your device switches to dark with the app open, the accent's colours follow instead of waiting for a reload.
+
+🐛 **The text "@@link0@@" is shown as written.** It no longer turns into "undefined" in a title or a description, and an @ glued to a word, like the one in an email address, is no longer taken for a tag.
+
+🐛 **The app opens even when the browser blocks site storage.** It used to stay on "Loading…". If something crashes, a short message and a Reload button replace the white page.
+
+🐛 **Offline changes go to the right account.** Changes made offline with one Todoist account are no longer sent to another account that signs in afterwards. You are told how many were left out.
+
+🐛 **A change made just before closing is kept offline.** Switching app or closing the tab right after a change no longer loses it from the copy kept on your device.
+
+🐛 **A slow or stalled connection ends cleanly.** A download that stops halfway now counts as a timeout, and a long "retry after" from Todoist no longer freezes syncing.
+
+🐛 **The demo repeats tasks correctly.** Ticking a daily task moves it one day and keeps its time, and "every Monday" moves to the next Monday. A task typed with "every day at 3pm" shows Today 15:00.
+
+🆕 **Toasts have a close button and go away sooner.** Confirmations stay 3 seconds, errors 6, and the Undo window stays 8. Closing a toast keeps its Undo available with the undo shortcut.
+
+🆕 **Screen readers announce toasts.** Confirmations are read politely, refusals from Todoist at once, and the Undo button says what it undoes.
+
+🎨 **Task lists are easier to read.** Tag chips, group counts, board column counts and the small labels in the task panel go from 11 to 12 pixels.
+
+## 1.16.0
+
+After each update a short window tells you what changed, the new task window is easier to read, and picking a date looks the same everywhere.
+
+🆕 **See what's new after an update.** When a new version brings something new, a short window lists what changed, once. You can turn it off, and read every past release, in Settings, under About.
+
+🆕 **Add a section from a board.** In a project's Board view, the dashed "Add section" column at the end creates a new section, the same one the list would.
+
+🆕 **Choose how wide a board is.** A board now stays as wide as the page header, like a list. Turn on Full width in Display to use the whole screen.
+
+🎨 **A clearer new task window.** The title comes first, with the description right under it. Then the date, deadline, project, priority, estimate and tags sit on one line of small buttons, and the empty ones show as "+ Deadline". Subtasks have their own heading with a count, and the buttons stay at the bottom.
+
+🎨 **One date picker everywhere.** A task's date menu, the bar for several selected tasks, the new task window and the task panel all show the same picker: type a date, pick Today, Tomorrow, Next week, This week or Someday, or click a day in the month.
+
+🎨 **Recognised words in a title are easier to tell apart.** The highlights behind a date, a project or a tag you type keep the normal space between words, so several in a row no longer blur together.
+
+🎨 **Board cards keep their buttons inside the card.** Hovering a card shows its buttons in its top corner, on the card itself and lined up with the title.
+
+🎨 **Every menu you can type in has the same search field.** Moving a task, picking tags, a project or a date: the field at the top looks and behaves the same.
+
+🎨 **The Display button counts only real settings.** Its number goes up when you filter, group or sort a page differently from its defaults, not when you switch between list and board (or matrix and list).
+
+🐛 **Opening a task no longer reads its title again.** A saved title like "Daily review" stays plain text. Only what you type from then on becomes a date, a tag or a priority.
+
+🐛 **Typing a tag created one tag per letter.** Typing "@week" in the new task window saved "w", "we", "wee" and "week". Now only the tag you end up with is saved.
+
+🐛 **The review keeps up with the task panel.** A task you complete or delete from the panel leaves the review step straight away. The "No estimate" step now says which tasks it lists, and picks up a task you create in the meantime.
+
+🐛 **Menus on a short board or list are no longer cut off.** A task's date, move and more menus always open in full, using the whole page.
+
 ## 1.15.0
 
-The calendar and boards work from the keyboard, links in titles and
-descriptions open, a completed task opens from the Logbook, a selection
-drags as one, and the task panel walks the list it was opened from.
+Dates and boards now work from the keyboard, links open, and you can go from one task to the next without closing it.
 
-🆕 **The calendar grid works from the keyboard.** Arrow keys move the
-focused day, Home/End jump to the ends of its week, Page Up/Down turn a
-month (⇧: a year), and Enter or Space picks it — everywhere a date is
-picked: a task row, the bulk bar, the composer, the task panel. The typed
-field's own suggestions are now visible while walking them with the arrow
-keys, and the bulk bar's date field opens with its typed field already
-there instead of a closed button needing a second click.
+🆕 **Pick a date without the mouse.** Wherever you choose a date (a task's date button, the bar that shows up when several tasks are selected, the new task window, the task panel), the arrow keys move through the days of the month. Page Up and Page Down change the month, and Enter picks the day.
 
-🆕 **Boards turn in pages.** A board's width is shared out so a whole
-number of columns always fills it — no column is ever left half on screen —
-and the arrows turn a full page at a time. A card held at the board's edge
-during a drag turns the page itself, instead of racing to the last column.
+🆕 **Boards scroll one page at a time.** In Board view, the columns always fit the screen, so you never see half a column. The arrows above the board move a whole page. Drag a card to the edge of the board and it turns the page for you.
 
-🆕 **Upcoming groups by day, week or month**, in the list and on the board,
-sorted by date inside each group by default.
+🆕 **Upcoming can be grouped by day, week or month.** Open Display on the Upcoming page and pick the grouping you want, in the list and on the board.
 
-🆕 **Links in task titles and descriptions open.** `[label](url)`, a bare
-`https://` address, and now a bare address with no scheme (`free.fr`) are
-all read as links, drawn as part of the title — the same colour, underlined
-— rather than in an ordinary hyperlink's blue.
+🆕 **Links in your tasks open.** A link in a task's title or description opens with a click, whether it's written `[label](address)`, as a full `https://` address, or just `site.fr`. It keeps the colour of the text, underlined.
 
-🆕 **A completed task opens from the Logbook.** A click or Enter opens its
-task panel, ticked and struck through; ↑ / ↓ walk the Logbook's own rows
-too. Unticking a one-off task there no longer shows a "next occurrence"
-line meant for a recurring one.
+🆕 **Open a finished task from the Logbook.** In Insights, click a finished task in the Logbook (or press Enter) to open it in the task panel. The up and down arrows move through the Logbook too.
 
-🆕 **▲ ▼ walk the list from the task panel.** Two arrows in its header,
-and J / K or ↑ / ↓ from the keyboard, open the previous or next task in the
-order of the page behind it, remembering that order even once a task is
-ticked off or moved out of it.
+🆕 **Go to the next task from the task panel.** Two small arrows at the top of the task panel (or J / K, ↑ / ↓) open the previous or next task of the list you came from, even after you've ticked off or moved some of them.
 
-🆕 **Dragging a selection carries all of it.** The dragged card sits on a
-stack with a badge giving the count, the rest of the picked rows fade while
-it is held, and dropping between two rows lands the whole selection there
-as one block, in the order it was drawn.
+🆕 **Drag several tasks at once.** Select tasks with ⌘-click, then drag one of them: they move together as a stack with a count, and land in the order you selected them.
 
-🎨 **A `#project` picked from the composer's list is always read**, whatever
-characters its name has (`aliasdigital.`, `R&D`, an emoji), and a long
-"project / section" value in a field is cut with an ellipsis instead of
-scrolling the composer sideways.
+🎨 **Projects with unusual names work in the new task window.** Picking a `#project` from the list always works, even with a dot, an ampersand or an emoji in its name. A long "project / section" is cut short instead of pushing the window sideways.
 
-🎨 **Selected rows next to each other read as one block**, as in Things,
-rather than a stack of separate pills with a notch at every seam.
+🎨 **Selected tasks next to each other look like one block**, like in Things, instead of a stack of separate pills.
 
-🐛 **The keyboard cursor and a picked row no longer share one look.** A
-row that had just stopped being picked used to keep the picked colour from
-the click that dropped it — the cursor is a border now, picked a fill, flush
-with the row itself top and bottom and out to picked's own edge on the
-sides.
+🐛 **The keyboard highlight and a selected task no longer look the same.** The task the keyboard is on now has an outline, and a selected task has a coloured background, so you can see straight away when you unselect one.
 
 ## 1.14.0
 

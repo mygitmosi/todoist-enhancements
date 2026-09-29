@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './components/Icon';
 import { Sidebar } from './components/Sidebar';
 import { BulkBar } from './components/BulkBar';
@@ -25,6 +25,9 @@ import { EisenhowerView } from './views/EisenhowerView';
 import { ConnectView } from './views/ConnectView';
 import { Walkthrough } from './components/overlays/Walkthrough';
 import { Tour } from './components/overlays/Tour';
+import { WhatsNew, type WhatsNewScope } from './components/overlays/WhatsNew';
+import { hasChanges, parseChangelog, unseenReleases } from './domain/changelog';
+import { VERSION } from './app-info';
 import { hasOnboarded } from './domain/onboarding';
 import { useStore } from './store/store';
 import type { Accent, Theme } from './store/prefs';
@@ -61,6 +64,14 @@ export function App() {
   const endTourPreview = useStore((s) => s.endTourPreview);
   const toasts = useStore((s) => s.toasts);
   const dismissToast = useStore((s) => s.dismissToast);
+  const syncState = useStore((s) => s.syncState);
+  const whatsNewOn = useStore((s) => s.prefs.whatsNew);
+  const seenVersion = useStore((s) => s.prefs.seenVersion);
+  const setPrefs = useStore((s) => s.setPrefs);
+  const [whatsNew, setWhatsNew] = useState<WhatsNewScope | null>(null);
+  /** The account's own settings have been read at least once since loading. */
+  const [settled, setSettled] = useState(false);
+  const syncing = useRef(false);
 
   const route = useRoute();
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
@@ -109,10 +120,18 @@ export function App() {
     if (ready && !window.location.hash.replace(/^#\/?/, '')) navigate(homepage);
   }, [ready, homepage]);
   useEffect(() => { document.documentElement.lang = locale; }, [locale]);
-  useEffect(() => applyTheme(theme), [theme]);
-  /* Also on `theme`: a custom accent is two families, and which one is
+  /* The scheme that ended up on the page, light or dark, kept in state. With
+     Theme on System the preference stays "system" while the device flips
+     between the two at sunset, so it cannot be what tells the accent to run
+     again: a custom accent kept the family made for light surfaces after the
+     page had gone dark (#124). */
+  const [scheme, setScheme] = useState<'light' | 'dark'>(
+    () => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
+  );
+  useEffect(() => applyTheme(theme, setScheme), [theme]);
+  /* Also on `scheme`: a custom accent is two families, and which one is
      written depends on the scheme that ended up resolved. */
-  useEffect(() => applyAccent(accent, accentCustom), [accent, accentCustom, theme]);
+  useEffect(() => applyAccent(accent, accentCustom), [accent, accentCustom, scheme]);
   useEffect(() => (connected ? startPolling() : undefined), [connected, startPolling]);
   useEffect(() => {
     const replay = () => {
@@ -133,10 +152,50 @@ export function App() {
   useEffect(() => {
     if (ready && (connected || demo) && !hasOnboarded(userId) && !onboardingStarted) {
       setOnboardingStarted(true);
+      /* Somebody meeting the app for the first time is getting the tour; a
+         list of what changed since a version they never used is not news. */
+      if (!demo) setPrefs({ seenVersion: VERSION });
       navigate('week');
       window.setTimeout(() => setTourOpen(true), 100);
     }
-  }, [ready, connected, demo, userId, onboardingStarted]);
+  }, [ready, connected, demo, userId, onboardingStarted, setPrefs]);
+
+  /* The first sync after loading is what brings the account's settings — and
+     with them the version already seen on another device. Asked before it,
+     every new browser would announce a release the account had already read
+     about elsewhere. */
+  useEffect(() => {
+    if (syncState === 'syncing') syncing.current = true;
+    else if (syncing.current && syncState === 'idle') setSettled(true);
+  }, [syncState]);
+
+  /* What's new, once per release (#115, #148). Never on
+     top of the first run, and never in the demo, which has no account to
+     remember having shown it. */
+  useEffect(() => {
+    if (!ready || !connected || demo || !settled || !hasOnboarded(userId)) return;
+    if (tourOpen || walkthroughOpen || whatsNew) return;
+    if (seenVersion === VERSION) return;
+    let cancelled = false;
+    void import('../CHANGELOG.md?raw').then(({ default: source }) => {
+      if (cancelled) return;
+      const unseen = unseenReleases(parseChangelog(source), VERSION, seenVersion);
+      if (whatsNewOn && hasChanges(unseen)) {
+        setWhatsNew({ versions: unseen.map((release) => release.version) });
+      } else {
+        // Nothing new to say, or not wanted: this release counts as read.
+        setPrefs({ seenVersion: VERSION });
+      }
+    });
+    return () => { cancelled = true; };
+  }, [ready, connected, demo, settled, userId, tourOpen, walkthroughOpen, whatsNew,
+    seenVersion, whatsNewOn, setPrefs]);
+
+  useEffect(() => {
+    const show = () => setWhatsNew('all');
+    window.addEventListener('enhanced:changelog', show);
+    return () => window.removeEventListener('enhanced:changelog', show);
+  }, []);
 
   if (!ready) {
     return <div className="connect"><p className="empty">{t('common.loading')}</p></div>;
@@ -191,21 +250,55 @@ export function App() {
           setWalkthrough(true);
         }}
       />
+      <WhatsNew
+        scope={whatsNew}
+        onClose={() => {
+          if (whatsNew !== 'all') setPrefs({ seenVersion: VERSION });
+          setWhatsNew(null);
+        }}
+      />
 
-      {toasts.length > 0 && (
-        <div className="toasts">
-          {toasts.map((toast) => (
-            <div className="toast" key={toast.id}>
-              <span>{toast.message}</span>
-              {toast.undo && (
-                <button onClick={() => { toast.undo?.(); dismissToast(toast.id); }}>
-                  {t('common.undo')}
+      {/* Both lanes are always in the page, empty when there is nothing to
+          say: a live region has to exist before its text is put in, or most
+          screen readers never read it (#136). A confirmation waits its turn
+          (`status`); a refusal from Todoist is read out at once (`alert`).
+          Only what was added is read, not the whole lane again. The stack
+          looks the same as it always did. */}
+      <div className="toasts">
+        {(['status', 'alert'] as const).map((lane) => (
+          <div
+            className="toastlane"
+            key={lane}
+            role={lane}
+            aria-live={lane === 'alert' ? 'assertive' : 'polite'}
+            aria-atomic="false"
+          >
+            {toasts.filter((toast) => (toast.tone === 'error') === (lane === 'alert')).map((toast) => (
+              <div className="toast" key={toast.id}>
+                <span>{toast.message}</span>
+                {toast.undo && (
+                  <button
+                    aria-label={`${t('common.undo')} — ${toast.message}`}
+                    onClick={() => { toast.undo?.(); dismissToast(toast.id); }}
+                  >
+                    {t('common.undo')}
+                  </button>
+                )}
+                {/* Only puts the toast away. What Undo would do stays reachable
+                    with ⌘Z, and a deletion still goes out when its own wait is
+                    over: closing it neither sends it early nor cancels it. */}
+                <button
+                  className="toastclose"
+                  aria-label={t('common.close')}
+                  onClick={() => dismissToast(toast.id)}
+                >
+                  <Icon name="close" size="sm" />
                 </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
     </>
   );
 }
@@ -253,16 +346,22 @@ export interface ComposerPlacement {
  * following the device when it changes its mind mid-session — happens here.
  * One place decides, so there is one dark palette rather than two that drift.
  *
+ * Every time the scheme is resolved it is also reported, so what is derived
+ * from it (a custom accent) is redone when the device changes its mind.
+ *
  * The resolved choice is mirrored into local storage because index.html reads
  * it before the first paint. Without that the page opens white and turns dark
  * a moment later, once preferences have loaded out of IndexedDB.
  */
-function applyTheme(theme: Theme): (() => void) | undefined {
+function applyTheme(
+  theme: Theme, onResolved: (scheme: 'light' | 'dark') => void,
+): (() => void) | undefined {
   const root = document.documentElement;
   const media = window.matchMedia('(prefers-color-scheme: dark)');
   const apply = () => {
     const resolved = theme === 'system' ? (media.matches ? 'dark' : 'light') : theme;
     root.dataset.theme = resolved;
+    onResolved(resolved);
     try { localStorage.setItem('theme', theme); } catch { /* storage may be blocked */ }
     paintBrowserChrome();
   };

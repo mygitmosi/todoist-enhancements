@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon, type IconName } from './Icon';
 import { markerStyle } from '@/domain/colors';
@@ -30,6 +30,17 @@ interface SelectProps {
   placeholder?: string;
   /** Overrides the automatic search field shown for long option lists. */
   searchable?: boolean;
+  /**
+   * How the closed control is drawn: a field (a labelled box with a caret),
+   * or a chip in a row of them, the composer's planning line (#113).
+   */
+  variant?: 'field' | 'chip';
+  /** A chip standing for nothing set yet: a dashed "+ label" rather than a value. */
+  unset?: boolean;
+  /** What an unset chip says. */
+  unsetLabel?: string;
+  /** The chip's own glyph, where the option's marker or icon is not the right one. */
+  chipIcon?: ReactNode;
 }
 
 /**
@@ -47,6 +58,7 @@ interface SelectProps {
  */
 export function Select({
   label, value, options, onChange, ariaLabel, placeholder, searchable: searchableProp,
+  variant = 'field', unset = false, unsetLabel, chipIcon,
 }: SelectProps) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
@@ -231,28 +243,34 @@ export function Select({
     </div>
   );
 
+  const chip = variant === 'chip';
+
   return (
-    <span className="fselect">
-      {label && <span className="fselect-label">{label}</span>}
+    <span className={`fselect${chip ? ' inchips' : ''}`}>
+      {label && !chip && <span className="fselect-label">{label}</span>}
       <button
         type="button"
         ref={buttonRef}
-        className={`fselect-face${open ? ' open' : ''}`}
+        className={`fselect-face${chip ? ' chipface' : ''}${chip && unset ? ' unset' : ''}${open ? ' open' : ''}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel ?? label}
         onClick={() => setOpen((v) => !v)}
         onKeyDown={onKeyDown}
       >
-        {current?.icon && <Icon name={current.icon} size="sm" />}
-        {current?.marker !== undefined && (
-          <span className="hash" style={markerStyle(current.marker)}>#</span>
+        {chip && unset ? <Icon name="plus" size="sm" /> : chip && chipIcon ? chipIcon : (
+          <>
+            {current?.icon && <Icon name={current.icon} size="sm" />}
+            {current?.marker !== undefined && (
+              <span className="hash" style={markerStyle(current.marker)}>#</span>
+            )}
+          </>
         )}
         {/* Cut with an ellipsis when it is long; the whole of it on hover. */}
         <span className="fselect-value" title={current?.face ?? current?.label}>
-          {current?.face ?? current?.label ?? placeholder ?? ''}
+          {chip && unset ? (unsetLabel ?? label) : current?.face ?? current?.label ?? placeholder ?? ''}
         </span>
-        <Icon name="caret" size="sm" />
+        {!chip && <Icon name="caret" size="sm" />}
       </button>
       {list && createPortal(list, document.body)}
     </span>

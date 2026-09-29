@@ -11,6 +11,7 @@ Every image the README uses, and the tour.
 | `composer.png` | The composer reading a date, a project, a priority and a tag |
 | `thingstosettle-noestimates.png` | Things to settle |
 | `deploying.md` | Uploading a build, and the two things to check afterwards |
+| `component-language.md` | Where each field and picker lives, its canonical component, and what is left to migrate (#114) |
 
 The screenshots are exported from `todoistenhancedvisuals` and copied here, so
 the README never points at a file outside the repository.

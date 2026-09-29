@@ -43,6 +43,14 @@ interface ModeSurfaceProps {
     /** A day column knows its capacity, and shows its load against it. */
     capacityMinutes?: number | null;
   }>;
+  /**
+   * Makes a section at the end of the board, from a column of its own after
+   * the last one (#108). Only a project's board, grouped by its sections,
+   * has sections to add to.
+   */
+  onAddSection?: (name: string) => Promise<void> | void;
+  /** A board as wide as the page rather than the header (ViewPrefs.wide). */
+  wide?: boolean;
 }
 
 /**
@@ -147,6 +155,9 @@ function BoardSurface(props: ModeSurfaceProps) {
   /* The arrows are shown only when the board actually overflows, and each
      one goes dark at its end. Measured from the scroll position rather than
      counted, because how many columns fit depends on the window. */
+  /* The column that adds a section is a column like the others as far as the
+     page is concerned: it takes a whole place, never half of one (#99). */
+  const slots = columns.length + (props.onAddSection ? 1 : 0);
   useEffect(() => {
     const board = boardRef.current;
     if (!board) return;
@@ -154,7 +165,7 @@ function BoardSurface(props: ModeSurfaceProps) {
       const gap = columnGap(board);
       const available = board.clientWidth;
       const fit = Math.max(1, Math.floor((available + gap) / (COLUMN_MIN + gap)));
-      const count = Math.min(fit, columns.length);
+      const count = Math.min(fit, slots);
       const width = Math.min(COLUMN_MAX, (available - (count - 1) * gap) / count);
       setPage((was) => (was?.count === count && Math.abs(was.width - width) < 0.5 ? was : { count, width }));
       const max = board.scrollWidth - board.clientWidth;
@@ -168,7 +179,7 @@ function BoardSurface(props: ModeSurfaceProps) {
       board.removeEventListener('scroll', measure);
       observer.disconnect();
     };
-  }, [columns.length]);
+  }, [slots]);
 
   /** Turns a whole page: the next columns take exactly the place of these. */
   const step = (direction: -1 | 1) => {
@@ -219,7 +230,7 @@ function BoardSurface(props: ModeSurfaceProps) {
   });
   useEffect(() => stopTurning, []);
 
-  if (columns.length === 0) return <p className="empty">{t('task.noTasks')}</p>;
+  if (slots === 0) return <p className="empty">{t('task.noTasks')}</p>;
 
   return (
     /* A board runs past the reading measure, to the right; what is read
@@ -250,7 +261,7 @@ function BoardSurface(props: ModeSurfaceProps) {
         </div>
       )}
       <div
-        className={`board${props.group === 'day' ? ' days' : ''}`}
+        className={`board${props.group === 'day' ? ' days' : ''}${props.wide ? ' fullwidth' : ''}`}
         ref={boardRef}
         style={page ? ({ '--colw': `${page.width}px` } as React.CSSProperties) : undefined}
       >
@@ -309,7 +320,94 @@ function BoardSurface(props: ModeSurfaceProps) {
             <div key={column.id}>{body(false)}</div>
           );
         })}
+        {props.onAddSection && (
+          <AddSectionColumn
+            onAdd={props.onAddSection}
+            onAdded={() => {
+              /* The new column lands just before this one; the page follows
+                 it, so what was made is on screen. */
+              const board = boardRef.current;
+              if (board) {
+                window.requestAnimationFrame(() => board.scrollTo({
+                  left: board.scrollWidth, behavior: 'smooth',
+                }));
+              }
+            }}
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The board's own way to make a section (#108).
+ *
+ * A column after the last one, as in Todoist's board: at rest it is a quiet
+ * dashed place saying what it does; clicked, it is a name field. Enter makes
+ * the section — the same call the list's "Add section" line makes, so the
+ * two are the same section — and Escape, or leaving the field empty, makes
+ * nothing.
+ */
+function AddSectionColumn({
+  onAdd, onAdded,
+}: { onAdd: (name: string) => Promise<void> | void; onAdded: () => void }) {
+  const { t } = useT();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState('');
+  const fieldRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { if (editing) fieldRef.current?.focus(); }, [editing]);
+
+  const cancel = () => { setEditing(false); setName(''); };
+  const submit = () => {
+    const trimmed = name.trim();
+    if (!trimmed) { cancel(); return; }
+    void onAdd(trimmed);
+    setName('');
+    setEditing(false);
+    onAdded();
+  };
+
+  return (
+    <div className="coladdsection">
+      {editing ? (
+        <form
+          className="col addsection-form"
+          onSubmit={(e) => { e.preventDefault(); submit(); }}
+        >
+          <input
+            ref={fieldRef}
+            className="addsection-field"
+            value={name}
+            placeholder={t('section.name')}
+            aria-label={t('section.name')}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+            }}
+            onBlur={(e) => {
+              // Leaving for one of the form's own buttons is not leaving.
+              if (e.relatedTarget && e.currentTarget.form?.contains(e.relatedTarget as Node)) return;
+              if (!name.trim()) cancel();
+            }}
+          />
+          <div className="addsection-actions">
+            <button type="button" className="btn quiet" onClick={cancel}>
+              {t('common.cancel')}
+            </button>
+            <button type="submit" className="btn primary" disabled={!name.trim()}>
+              {t('section.add')}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button className="addsection-col" onClick={() => setEditing(true)}>
+          <Icon name="plus" size="sm" />
+          {t('section.add')}
+        </button>
+      )}
     </div>
   );
 }

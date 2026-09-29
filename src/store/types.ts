@@ -14,6 +14,12 @@ export interface Toast {
   message: string;
   /** When set, the toast offers an undo that runs this. */
   undo?: () => void;
+  /**
+   * An error is read out at once by a screen reader, over whatever it was
+   * saying, because it is about something that did not happen (#136). Every
+   * other toast waits for its turn.
+   */
+  tone?: 'error';
 }
 
 /**
@@ -63,7 +69,12 @@ export interface AppState {
   connect: (token: string) => Promise<boolean>;
   startDemo: () => void;
   disconnect: () => Promise<void>;
-  refresh: (full?: boolean) => Promise<void>;
+  /**
+   * Reads what changed, after sending what is waiting. Right after a sign-in,
+   * `signedIn` says whose copy the device held before it (`legacyOwner`), so
+   * the outbox can be told apart by account before anything is sent (#129).
+   */
+  refresh: (full?: boolean, signedIn?: { legacyOwner: string | null }) => Promise<void>;
   startPolling: () => () => void;
 
   /* Preferences */
@@ -226,14 +237,15 @@ export interface AppState {
   updateProjectFields: (id: string, args: Record<string, unknown>) => Promise<void>;
   updateSectionFields: (id: string, args: Record<string, unknown>) => Promise<void>;
   /** Creates a section at `index` and hands back its id, so the caller can focus its name. */
-  createSection: (projectId: string, index: number) => Promise<string>;
+  /** A new section at `index`, under `name` or the untitled placeholder the list's field then selects. */
+  createSection: (projectId: string, index: number, name?: string) => Promise<string>;
   /** Moves a section, and the tasks in it, to a new position in its project. */
   moveSection: (id: string, index: number) => Promise<void>;
   /** Deletes a section. Todoist deletes the tasks inside it with it. */
   removeSection: (id: string) => Promise<void>;
 
   /* Toasts */
-  toast: (message: string, undo?: () => void) => void;
+  toast: (message: string, undo?: () => void, options?: { tone?: 'error' }) => void;
   dismissToast: (id: string) => void;
 
   /* Undo */

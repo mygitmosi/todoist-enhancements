@@ -1,4 +1,5 @@
-import { toApiDate } from './dates';
+import { toApiDate, type DateFormat } from './dates';
+import { MONTH_WORDS } from './dateVocabulary';
 
 /**
  * Reading a date out of what somebody typed.
@@ -26,12 +27,25 @@ const WEEKDAYS: Record<'en' | 'fr', string[]> = {
   fr: ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'],
 };
 
-const MONTHS: Record<'en' | 'fr', string[]> = {
-  en: ['january', 'february', 'march', 'april', 'may', 'june',
-    'july', 'august', 'september', 'october', 'november', 'december'],
-  fr: ['janvier', 'février', 'mars', 'avril', 'mai', 'juin',
-    'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'],
-};
+/**
+ * For each month, every word either language has for it, longest first so
+ * "juillet" is tried before "juil". Exact words and their abbreviations, never
+ * a stem: reading a month from its first three letters made "14 juillet" June
+ * and "2 maisons" the 2nd of May (#123).
+ */
+const MONTH_ALTERNATIVES: string[] = Array.from({ length: 12 }, (_, month) =>
+  [...MONTH_WORDS.en[month].split('|'), ...MONTH_WORDS.fr[month].split('|')]
+    .sort((a, b) => b.length - a.length)
+    .join('|'));
+
+export interface DateReadingOptions {
+  /**
+   * The order a numeric date is written in. `12/03` is the 12th of March
+   * unless this says month first, and only `'mdy'` does. The language never
+   * decides it: it is a setting.
+   */
+  dateFormat?: DateFormat;
+}
 
 /**
  * Lowercased and stripped of accents, one character in for one character out.
@@ -54,7 +68,7 @@ const addDays = (from: Date, days: number): Date => {
   return out;
 };
 
-interface TimeReading {
+export interface TimeReading {
   hours: number;
   minutes: number;
   /** Where the time sits in the text it was read from. */
@@ -63,7 +77,7 @@ interface TimeReading {
 }
 
 /** A time of day appearing anywhere in the phrase: "at 14:00", "2pm", "à 9h30". */
-function readTime(text: string): TimeReading | null {
+export function readTime(text: string): TimeReading | null {
   const span = (match: RegExpMatchArray) => {
     /* The pattern may have eaten the space in front of the time, and that
        space belongs to the sentence rather than to the reading. */
@@ -117,7 +131,9 @@ const TIME_GAP = 3;
  * Returns null when nothing is recognised, which is the common case and the
  * one that must never do damage.
  */
-export function readNaturalDate(raw: string, now = new Date()): DateReading | null {
+export function readNaturalDate(
+  raw: string, now = new Date(), options: DateReadingOptions = {},
+): DateReading | null {
   const text = fold(raw);
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -200,29 +216,35 @@ export function readNaturalDate(raw: string, now = new Date()): DateReading | nu
     }
   }
 
-  // "10 sept", "3 mars", "sept 10" — the next occurrence of that calendar day.
-  const monthNames = [...MONTHS.en, ...MONTHS.fr];
-  for (let index = 0; index < monthNames.length; index += 1) {
-    const full = fold(monthNames[index]);
-    const stem = full.slice(0, 3);
-    const month = index % 12;
-    const dayFirst = text.match(new RegExp(`\\b(\\d{1,2})\\s+${stem}[a-z]*\\.?`));
-    const monthFirst = text.match(new RegExp(`\\b${stem}[a-z]*\\.?\\s+(\\d{1,2})\\b`));
-    const match = dayFirst ?? monthFirst;
-    if (!match) continue;
-    const dayOfMonth = Number(match[1]);
-    if (dayOfMonth < 1 || dayOfMonth > 31) continue;
-    let day = new Date(today.getFullYear(), month, dayOfMonth);
-    if (day < today) day = new Date(today.getFullYear() + 1, month, dayOfMonth);
-    if (day.getMonth() !== month) continue;   // 31 February and friends
-    return found(day, match);
+  /* "10 sept", "3 mars", "1er juillet", "July 1st", "sept 10": the next
+     occurrence of that calendar day. Both languages are read on purpose, and
+     each month is matched by its exact words with a boundary after them. When
+     a sentence holds more than one, the one that starts first is the one read;
+     the caller reads on from there for a later one. */
+  let earliest: { at: number; day: Date; match: RegExpMatchArray } | null = null;
+  for (let month = 0; month < 12; month += 1) {
+    const words = `(?:${MONTH_ALTERNATIVES[month]})\\.?(?![a-z])`;
+    const dayFirst = text.match(new RegExp(`\\b(\\d{1,2})(?:er|e|st|nd|rd|th)?\\s+${words}`));
+    const monthFirst = text.match(new RegExp(`\\b${words}\\s+(\\d{1,2})(?:er|st|nd|rd|th)?\\b`));
+    for (const match of [dayFirst, monthFirst]) {
+      if (!match) continue;
+      const dayOfMonth = Number(match[1]);
+      if (dayOfMonth < 1 || dayOfMonth > 31) continue;
+      let day = new Date(today.getFullYear(), month, dayOfMonth);
+      if (day < today) day = new Date(today.getFullYear() + 1, month, dayOfMonth);
+      if (day.getMonth() !== month) continue;   // 31 February and friends
+      if (!earliest || match.index! < earliest.at) earliest = { at: match.index!, day, match };
+    }
   }
+  if (earliest) return found(earliest.day, earliest.match);
 
-  // "12/03" and "12/03/2026", read day-first as both interface languages do.
+  /* "12/03" and "12/03/2026". Day first, except when the Date format setting
+     says month first: the order is a preference, not a fact about a language. */
   const numeric = text.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
   if (numeric) {
-    const dayOfMonth = Number(numeric[1]);
-    const month = Number(numeric[2]) - 1;
+    const monthFirst = options.dateFormat === 'mdy';
+    const dayOfMonth = Number(numeric[monthFirst ? 2 : 1]);
+    const month = Number(numeric[monthFirst ? 1 : 2]) - 1;
     const year = numeric[3]
       ? Number(numeric[3].length === 2 ? `20${numeric[3]}` : numeric[3])
       : today.getFullYear();

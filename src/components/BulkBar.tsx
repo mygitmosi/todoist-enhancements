@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
-import { DateField } from './DateField';
+import { DatePicker, taskShortcuts } from './DatePicker';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { useConfirm } from './overlays/Confirm';
@@ -9,6 +9,7 @@ import { BULK_MENU_EVENT, type BulkMenuName } from '@/hooks/useKeyboard';
 import { toDisplayPriority, toTodoistPriority, type DisplayPriority } from '@/domain/types';
 import type { DropTarget } from '@/domain/dnd';
 import { matchesSearch } from '@/domain/search';
+import { formatDayOrName, formatTime } from '@/domain/dates';
 import { byChildOrder, byLabelOrder, bySectionOrder } from '@/domain/orderKey';
 
 /**
@@ -154,6 +155,9 @@ function BulkMenu({
     const panel = event.currentTarget;
     const target = event.target as Node;
     if (!panel.contains(target)) return;
+    /* The date picker walks its own field, choices and month (#110); only
+       Escape, which closes the whole panel, is the panel's. */
+    if (event.key !== 'Escape' && (target as Element).closest?.('.datepicker')) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -210,8 +214,10 @@ function BulkMenu({
  * or taking one tag off all of them, meant opening fifteen tasks.
  */
 export function BulkBar() {
-  const { t } = useT();
+  const { t, locale } = useT();
   const confirm = useConfirm();
+  const dateFormat = useStore((s) => s.prefs.dateFormat);
+  const hour12 = useStore((s) => s.prefs.hour12);
   const selection = useStore((s) => s.selection);
   const clearSelection = useStore((s) => s.clearSelection);
   const sendManyTo = useStore((s) => s.sendManyTo);
@@ -221,7 +227,6 @@ export function BulkBar() {
   const skipOccurrences = useStore((s) => s.skipOccurrences);
   const toast = useStore((s) => s.toast);
   const snapshot = useStore((s) => s.snapshot);
-  const [date, setDate] = useState('');
   const [projectQuery, setProjectQuery] = useState('');
   const [tagQuery, setTagQuery] = useState('');
 
@@ -372,27 +377,34 @@ export function BulkBar() {
 
       <BulkMenu icon="calendar" label={t('bulk.date')} name="date">
         {(close) => (
-          <>
-            <button
-              className="opt"
-              onClick={() => { close(); void send({ kind: 'today' }, t('common.today')); }}
-            >
-              <span>{t('review.to.today')}</span>
-            </button>
-            <button
-              className="opt"
-              onClick={() => { close(); void send({ kind: 'anytime' }, t('nav.week')); }}
-            >
-              <span>{t('review.to.anytime')}</span>
-            </button>
-            <button
-              className="opt"
-              onClick={() => { close(); void send({ kind: 'someday' }, t('nav.someday')); }}
-            >
-              <span>{t('review.to.someday')}</span>
-            </button>
-            {recurringCount > 0 && (
+          /* The one date picker (#110): the same field, choices and month as
+             a row's schedule menu, acting on the whole selection. */
+          <DatePicker
+            value=""
+            label={t('task.schedule')}
+            withTime
+            onEscape={close}
+            onPick={(iso) => {
+              close();
+              /* A time typed with the day goes to every task: cutting the value
+                 down to its day here was the second place it got lost (#143). */
+              const [day, time] = iso.split('T');
+              const date = new Date(`${day}T00:00:00`);
+              const where = formatDayOrName(date, locale, dateFormat);
+              void send(
+                { kind: 'day', date, time },
+                time ? `${where} ${formatTime(new Date(iso), locale, hour12)}` : where,
+              );
+            }}
+            shortcuts={taskShortcuts(t, locale, {
+              today: () => { close(); void send({ kind: 'today' }, t('common.today')); },
+              day: (date, label) => { close(); void send({ kind: 'day', date }, label); },
+              anytime: () => { close(); void send({ kind: 'anytime' }, t('nav.week')); },
+              someday: () => { close(); void send({ kind: 'someday' }, t('nav.someday')); },
+            })}
+            footer={recurringCount > 0 ? (
               <button
+                type="button"
                 className="opt"
                 onClick={() => {
                   const ids = selection;
@@ -403,32 +415,11 @@ export function BulkBar() {
                   });
                 }}
               >
-                <span>{t('task.nextOccurrence')}</span>
+                <span><Icon name="repeat" size="sm" /> {t('task.nextOccurrence')}</span>
                 <small>{t('bulk.recurringSubset', { count: recurringCount })}</small>
               </button>
-            )}
-            <hr />
-            {/* A date, rather than the three shortcuts, for the times the
-                answer is neither today nor this week. */}
-            <div className="bulkpop-date">
-              <DateField
-                value={date}
-                label={t('task.schedule')}
-                placeholder={t('bulk.pickDate')}
-                /* Opened by picking "Date" from the bar below, so it is
-                   already the thing being chosen — asking for a second click
-                   before the typed field even appears read as "there is
-                   nowhere to type" (#97 follow-up). */
-                openOnMount
-                onChange={(next) => {
-                  setDate('');
-                  if (!next) return;
-                  close();
-                  void send({ kind: 'day', date: new Date(`${next}T00:00:00`) }, next);
-                }}
-              />
-            </div>
-          </>
+            ) : undefined}
+          />
         )}
       </BulkMenu>
 

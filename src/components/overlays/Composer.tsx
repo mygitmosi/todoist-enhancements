@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Overlay } from './Overlay';
 import { Icon } from '../Icon';
 import { EstimateField } from '../EstimateField';
@@ -8,7 +8,7 @@ import { DateField } from '../DateField';
 import { TaskNameField } from '../TaskNameField';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
-import { estimateLabel } from '@/domain/estimates';
+import { estimateLabel, formatDuration } from '@/domain/estimates';
 import { markerStyle } from '@/domain/colors';
 import { toTodoistPriority, type DisplayPriority } from '@/domain/types';
 import {
@@ -45,6 +45,7 @@ export function Composer({
   const snapshot = useStore((s) => s.snapshot);
   const createTask = useStore((s) => s.createTask);
   const naturalDates = useStore((s) => s.prefs.naturalDates);
+  const dateFormat = useStore((s) => s.prefs.dateFormat);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -54,12 +55,21 @@ export function Composer({
   const [date, setDate] = useState('');
   const [recurrence, setRecurrence] = useState<Shorthand['recurrence']>(null);
   const [deadline, setDeadline] = useState('');
+  /** The tags picked by hand (or given by the page the composer opened on). */
   const [labels, setLabels] = useState<string[]>([]);
   const [minutes, setMinutes] = useState<number | null>(null);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [tagQuery, setTagQuery] = useState('');
   const [subtasks, setSubtasks] = useState<string[]>([]);
   const [subtaskDraft, setSubtaskDraft] = useState('');
+  /* The description is as tall as what is written in it (#113). */
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = descriptionRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [description, open]);
   /** The readings of the name that have been turned down, by position in it. */
   const [refusals, setRefusals] = useState<TextRange[]>([]);
 
@@ -91,10 +101,38 @@ export function Composer({
     .sort(byLabelOrder);
   const filteredTags = tags.filter((label) => matchesSearch(label.name, tagQuery));
 
-  const toggleTag = (name: string) => setLabels((prev) =>
-    prev.includes(name) ? prev.filter((label) => label !== name) : [...prev, name]);
+  const parsed = parseShorthand(name, snapshot, naturalDates, refusals, dateFormat);
 
-  const parsed = parseShorthand(name, snapshot, naturalDates, refusals);
+  /*
+   * The task's tags: the ones picked by hand, and the ones the name says right
+   * now.
+   *
+   * The name's used to be pushed into the picked list as they were read, and
+   * never taken back out: typing "@week" read "@w", then "@we", then "@wee",
+   * and each was kept, so the task went to Todoist with four tags and Todoist
+   * made all four. What the name says is read again on every keystroke
+   * instead, so only the word as it stands is a tag.
+   */
+  const sameTag = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+  const allTags = parsed.labels.reduce(
+    (tags, read) => (tags.some((tag) => sameTag(tag, read)) ? tags : [...tags, read]),
+    labels,
+  );
+
+  /** Takes a tag off: out of the picked list, and its reading out of the name. */
+  const dropTag = (tag: string) => {
+    setLabels((prev) => prev.filter((l) => !sameTag(l, tag)));
+    const marks = parsed.ranges.filter((range) => range.kind === 'label'
+      && sameTag(name.slice(range.start + 1, range.end), tag));
+    if (marks.length > 0) {
+      setRefusals((prev) => [...prev, ...marks.map(({ start, end }) => ({ start, end }))]);
+    }
+  };
+
+  const toggleTag = (tag: string) => {
+    if (allTags.some((l) => sameTag(l, tag))) dropTag(tag);
+    else setLabels((prev) => [...prev, tag]);
+  };
 
   /* The default the project field falls back to, which is where a refused
      `#project` leaves it: the composer was opened on somewhere, and "nowhere"
@@ -108,16 +146,14 @@ export function Composer({
    * or the repeat it had pushed down stays sitting in the form — the task
    * would still be created with the very thing that was just refused.
    */
-  const unfill = (reading: HighlightKind, range: TextRange) => {
+  const unfill = (reading: HighlightKind) => {
     if (reading === 'date') setDate(defaultDate ?? '');
     if (reading === 'recurrence') setRecurrence(null);
     if (reading === 'priority') setPriority(4);
     if (reading === 'duration') setMinutes(null);
     if (reading === 'project') { setProjectId(fallbackProject); setSectionId(''); }
-    if (reading === 'label') {
-      const tag = name.slice(range.start, range.end).replace(/^@/, '');
-      setLabels((prev) => prev.filter((l) => l.toLowerCase() !== tag.toLowerCase()));
-    }
+    /* A tag read from the name needs nothing here: it is read again from the
+       name every time, so refusing it is enough to take it off. */
   };
 
   /*
@@ -134,7 +170,6 @@ export function Composer({
    */
   const { date: readDate, projectId: readProject, sectionId: readSection,
     priority: readPriority, minutes: readMinutes, recurrence: readRepeat } = parsed;
-  const readLabels = parsed.labels.join('\u0000');
 
   /*
    * Each of these also watches `refusals`, whose identity changes only when a
@@ -164,16 +199,37 @@ export function Composer({
   useEffect(() => {
     if (readMinutes !== null) setMinutes(readMinutes);
   }, [readMinutes, refusals]);
-  useEffect(() => {
-    if (!readLabels) return;
-    setLabels((prev) => [...new Set([...prev, ...readLabels.split('\u0000')])]);
-  }, [readLabels, refusals]);
+
+  /**
+   * One creation at a time (#142).
+   *
+   * The sheet stays open while the task is sent, so a second click, or Enter
+   * pressed twice, used to start a second creation before the first was done:
+   * two tasks with two ids, not one task drawn twice. The ref is what shuts the
+   * door, because two calls in the same moment both read the same render's
+   * state; the state only draws the wait. A task that failed to save leaves the
+   * sheet as it was, ready to be sent again, and two tasks with the same name
+   * typed on purpose are still two tasks: nothing here compares titles.
+   */
+  const submitting = useRef(false);
+  const [saving, setSaving] = useState(false);
 
   async function submit() {
+    if (submitting.current) return;
     const content = parsed.content;
     if (!content) return;
+    submitting.current = true;
+    setSaving(true);
+    try {
+      await create(content);
+    } finally {
+      submitting.current = false;
+      setSaving(false);
+    }
+  }
 
-    const allLabels = [...labels];
+  async function create(content: string) {
+    const allLabels = [...allTags];
     if (minutes !== null) allLabels.push(estimateLabel(minutes));
 
     /* `||`, not `??`: an unset picker is an empty string, not null, and an
@@ -236,110 +292,113 @@ export function Composer({
           refusals={refusals}
           onRefusals={(next, change) => {
             setRefusals(next);
-            if (change?.kind === 'refused') unfill(change.reading, change.range);
+            if (change?.kind === 'refused') unfill(change.reading);
           }}
         />
 
+        {/* Level 1, the task itself: the description sits under the title on
+            the same left edge, quieter, and grows with what is written in it
+            rather than being a box to fill (#113). */}
         <textarea
+          ref={descriptionRef}
           className="composer-desc"
+          rows={1}
           placeholder={t('composer.descriptionPlaceholder')}
           aria-label={t('detail.description')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
 
-        <div className="composer-fields">
+        {/* Level 2, planning, as one line of chips (direction B of #113): a
+            value that is set is a filled chip saying it, one that is not is a
+            dashed "+ Deadline". Every chip is the same picker it always was;
+            only its closed face changed. */}
+        <div className="composer-chips composer-tags" role="group" aria-label={t('composer.planning')}>
           {/* A repeat answers the same question a date does, so it stands in
-              the date's own slot rather than beside it — a task cannot be both
-              on Tuesday and every Monday, and two fields offering to make it
-              both is the contradiction, not the fix. */}
-          <span className="cfield">
-            <span className="fselect-label">
-              {recurrence ? t('detail.recurring') : t('composer.date')}
-            </span>
-            {recurrence ? (
+              the date's own place: a task cannot be both on Tuesday and every
+              Monday. */}
+          {recurrence ? (
+            <button
+              type="button"
+              className="fselect-face chipface crepeat"
+              onClick={() => setRecurrence(null)}
+              title={t('composer.clearRepeat')}
+            >
+              <Icon name="repeat" size="sm" />
+              <span className="fselect-value">{recurrence.string}</span>
+              <Icon name="close" size="sm" />
+            </button>
+          ) : (
+            <DateField variant="chip" withTime value={date} onChange={setDate} label={t('composer.date')} />
+          )}
+
+          <DateField
+            variant="chip"
+            icon="deadline"
+            value={deadline}
+            onChange={setDeadline}
+            label={t('detail.deadline')}
+          />
+
+          {/* One chip for both: a section is a place, not a setting applied
+              to the project chosen before it. The Inbox is a project like any
+              other, so this chip is never empty. */}
+          <PlacementField
+            variant="chip"
+            label={t('composer.project')}
+            value={{ projectId, sectionId: sectionId || null }}
+            onChange={(place) => {
+              setProjectId(place.projectId);
+              setSectionId(place.sectionId ?? '');
+            }}
+          />
+
+          <Select
+            variant="chip"
+            label={t('composer.priority')}
+            ariaLabel={t('composer.priority')}
+            unset={priority === 4}
+            unsetLabel={t('composer.priority')}
+            chipIcon={<Icon name="flag" size="sm" style={{ color: `var(--p${priority})` }} />}
+            value={String(priority)}
+            onChange={(next) => setPriority(Number(next) as DisplayPriority)}
+            options={([1, 2, 3, 4] as const).map((p) => ({
+              value: String(p),
+              label: `P${p}`,
+            }))}
+          />
+
+          <EstimateChip minutes={minutes} onChange={setMinutes} />
+
+          {allTags.map((label) => {
+            const known = tags.find((l) => l.name === label);
+            return (
               <button
+                key={label}
                 type="button"
-                className="crepeat"
-                onClick={() => setRecurrence(null)}
-                title={t('composer.clearRepeat')}
+                className="fselect-face chipface tagchip"
+                title={t('composer.removeTag', { name: label })}
+                onClick={() => dropTag(label)}
               >
-                <Icon name="repeat" size="sm" />
-                <span>{recurrence.string}</span>
+                <Icon name="tag" size="sm" className="taglabel" style={markerStyle(known?.color, false)} />
+                <span className="fselect-value">{label}</span>
                 <Icon name="close" size="sm" />
               </button>
-            ) : (
-              <DateField value={date} onChange={setDate} label={t('composer.date')} />
-            )}
-          </span>
+            );
+          })}
 
-          <span className="cfield">
-            <span className="fselect-label">{t('detail.deadline')}</span>
-            <DateField value={deadline} onChange={setDeadline} label={t('detail.deadline')} />
-          </span>
-
-          {/* One field for both: a section is a place, not a setting applied
-              to the project chosen in the field before it. The Inbox is a
-              project like any other and is already in this list. */}
-          <span className="cfield">
-            <PlacementField
-              label={t('composer.project')}
-              value={{ projectId, sectionId: sectionId || null }}
-              onChange={(place) => {
-                setProjectId(place.projectId);
-                setSectionId(place.sectionId ?? '');
-              }}
-            />
-          </span>
-
-          <span className="cfield">
-            <Select
-              label={t('composer.priority')}
-              value={String(priority)}
-              ariaLabel={t('composer.priority')}
-              onChange={(next) => setPriority(Number(next) as DisplayPriority)}
-              options={([1, 2, 3, 4] as const).map((p) => ({
-                value: String(p),
-                label: `P${p}`,
-              }))}
-            />
-          </span>
-
-          <span className="cfield">
-            <span>{t('composer.duration')}</span>
-            <EstimateField minutes={minutes} onCommit={setMinutes} />
-          </span>
-
-       </div>
-
-        <div className="composer-tags">
           <button
-            className="btn sm"
+            type="button"
+            className="fselect-face chipface unset"
             aria-expanded={tagsOpen}
             onClick={() => setTagsOpen((openNow) => {
               if (!openNow) setTagQuery('');
               return !openNow;
             })}
           >
-            <Icon name="tag" size="sm" />
-            {t('composer.labels')}
-            {labels.length > 0 && <span className="displaycount">{labels.length}</span>}
+            <Icon name="plus" size="sm" />
+            <span className="fselect-value">{t('composer.tag')}</span>
           </button>
-
-          {labels.map((label) => {
-            const known = tags.find((l) => l.name === label);
-            return (
-              <button
-                key={label}
-                className="pill"
-                onClick={() => setLabels((prev) => prev.filter((l) => l !== label))}
-              >
-                <Icon name="tag" size="sm" className="taglabel" style={markerStyle(known?.color, false)} />
-                {label}
-                <Icon name="close" size="sm" />
-              </button>
-            );
-          })}
 
           {tagsOpen && (
             <div
@@ -372,7 +431,7 @@ export function Composer({
                 <label className="checkrow" key={label.id}>
                   <input
                     type="checkbox"
-                    checked={labels.includes(label.name)}
+                    checked={allTags.some((l) => sameTag(l, label.name))}
                     onChange={() => toggleTag(label.name)}
                   />
                   <Icon name="tag" size="sm" className="taglabel" style={markerStyle(label.color, false)} />
@@ -383,8 +442,13 @@ export function Composer({
           )}
         </div>
 
+        {/* Level 3, subtasks: open, with a heading and a count, one of the
+            things this composer does that a quick-add does not. */}
         <div className="composer-subs">
-          <span className="fieldlabel">{t('detail.subtasks')}</span>
+          <span className="composer-subhead">
+            <strong>{t('detail.subtasks')}</strong>
+            {subtasks.length > 0 && <small>{subtasks.length}</small>}
+          </span>
           {subtasks.map((content, index) => (
             <div className="composer-sub" key={index}>
               <span className="check p4" aria-hidden="true" />
@@ -436,13 +500,74 @@ export function Composer({
           </div>
         </div>
 
+        {/* Level 4, the way out, on its own bar: always in the same place. */}
         <div className="composer-actions">
+          <span className="composer-hint" aria-hidden="true">
+            <kbd>⌘</kbd><kbd>↵</kbd> {t('composer.hintAdd')}
+          </span>
           <button className="btn quiet" onClick={onClose}>{t('composer.cancel')}</button>
-          <button className="btn primary" disabled={!name.trim()} onClick={() => void submit()}>
+          <button
+            className="btn primary"
+            disabled={!name.trim() || saving}
+            aria-busy={saving}
+            onClick={() => void submit()}
+          >
             {t('composer.add')}
           </button>
         </div>
       </div>
     </Overlay>
+  );
+}
+
+/**
+ * The estimate as a chip (#113): "+ Estimate" until there is one, then the
+ * duration. Clicked, it turns into the estimate field every other place in
+ * the app uses, and back into a chip once the number is in.
+ */
+function EstimateChip({
+  minutes, onChange,
+}: { minutes: number | null; onChange: (minutes: number | null) => void }) {
+  const { t, locale } = useT();
+  const [editing, setEditing] = useState(false);
+  const faceRef = useRef<HTMLButtonElement>(null);
+  /* Enter and Escape leave the field from the keyboard, and the keyboard
+     goes back to the chip; a click elsewhere leaves the focus where it went. */
+  const refocus = useRef(false);
+
+  useEffect(() => {
+    if (editing || !refocus.current) return;
+    refocus.current = false;
+    faceRef.current?.focus();
+  }, [editing]);
+
+  if (editing) {
+    return (
+      <span
+        className="fselect-face chipface chipedit"
+        onKeyDownCapture={(e) => { if (e.key === 'Enter' || e.key === 'Escape') refocus.current = true; }}
+      >
+        <Icon name="clock" size="sm" />
+        <EstimateField
+          autoFocus
+          minutes={minutes}
+          onCommit={(value) => { onChange(value); setEditing(false); }}
+          onCancel={() => setEditing(false)}
+        />
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      ref={faceRef}
+      className={`fselect-face chipface${minutes === null ? ' unset' : ''}`}
+      onClick={() => setEditing(true)}
+    >
+      <Icon name={minutes === null ? 'plus' : 'clock'} size="sm" />
+      <span className="fselect-value">
+        {minutes === null ? t('composer.duration') : formatDuration(minutes, locale)}
+      </span>
+    </button>
   );
 }

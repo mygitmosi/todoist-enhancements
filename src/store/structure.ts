@@ -311,7 +311,7 @@ export const createStructureSlice: Slice<StructureSlice> = (_set, get) => ({
       return { ...snapshot, projects: { ...snapshot.projects, [id]: { ...project, ...args } } };
     });
   },
-  async createSection(projectId, index) {
+  async createSection(projectId, index, name) {
     const tempId = newUuid();
 
     /* The new section takes the clicked position, and everything from there
@@ -323,7 +323,7 @@ export const createStructureSlice: Slice<StructureSlice> = (_set, get) => ({
 
     /* Todoist refuses a section with no name. It is created under a
        placeholder the field then selects, so typing replaces it. */
-    const untitled = translate(get().prefs.locale, 'section.untitled');
+    const untitled = name?.trim() || translate(get().prefs.locale, 'section.untitled');
 
     /* Where every section has a key, the new one takes a key between its two
        neighbours and nothing else is written. */

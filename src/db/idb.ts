@@ -85,14 +85,23 @@ export async function savePrefs<T>(key: string, value: T): Promise<void> {
 export interface QueuedCommand extends Command {
   queuedAt: number;
   attempts: number;
+  /**
+   * The Todoist account the change was made in (#129). A command queued before
+   * this was recorded has none, and is only taken as belonging to whoever the
+   * device's cached copy belonged to. Never sent to Todoist: `flushQueue`
+   * takes it out with the other bookkeeping.
+   */
+  userId?: string;
 }
 
-export async function enqueue(commands: Command[]): Promise<void> {
+export async function enqueue(commands: Command[], userId?: string): Promise<void> {
   try {
     const database = await db();
     const tx = database.transaction(STORE_QUEUE, 'readwrite');
     for (const cmd of commands) {
-      await tx.store.put({ ...cmd, queuedAt: Date.now(), attempts: 0 } satisfies QueuedCommand);
+      await tx.store.put({
+        ...cmd, queuedAt: Date.now(), attempts: 0, ...(userId ? { userId } : {}),
+      } satisfies QueuedCommand);
     }
     await tx.done;
   } catch {
@@ -125,6 +134,8 @@ export async function updateQueued(commands: Command[]): Promise<void> {
         ...cmd,
         queuedAt: existing?.queuedAt ?? Date.now(),
         attempts: (existing?.attempts ?? 0) + 1,
+        // Still the same person's change, whatever ids it now names.
+        ...(existing?.userId ? { userId: existing.userId } : {}),
       } satisfies QueuedCommand);
     }
     await tx.done;

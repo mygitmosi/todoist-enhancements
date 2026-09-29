@@ -6,6 +6,7 @@ import { TaskGroup } from '@/components/TaskGroup';
 import { ModeSurface } from '@/components/ModeSurface';
 import { Icon } from '@/components/Icon';
 import { useT } from '@/hooks/useT';
+import { useToday } from '@/hooks/useToday';
 import type { TaskPlacement } from '@/domain/dnd';
 import { useData } from '@/hooks/useData';
 import { useStore } from '@/store/store';
@@ -43,17 +44,20 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
      priority, tag, none) reads as days (#98). */
   const group = UPCOMING_GROUPS.includes(current.group) ? current.group : 'day';
   const [horizon, setHorizon] = useState(prefs.upcomingHorizonDays);
+  /* The day the columns and the filter both count from. It moves at midnight
+     by itself, so the range never lags behind the tasks it lets in (#146). */
+  const today = useToday();
 
   const scoped = useMemo(() => {
     const roots = rootItems(items);
     const future = upcomingItems(roots);
-    const limit = startOfDay(addDays(new Date(), horizon));
+    const limit = startOfDay(addDays(today, horizon));
     const withinHorizon = future.filter((item) => {
       const d = dueDate(item);
       return d !== null && startOfDay(d) <= limit;
     });
     return applyFilters(withinHorizon, current.filters, snapshot, childrenOf);
-  }, [items, horizon, current.filters, snapshot, childrenOf]);
+  }, [items, today, horizon, current.filters, snapshot, childrenOf]);
 
   // Upcoming spans many days, so a single capacity percentage would be
   // meaningless here. The header shows counts and time only.
@@ -76,8 +80,8 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
   }, [scoped]);
 
   const days = useMemo(
-    () => daysBetween(startOfDay(addDays(new Date(), 1)), startOfDay(addDays(new Date(), horizon))),
-    [horizon],
+    () => daysBetween(startOfDay(addDays(today, 1)), startOfDay(addDays(today, horizon))),
+    [today, horizon],
   );
 
   const columns = days
@@ -120,6 +124,7 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
           items={scoped}
           childrenOf={childrenOf}
           mode={current.mode === 'board' ? 'board' : 'list'}
+          wide={current.wide}
           group={group}
           sort={current.sort}
           order="day"
@@ -130,6 +135,7 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
           items={scoped}
           childrenOf={childrenOf}
           mode="board"
+          wide={current.wide}
           group="day"
           sort={current.sort}
           order="day"

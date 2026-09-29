@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { addDays, nextMonday } from 'date-fns';
 import { Icon } from './Icon';
 import { useT } from '@/hooks/useT';
 import { useMenuKeys } from '@/hooks/useMenuKeys';
@@ -15,11 +14,9 @@ import { useStore } from '@/store/store';
 import { useConfirm } from './overlays/Confirm';
 import { withEstimate, effectiveEstimate, formatDuration } from '@/domain/estimates';
 import { EstimateField } from './EstimateField';
-import { DateField } from './DateField';
-import { formatDay, formatDayOrName, toApiDate, weekdayName } from '@/domain/dates';
-import { readNaturalDate } from '@/domain/nlp';
-import { dueForDate, readRecurrence } from '@/domain/recurrence';
-import { dateSuggestions, type DateSuggestion } from '@/domain/dateWords';
+import { DatePicker, taskShortcuts, type RecurrenceReading } from './DatePicker';
+import { formatDayOrName, formatTime, toApiDate } from '@/domain/dates';
+import { dueForDate } from '@/domain/recurrence';
 import { weekLabel } from '@/domain/types';
 import { markerStyle } from '@/domain/colors';
 import { dropMutation, moveArgs, type DropTarget } from '@/domain/dnd';
@@ -31,9 +28,6 @@ import { byChildOrder, bySectionOrder } from '@/domain/orderKey';
 /** A word with its case and accents set aside, so "Été" is found by "ete". */
 const fold = (value: string): string =>
   value.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-/** Two words that are the same word once accents and case are set aside. */
-const sameWord = (a: string, b: string): boolean => fold(a) === fold(b);
 
 /** Somewhere a task can be sent: a project, or a section inside one. */
 interface Destination {
@@ -47,86 +41,73 @@ interface Destination {
   current: boolean;
 }
 
-/** How far below the row's buttons a menu hangs, matching `.rowmenu` in CSS. */
-const ROWMENU_OFFSET_PX = 32;
+/** The gap between a row's buttons and the menu hanging from them. */
+const ROWMENU_GAP_PX = 4;
 
 /**
- * Which way a row menu opens.
+ * Where a row menu opens: drawn into the page, never into the row (#111).
  *
- * `.rowmenu` hung below its button at a fixed offset and measured nothing, so
- * a task near the foot of the window opened its menu off the bottom of the
- * screen — and the foot of a list is exactly where the work nobody has dealt
- * with sits. The pickers in the composer and the task panel already measure
- * the room below them and flip above when the list would not fit; this is that
- * rule, given to the row menus that were never handed it.
+ * A row menu used to hang inside the row, positioned against it, and so
+ * inside every box the row sits in. A board scrolls sideways, and a box that
+ * scrolls on one axis clips on both, so a menu near a short column or a
+ * short list was folded to that box's height — sometimes. Which box counted
+ * was worked out once, when the menu opened, from whether it was carrying
+ * more than it could show at that moment: the schedule menu, taller, found
+ * one ceiling, the move menu another, and a menu that grew as you typed kept
+ * the ceiling its smaller self had found. "Usually escapes" was the result.
  *
- * The menu changes height while it is open — the schedule field grows a list
- * of suggestions under it as you type — so it is measured again whenever it
- * resizes rather than only when it appears.
+ * Now every row menu is drawn at the document's level and placed against
+ * the row's buttons with fixed coordinates, so the only edge that exists is
+ * the window's. Below the buttons by default, above when only that side has
+ * room, and on the roomier side, scrolling inside itself, when neither has.
+ * Aligned to the buttons' right edge, and slid back inside the window when
+ * that would put it past the left one.
  *
- * The room is the room you can see, not the window's. A board scrolls
- * sideways, and a box that scrolls on one axis clips on both, so a menu
- * hanging below the last card of a short board was cut off by the board while
- * the window had plenty of space under it. The nearest box that clips is
- * measured along with the window, and when neither side has room for the
- * whole menu it opens on the roomier one and scrolls inside itself, so every
- * line of it can be reached without scrolling the board. The same box cut the
- * menus of a first column off on the left, so they are slid back inside it.
- *
- * It is keyed on which menu is open rather than whether one is: going from
- * the "⋯" menu to Schedule or Move keeps a menu open, and the placement and
- * the size being watched were the "⋯" menu's.
+ * Measured again whenever the menu changes size (typed suggestions grow it),
+ * the window does, or anything scrolls under it.
  */
-function useMenuPlacement(menu: string) {
+function useMenuPlacement(menu: string, anchorRef: React.RefObject<HTMLElement | null>) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const [up, setUp] = useState(false);
 
   useLayoutEffect(() => {
-    if (menu === 'none') { setUp(false); return; }
+    if (menu === 'none') return;
     const node = ref.current;
-    const anchor = node?.parentElement;
+    const anchor = anchorRef.current;
     if (!node || !anchor) return;
     const menuBox: HTMLDivElement = node;
-    const clipY = clippingAncestor(anchor, 'y');
-    const clipX = clippingAncestor(anchor, 'x');
 
     const place = () => {
       const margin = 8;
-      const areaY = clipY?.getBoundingClientRect();
-      const areaX = clipX?.getBoundingClientRect();
-      const limitTop = Math.max(margin, areaY ? areaY.top : 0);
-      const limitBottom = Math.min(window.innerHeight - margin, areaY ? areaY.bottom : Infinity);
       const box = anchor.getBoundingClientRect();
       menuBox.style.maxHeight = '';
-      menuBox.style.right = '';
+      menuBox.style.overflowY = '';
       const height = menuBox.offsetHeight;
+      const width = menuBox.offsetWidth;
 
-      /* Sideways too: a menu hangs leftwards from the buttons at the right of
-         the row, and in a board's first column that is past the board's left
-         edge. Slid back inside, never further than the box that clips it. */
-      const limitLeft = Math.max(margin, areaX ? areaX.left : 0);
-      const limitRight = Math.min(window.innerWidth - margin, areaX ? areaX.right : Infinity);
-      const across = menuBox.getBoundingClientRect();
-      const shift = across.left < limitLeft
-        ? Math.min(limitLeft - across.left, Math.max(0, limitRight - across.right))
-        : across.right > limitRight ? limitRight - across.right : 0;
-      if (shift !== 0) menuBox.style.right = `${-shift}px`;
-      const roomBelow = limitBottom - (box.top + ROWMENU_OFFSET_PX);
-      const roomAbove = (box.bottom - ROWMENU_OFFSET_PX) - limitTop;
+      const roomBelow = window.innerHeight - margin - (box.bottom + ROWMENU_GAP_PX);
+      const roomAbove = box.top - ROWMENU_GAP_PX - margin;
       const fitsBelow = height <= roomBelow;
       const fitsAbove = height <= roomAbove;
-      // Below by default: a menu only moves when it has to, and only when the
-      // other side is genuinely better.
+      // Below by default: a menu only moves when the other side is genuinely better.
       const goUp = fitsBelow ? false : fitsAbove ? true : roomAbove > roomBelow;
-      setUp(goUp);
+      const room = goUp ? roomAbove : roomBelow;
+      const shown = Math.min(height, Math.max(120, Math.floor(room)));
       if (!fitsBelow && !fitsAbove) {
-        menuBox.style.maxHeight = `${Math.max(120, Math.floor(goUp ? roomAbove : roomBelow))}px`;
+        menuBox.style.maxHeight = `${shown}px`;
         menuBox.style.overflowY = 'auto';
-      } else {
-        menuBox.style.overflowY = '';
       }
+      const top = goUp ? box.top - ROWMENU_GAP_PX - shown : box.bottom + ROWMENU_GAP_PX;
+      const left = Math.min(
+        Math.max(margin, box.right - width),
+        Math.max(margin, window.innerWidth - width - margin),
+      );
+      menuBox.style.top = `${Math.max(margin, top)}px`;
+      menuBox.style.left = `${left}px`;
+      menuBox.classList.toggle('up', goUp);
+      menuBox.style.visibility = '';
     };
 
+    menuBox.style.visibility = 'hidden';
     place();
     const observer = new ResizeObserver(place);
     observer.observe(menuBox);
@@ -135,43 +116,22 @@ function useMenuPlacement(menu: string) {
     const changed = new MutationObserver(place);
     changed.observe(menuBox, { childList: true, subtree: true });
     window.addEventListener('resize', place);
-    clipY?.addEventListener('scroll', place, { passive: true });
-    clipX?.addEventListener('scroll', place, { passive: true });
+    /* Any scroll at all — the page, a list, a board sideways — moves the row,
+       and the menu goes with it. Captured, because scroll does not bubble. */
+    const onScroll = (event: Event) => {
+      if (menuBox.contains(event.target as Node)) return;
+      place();
+    };
+    window.addEventListener('scroll', onScroll, { capture: true, passive: true });
     return () => {
       observer.disconnect();
       changed.disconnect();
       window.removeEventListener('resize', place);
-      clipY?.removeEventListener('scroll', place);
-      clipX?.removeEventListener('scroll', place);
+      window.removeEventListener('scroll', onScroll, { capture: true });
     };
-  }, [menu]);
+  }, [menu, anchorRef]);
 
-  return { ref, className: up ? ' up' : '' };
-}
-
-/** The nearest box above `node` that cuts off what overflows it, if any. */
-/**
- * The nearest ancestor that actually clips this axis.
- *
- * `overflow-x: auto` alone makes a browser resolve `overflow-y` to `auto`
- * too — a spec rule meant for `overflow: auto` shorthand, paid for by every
- * element that only meant to scroll sideways. The board is exactly that: it
- * scrolls right, never down, but `getComputedStyle` reports its `overflow-y`
- * as `auto` regardless, and a menu placed near a short column read that as a
- * real ceiling and folded itself into a sliver at the column's own height
- * instead of using the page below the board. Read from the box instead of
- * the declaration: an ancestor only clips an axis when it is actually
- * carrying more than it can show on it.
- */
-function clippingAncestor(node: HTMLElement, axis: 'x' | 'y'): HTMLElement | null {
-  for (let at = node.parentElement; at && at !== document.body; at = at.parentElement) {
-    const style = getComputedStyle(at);
-    const clips = axis === 'x'
-      ? style.overflowX !== 'visible' && at.scrollWidth > at.clientWidth + 1
-      : style.overflowY !== 'visible' && at.scrollHeight > at.clientHeight + 1;
-    if (clips) return at;
-  }
-  return null;
+  return { ref, className: ' floating' };
 }
 
 /**
@@ -208,11 +168,8 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
   const toast = useStore((s) => s.toast);
   const demo = useStore((s) => s.demo);
   const dateFormat = useStore((s) => s.prefs.dateFormat);
+  const hour12 = useStore((s) => s.prefs.hour12);
   const [menu, setMenu] = useState<'none' | 'schedule' | 'more' | 'estimate' | 'move'>('none');
-  /** What has been typed into the schedule field, before it is a date. */
-  const [typed, setTyped] = useState('');
-  /** Which suggestion the keyboard is on; -1 means "what I typed". */
-  const [pick, setPick] = useState(-1);
   /** What has been typed to narrow the destinations, and where the keyboard is. */
   const [dest, setDest] = useState('');
   const [destPick, setDestPick] = useState(-1);
@@ -228,11 +185,8 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
   const phone = usePhoneBehaviour();
   /* Only where a menu hangs off its row. On a phone it is a sheet along the
      bottom edge, placed by the stylesheet, with nothing to flip. */
-  const placement = useMenuPlacement(phone || menu === 'estimate' ? 'none' : menu);
+  const placement = useMenuPlacement(phone || menu === 'estimate' ? 'none' : menu, ref);
 
-  // A menu that opens holding the last thing typed into it is a menu lying
-  // about what it will do if you press Enter.
-  useEffect(() => { if (menu !== 'schedule') { setTyped(''); setPick(-1); } }, [menu]);
   useEffect(() => { if (menu !== 'move') { setDest(''); setDestPick(-1); } }, [menu]);
 
   /* Two ways to be asked for a menu, and the row is where both arrive: a key
@@ -273,6 +227,8 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
       const target = e.target as Node;
       if (ref.current?.contains(target)) return;
       if (sheetRef.current?.contains(target)) return;
+      // The menu is drawn into the document, not into the row (#111).
+      if (placement.ref.current?.contains(target)) return;
       setMenu('none');
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu('none'); };
@@ -415,44 +371,20 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
   }
 
   /**
-   * The date somebody typed, read the way the composer reads one.
+   * A day for the task, from anywhere in the schedule menu: typed, suggested,
+   * a date shortcut or the calendar (#110).
    *
-   * Three shortcuts answer most days and a calendar answers the rest, but
-   * neither answers "next sunday" as fast as typing it. The field is the first
-   * thing in the menu and has the focus, so the whole gesture is: click, type,
-   * Enter.
+   * Keeps the rule when there is one, so dating an occurrence of a recurring
+   * task moves that occurrence instead of ending the series. A real date and
+   * the week tag on the same task is the contradiction the app reports rather
+   * than resolves, so giving it a day takes the tag off — exactly as every
+   * other way of dating a task here does.
    */
-  const reading = useMemo(() => (typed.trim() ? readNaturalDate(typed) : null), [typed]);
-
-  /* The same field reads a repeat rule. It has to: this menu is the fastest
-     way to a task's date, and "every monday" is a date in the sense that
-     matters — the answer to when does this happen. */
-  const repeat = useMemo(() => (typed.trim() ? readRecurrence(typed) : null), [typed]);
-
-  /* What the words could still turn into. Narrowing as you type is the whole
-     point: "to" is both today and tomorrow, "tom" is only one of them. */
-  const suggestions = useMemo(() => dateSuggestions(typed, locale), [typed, locale]);
-  const chosen = pick >= 0 ? suggestions[pick] : undefined;
-
-  function commitTyped(override?: DateSuggestion) {
-    /* A rule wins over a date. Nothing else can have been meant: a suggestion
-       list narrowing on "every" has nothing in it, and the words that make a
-       recurrence are the same words that make a single day. */
-    if (!override && repeat) return commitRecurrence();
-
-    const iso = override?.date ?? chosen?.date ?? currentReading()?.date;
-    if (!iso) return;
+  function commitDate(iso: string) {
     setMenu('none');
-    setTyped('');
-
     const before = { due: item.due, labels: item.labels };
     const update = {
-      // Keeps the rule when there is one, so dating an occurrence of a
-      // recurring task moves that occurrence instead of ending the series.
       due: dueForDate(item.due, iso),
-      /* A real date and the week tag on the same task is the contradiction the
-         app reports rather than resolves, so giving it a day takes the tag off
-         — exactly as every other way of dating a task here does. */
       labels: item.labels.filter((l) => l.toLowerCase() !== weekLabel().toLowerCase()),
     };
     const patch = (fields: Record<string, unknown>) => (snap: Snapshot): Snapshot => ({
@@ -463,27 +395,25 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
     void apply([updateItem(item.id, update)], patch(update)).then(() => {
       toast(
         t('task.movedTo', {
-          destination: formatDayOrName(new Date(iso.slice(0, 10)), locale, dateFormat),
+          destination: formatDayOrName(new Date(`${iso.slice(0, 10)}T00:00:00`), locale, dateFormat)
+            + (iso.includes('T') ? ` ${formatTime(new Date(iso), locale, hour12)}` : ''),
         }),
         () => { void apply([updateItem(item.id, before)], patch(before)); },
       );
     });
   }
 
-  /** The reading the field currently stands for, so the commit path has one. */
-  function currentReading() { return reading; }
-
   /**
-   * Replacing the repeat rule from the same field.
+   * Replacing the repeat rule from the same field: this menu is the fastest
+   * way to a task's date, and "every monday" is a date in the sense that
+   * matters — the answer to when does this happen.
    *
    * No date goes with it. Todoist works out which day the new rule lands on,
    * and sending one of our own alongside would fix the first occurrence to a
    * date the rule may not even contain.
    */
-  function commitRecurrence() {
-    if (!repeat) return;
+  function commitRecurrence(repeat: RecurrenceReading) {
     setMenu('none');
-    setTyped('');
 
     const before = { due: item.due, labels: item.labels };
     const patch = (fields: Record<string, unknown>) => (snap: Snapshot): Snapshot => ({
@@ -560,132 +490,41 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
             role="menu"
             ref={placement.ref}
           >
-            {/* Typing is the fastest way to say "next sunday", so it is the
-                first thing here and it already has the caret. */}
-            <input
-              className="schedulefield"
-              autoFocus
-              value={typed}
-              placeholder={t('task.typeDate')}
-              aria-label={t('task.schedule')}
-              onChange={(e) => { setTyped(e.target.value); setPick(-1); }}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-                if (e.key === 'ArrowDown' && suggestions.length > 0) {
-                  e.preventDefault();
-                  setPick((at) => (at + 1) % suggestions.length);
-                  return;
-                }
-                if (e.key === 'ArrowUp' && suggestions.length > 0) {
-                  e.preventDefault();
-                  setPick((at) => (at <= 0 ? suggestions.length - 1 : at - 1));
-                  return;
-                }
-                if (e.key === 'Enter') { e.preventDefault(); commitTyped(); }
-                if (e.key === 'Escape') setMenu('none');
-              }}
+            {/* The one date picker (#110): the same field, choices and month
+                as the bulk bar's Date panel and every date field. */}
+            <DatePicker
+              value={item.due?.date.slice(0, 10) ?? ''}
+              label={t('task.schedule')}
+              withTime
+              onPick={commitDate}
+              onRecurrence={commitRecurrence}
+              onEscape={() => setMenu('none')}
+              shortcuts={taskShortcuts(t, locale, {
+                today: () => void moveTo({ kind: 'today' }, t('common.today')),
+                day: (date) => commitDate(toApiDate(date)),
+                anytime: () => void moveTo({ kind: 'anytime' }, t('nav.week')),
+                someday: () => void moveTo({ kind: 'someday' }, t('nav.someday')),
+              })}
+              footer={(item.due?.is_recurring || item.due) ? (
+                <>
+                  {item.due?.is_recurring && (
+                    <button
+                      type="button"
+                      className="opt"
+                      title={t('task.nextOccurrenceHint')}
+                      onClick={() => { setMenu('none'); void skipOccurrence(item.id); }}
+                    >
+                      <span><Icon name="repeat" size="sm" /> {t('task.nextOccurrence')}</span>
+                    </button>
+                  )}
+                  {item.due && (
+                    <button type="button" className="opt" onClick={() => schedule(null)}>
+                      <span><Icon name="close" size="sm" /> {t('task.removeDate')}</span>
+                    </button>
+                  )}
+                </>
+              ) : undefined}
             />
-
-            {/* A short list under the field, at most three long, each line
-                saying what it would do. A word shows the day it resolves to; a
-                bare day of the month shows the date and the weekday, which is
-                the part you actually want to know before choosing between three
-                fifteenths. */}
-            {typed.trim() !== '' && (
-              suggestions.length > 0 ? (
-                <div className="schedulesuggest" role="listbox">
-                  {suggestions.map((option, at) => {
-                    const day = new Date(`${option.date.slice(0, 10)}T00:00:00`);
-                    const named = formatDayOrName(day, locale, dateFormat);
-                    const label = option.word ?? formatDay(day, locale, dateFormat);
-                    const hint = option.word
-                      ? (sameWord(named, option.word) ? null : named)
-                      : weekdayName(day, locale);
-                    return (
-                      <button
-                        key={option.date + (option.word ?? '')}
-                        role="option"
-                        aria-selected={at === pick}
-                        className={`scheduleoption${at === pick ? ' on' : ''}`}
-                        onMouseDown={(e) => { e.preventDefault(); commitTyped(option); }}
-                        onMouseEnter={() => setPick(at)}
-                      >
-                        <span>{label}</span>
-                        {hint && <small>{hint}</small>}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className={`schedulepreview${reading ? '' : ' none'}`}>
-                  {reading
-                    ? formatDayOrName(new Date(reading.date.slice(0, 10)), locale, dateFormat)
-                    : t('task.dateNotRead')}
-                </p>
-              )
-            )}
-
-            <button
-              className="opt"
-              onClick={() => void moveTo({ kind: 'today' }, t('common.today'))}
-            >
-              <span><Icon name="week" size="sm" /> {t('common.today')}</span>
-            </button>
-            <button
-              className="opt"
-              onClick={() =>
-                void moveTo({ kind: 'day', date: addDays(new Date(), 1) }, t('common.tomorrow'))}
-            >
-              <span><Icon name="arrow-right" size="sm" /> {t('common.tomorrow')}</span>
-            </button>
-            <button
-              className="opt"
-              onClick={() =>
-                void moveTo({ kind: 'day', date: nextMonday(new Date()) }, t('task.nextWeek'))}
-            >
-              <span><Icon name="upcoming" size="sm" /> {t('task.nextWeek')}</span>
-            </button>
-
-            {/* And a calendar, for a date it is easier to point at than to
-                name. The same one the composer uses, so picking a date from a
-                row and picking one while writing the task are the same control
-                rather than two that drifted apart. */}
-            <div className="rowmenu-date">
-              <DateField
-                value={item.due?.date.slice(0, 10) ?? ''}
-                label={t('task.schedule')}
-                placeholder={t('task.pickDate')}
-                searchable={false}
-                showValue={false}
-                onChange={(next) => {
-                  if (!next) { schedule(null); return; }
-                  const day = new Date(`${next}T00:00:00`);
-                  void moveTo({ kind: 'day', date: day }, formatDayOrName(day, locale, dateFormat));
-                }}
-              />
-            </div>
-
-            {item.due?.is_recurring && (
-              <>
-                <hr />
-                <button
-                  className="opt"
-                  onClick={() => { setMenu('none'); void skipOccurrence(item.id); }}
-                >
-                  <span><Icon name="repeat" size="sm" /> {t('task.nextOccurrence')}</span>
-                </button>
-                <p className="menuhint">{t('task.nextOccurrenceHint')}</p>
-              </>
-            )}
-
-            {item.due && (
-              <>
-                <hr />
-                <button className="opt" onClick={() => schedule(null)}>
-                  <span><Icon name="close" size="sm" /> {t('task.removeDate')}</span>
-                </button>
-              </>
-            )}
           </div>
         )}
 
@@ -699,8 +538,9 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
                 the first thing here and it already has the caret — the same
                 gesture the schedule menu asks for. The heading goes: the field's
                 placeholder says what the menu is for. */}
+            <div className="pickersearch">
+            <Icon name="search" size="sm" />
             <input
-              className="schedulefield"
               autoFocus
               value={dest}
               placeholder={t('task.typeDestination')}
@@ -733,6 +573,7 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
                 if (e.key === 'Escape') setMenu('none');
               }}
             />
+            </div>
 
             <div className="movelist" role="listbox">
               {matches.map((destination, at) => (
@@ -914,7 +755,10 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
           </div>,
           document.body,
         )
-        : menus}
+        /* Drawn into the document too, so no box the row sits in can cut a
+           menu short (#111). React still carries its events up through the
+           row, as if it were drawn there. */
+        : menu !== 'none' && createPortal(menus, document.body)}
     </span>
   );
 }

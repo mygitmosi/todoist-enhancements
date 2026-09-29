@@ -7,7 +7,7 @@ import { createTasksMoveSlice } from './tasks-move';
 import { createStructureSlice } from './structure';
 import { createUiSlice } from './ui';
 import * as idb from '@/db/idb';
-import { pendingDeletes } from './helpers';
+import { flushPersist, pendingDeletes } from './helpers';
 
 /**
  * The app's one store, built from slices — one file per area:
@@ -29,7 +29,7 @@ export const useStore = create<AppState>()((...a) => ({
 export type { AppState, SyncState, Toast, UndoEntry } from './types';
 
 /*
- * Leaving the page must not forget a deletion. The moment the page is hidden
+ * Leaving the page must not forget a deletion, or any other change. The moment the page is hidden
  * — a tab closed or switched, the app sent to the background — every pending
  * deletion is written to the offline queue, which goes out on the next sync
  * even if that is the next launch. It stays pending in memory: coming back
@@ -39,10 +39,13 @@ if (typeof document !== 'undefined') {
   const queuePending = () => {
     // A demo deletes nothing, and nothing of it may reach the queue.
     if (useStore.getState().demo) return;
+    /* The copy kept on the device is written now, not after its 400 ms: this
+       is the last moment the page is sure to be running (#132). */
+    flushPersist();
     for (const pending of pendingDeletes.values()) {
       if (pending.queued) continue;
       pending.queued = true;
-      void idb.enqueue(pending.commands);
+      void idb.enqueue(pending.commands, useStore.getState().snapshot.user?.id);
     }
   };
   document.addEventListener('visibilitychange', () => {

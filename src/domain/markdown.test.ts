@@ -52,3 +52,31 @@ describe('bare domains without a scheme (#101 follow-up)', () => {
     expect(plainTitle('Voir free.fr')).toBe('Voir free.fr');
   });
 });
+
+describe('text that looks like an internal placeholder (#135)', () => {
+  it('shows @@link0@@ and @@code0@@ as the words they are', () => {
+    expect(renderTitle('Fill @@link0@@ in')).toBe('Fill @@link0@@ in');
+    expect(renderTitle('Fill @@link3@@ in')).not.toContain('undefined');
+    expect(renderTitle('Fill @@code0@@ in')).toBe('Fill @@code0@@ in');
+  });
+
+  it('keeps a real code span and a real link while the lookalike stays text', () => {
+    const html = renderTitle('`a` and @@code0@@ and [x](https://example.com) @@link0@@');
+    expect(html.match(/<code>a<\/code>/g)).toHaveLength(1);
+    expect(html).toContain('@@code0@@');
+    expect(html).toContain('@@link0@@');
+    expect(html.match(/<a /g)).toHaveLength(1);
+    expect(html).not.toContain('undefined');
+  });
+
+  it('cannot be forged with the characters slots are made of', () => {
+    const html = renderTitle('x c9 y');
+    expect(html).not.toContain('undefined');
+    expect(html).not.toContain('');
+  });
+
+  it('still renders a code span inside a link label', () => {
+    expect(renderTitle('[`x`](https://example.com)'))
+      .toContain('<a href="https://example.com" target="_blank" rel="noopener noreferrer"><code>x</code></a>');
+  });
+});

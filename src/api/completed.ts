@@ -1,7 +1,6 @@
 import { ApiError, request } from './client';
 import type { CompletedItem } from '@/domain/types';
 import { addDays, differenceInCalendarDays, min as earliest } from 'date-fns';
-import { toApiDate } from '@/domain/dates';
 
 /**
  * Reading history, for Insights.
@@ -47,9 +46,16 @@ async function fetchWindow(
 
   do {
     const page = await request<CompletedResponse>('/tasks/completed/by_completion_date', {
+      /* Exact instants, never bare dates (#131). A bare date is read as
+         midnight UTC and the end of a range is not included, so a range that
+         ended on a day left that whole day out: a day asked for as
+         `since=D&until=D` was an empty window and showed nothing, the last day
+         of every period was missing, and the first hours of a period in a
+         zone ahead of UTC fell before it. Ranges are local start and end of
+         day, so their instants are exactly the period the person sees. */
       query: {
-        since: toApiDate(since),
-        until: toApiDate(until),
+        since: since.toISOString(),
+        until: until.toISOString(),
         limit: PAGE_LIMIT,
         cursor,
       },
@@ -62,16 +68,33 @@ async function fetchWindow(
   return out;
 }
 
-/** Cuts a period into consecutive windows of at most `days`, sharing no day. */
-function windowsOf(since: Date, until: Date, days: number): Array<{ since: Date; until: Date }> {
+/**
+ * Cuts a period into consecutive windows of at most `days`.
+ *
+ * Contiguous on instants: each window ends where the next begins, so no
+ * moment of the period is left between two of them. Something completed
+ * exactly on a boundary is fetched twice, and `unique` takes the repeat out.
+ */
+export function windowsOf(since: Date, until: Date, days: number): Array<{ since: Date; until: Date }> {
   const windows: Array<{ since: Date; until: Date }> = [];
   let cursorDate = since;
   while (cursorDate < until) {
     const windowEnd = earliest([addDays(cursorDate, days), until]);
     windows.push({ since: cursorDate, until: windowEnd });
-    cursorDate = addDays(windowEnd, 1);
+    cursorDate = windowEnd;
   }
   return windows;
+}
+
+/** The same completion once, however many windows reached it. */
+function unique(items: CompletedItem[]): CompletedItem[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = `${item.id}:${item.completed_at}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /**
@@ -96,7 +119,7 @@ async function fetchRange(
     for (const window of windowsOf(since, until, narrower)) {
       results.push(...await fetchRange(window.since, window.until, narrower, signal));
     }
-    return results;
+    return unique(results);
   }
 }
 
@@ -120,12 +143,6 @@ export async function fetchCompleted(
     for (const page of pages) results.push(...page);
   }
 
-  // Windows share no boundary day, but a defensive de-duplication costs nothing.
-  const seen = new Set<string>();
-  return results.filter((item) => {
-    const key = `${item.id}:${item.completed_at}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  // Windows meet at a boundary instant, so what is completed on one is in two.
+  return unique(results);
 }

@@ -169,6 +169,7 @@ function SimpleListBody({
           items={scoped}
           childrenOf={childrenOf}
           mode={current.mode}
+          wide={current.wide}
           group={current.group}
           sort={current.sort}
           onOpen={onOpen}

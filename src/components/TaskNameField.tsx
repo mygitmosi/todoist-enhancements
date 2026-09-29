@@ -89,12 +89,13 @@ export function TaskNameField({
 }: TaskNameFieldProps) {
   const { t } = useT();
   const createLabel = useStore((s) => s.createLabel);
+  const dateFormat = useStore((s) => s.prefs.dateFormat);
   const inputRef = useRef<(HTMLInputElement & HTMLTextAreaElement) | null>(null);
   const mirrorRef = useRef<HTMLDivElement>(null);
   const [caret, setCaret] = useState(0);
   const [pick, setPick] = useState(0);
 
-  const { ranges } = parseShorthand(value, snapshot, naturalDates, refusals);
+  const { ranges } = parseShorthand(value, snapshot, naturalDates, refusals, dateFormat);
   const token = tokenAtCaret(value, caret);
 
   /**
@@ -109,7 +110,7 @@ export function TaskNameField({
    */
   const live = refusals.filter((refusal) => {
     const without = refusals.filter((other) => other !== refusal);
-    return parseShorthand(value, snapshot, naturalDates, without).ranges.some(
+    return parseShorthand(value, snapshot, naturalDates, without, dateFormat).ranges.some(
       (mark) => mark.start === refusal.start && mark.end === refusal.end,
     );
   });
@@ -312,6 +313,16 @@ export function TaskNameField({
   }
   if (cursor < value.length) pieces.push({ text: value.slice(cursor) });
 
+  /* Which marks face another mark across a single space (#112). A mark's tint
+     reaches a little past its word on each side, for room around the letters;
+     towards a neighbouring mark it reaches less, so the two stay apart. */
+  const isMark = (at: number) => !!pieces[at]?.kind && !pieces[at]?.refused;
+  const isGap = (at: number) => !!pieces[at] && !pieces[at].kind && /^\s{1,2}$/.test(pieces[at].text);
+  const joins = pieces.map((_, at) => ({
+    left: isMark(at) && isGap(at - 1) && isMark(at - 2),
+    right: isMark(at) && isGap(at + 1) && isMark(at + 2),
+  }));
+
   const track = (el: HTMLInputElement) => setCaret(el.selectionStart ?? el.value.length);
 
   /**
@@ -337,7 +348,7 @@ export function TaskNameField({
           piece.kind && !piece.refused
             ? (
               <mark
-                className={`nmark ${piece.kind}`}
+                className={`nmark ${piece.kind}${joins[index].left ? ' join-left' : ''}${joins[index].right ? ' join-right' : ''}`}
                 key={index}
                 /* The thing's own colour, when it has one: a project's, a
                    tag's, the priority's. A guess made from prose has none and

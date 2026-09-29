@@ -18,6 +18,8 @@ interface PlacementFieldProps {
   ariaLabel?: string;
   value: Placement;
   onChange: (placement: Placement) => void;
+  /** A field, or a chip in the composer's planning line (#113). */
+  variant?: 'field' | 'chip';
 }
 
 /**
@@ -29,7 +31,7 @@ interface PlacementFieldProps {
  * appear, and choosing again. So the sections are listed under their project,
  * indented, and picking one says both things at once.
  */
-export function PlacementField({ label, ariaLabel, value, onChange }: PlacementFieldProps) {
+export function PlacementField({ label, ariaLabel, value, onChange, variant }: PlacementFieldProps) {
   const { t } = useT();
   const projects = useStore((s) => s.snapshot.projects);
   const sections = useStore((s) => s.snapshot.sections);
@@ -77,6 +79,7 @@ export function PlacementField({ label, ariaLabel, value, onChange }: PlacementF
       ariaLabel={ariaLabel ?? label}
       value={asValue(value)}
       options={options}
+      variant={variant}
       onChange={(next) => {
         const place = places.get(next);
         if (place) onChange(place);

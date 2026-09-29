@@ -389,7 +389,6 @@
   border-radius:var(--r-md);margin-bottom:8px;padding:10px 12px;
   grid-template-columns:18px minmax(0,1fr);
 }
-.col .task .trow-actions{grid-column:2;justify-self:end;margin-top:6px}
 .col .drag{display:none}
 
 .btn.linklike{border:0;color:var(--accent);background:transparent;padding:0 4px}
@@ -542,27 +541,7 @@
 }
 .composer-desc:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
 
-.composer-fields{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-  gap:var(--s3);padding-top:var(--s2);border-top:1px solid var(--border);
-}
-.cfield{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;min-width:0}
-.cfield > span:first-child{font-size:var(--fs-11);font-weight:600;color:var(--faint)}
-.cfield input,.cfield select{
-  height:32px;box-sizing:border-box;padding:0 8px;width:100%;
-  border:1px solid var(--border-strong);border-radius:var(--r-sm);
-  background:var(--surface);color:var(--text);font:inherit;font-size:var(--fs-13);
-}
-.cfield input:focus,.cfield select:focus{outline:2px solid var(--accent);outline-offset:-1px}
-.cfield .estfield{width:100%}
-.cfield .estfield .estinput{flex:1 1 auto;width:auto;height:32px}
-
 .composer-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;position:relative}
-.composer-tags .pill{
-  display:inline-flex;align-items:center;gap:5px;padding:3px 8px;
-  border:1px solid var(--border-strong);border-radius:var(--r-sm);font-size:var(--fs-12);
-}
-.composer-tags .pill:hover{border-color:var(--accent);color:var(--accent-dark)}
 .tagpicker{top:34px;left:0;min-width:220px;max-height:220px;overflow-y:auto;padding:var(--s2)}
 
 .composer-actions{display:flex;justify-content:flex-end;gap:var(--s2);padding-top:var(--s2)}
@@ -819,15 +798,15 @@
   max-width:1160px;
 }
 
-/* A board is not read line by line, so it takes the whole page rather than the
-   reading measure. Only the board does: the title, the figures and the
-   controls above it are read, and they keep the measure and the centring they
-   have on every other page.
+/* A board opens at the width of the header above it, like a list; Display →
+   Full width lets it take the whole page (#108 follow-up). Only the board
+   does: the title, the figures and the controls above it are read, and they
+   keep the measure and the centring they have on every other page.
 
    It is the whole page and not "from the title's left edge rightwards", which
    is what this was first: on a laptop that bought about forty pixels, which is
    no wider than before by the only measure that counts. */
-.page:has(> .mode > .board) > .mode{
+.page:has(> .mode > .board.fullwidth) > .mode{
   max-width:none;
   margin-left:0;
   margin-right:0;
@@ -872,8 +851,8 @@
 .repeatinput:has(input[aria-invalid="true"]){border-color:var(--p1)}
 /* The refusal says what to type instead, because "not understood" on its own
    leaves the reader guessing at a grammar. */
-.repeatrefused{color:var(--p1);font-size:var(--fs-11);line-height:1.35}
-.repeathint{color:var(--muted);font-size:var(--fs-11);line-height:1.35}
+.repeatrefused{color:var(--p1);font-size:var(--fs-12);line-height:1.35}
+.repeathint{color:var(--muted);font-size:var(--fs-12);line-height:1.35}
 
 /* The repeat standing in the composer's date slot. Shaped like the picker it
    replaces, so the row does not change height when a rule is read. */
@@ -912,7 +891,7 @@
 .boardnav{display:flex;justify-content:flex-end;margin-top:var(--s5)}
 .boardnav + .board{margin-top:var(--s2)}
 /* A column's load sits under its heading in the same quiet type as the count. */
-.cload{margin:-4px 0 10px;color:var(--faint);font-size:var(--fs-11);font-variant-numeric:tabular-nums}
+.cload{margin:-4px 0 10px;color:var(--faint);font-size:var(--fs-12);font-variant-numeric:tabular-nums}
 .cload.over{color:var(--accent-dark);font-weight:600}
 
 /* A parent and its subtasks are one card, not several. */
@@ -941,24 +920,37 @@
   font-size:var(--fs-12);
 }
 .col .taskwrap .task ~ .task .ttitle{font-size:var(--fs-12);font-weight:400}
-/* The controls float in the card's bottom corner on hover, over the duration
-   and tags rather than over the title being read. Given a row of their own
-   they reserved height on every card, which is what left some of them looking
-   bottom-heavy for no reason. */
+/* A subtask's title is a 12px line, not the parent's 14px one: its check sits
+   on that line's middle, not on the parent's (#109). */
+.col .taskwrap .check{margin-top:2px}
+.col .taskwrap .task ~ .task .check{margin-top:0}
+/* The controls sit on the card's first line, in its top corner, the way a
+   list row keeps them beside its title (#109). They are painted in the
+   card's own surface, with a short fade on their left where they meet the
+   title — part of the card rather than a panel laid on top of it. The
+   floating panel before this had its own border and shadow and sat over the
+   description, and read as a second shape stacked on the card.
+
+   Absolute, so a card is exactly as tall at rest as when hovered: a row of
+   their own reserved height on every card, which is what once left some of
+   them looking bottom-heavy. */
 .col .taskwrap{position:relative}
+.col .task{--card-bg:var(--surface)}
+.col .task.picked{--card-bg:var(--row-marked)}
 .col .trow-end{
-  position:absolute;bottom:0;right:0;z-index:1;
+  position:absolute;top:-4px;right:-6px;z-index:1;
   margin-top:0;justify-self:auto;
-  border-radius:var(--r-sm);background:var(--surface);
-  /* An edge and a shadow, because this is a white panel floating over a white
-     card: without them the buttons appear to be lying on the card's text. The
-     white ring stays — it is what clears the words underneath. */
-  border:1px solid var(--border);
-  box-shadow:0 0 0 3px var(--surface),0 2px 6px var(--sh-float);
-  /* The box itself must go, not only its buttons: with the buttons merely
-     invisible its opaque background and halo stayed painted over the title. */
+  padding-left:22px;
+  background:linear-gradient(to right, transparent, var(--card-bg) 20px);
+  border:0;border-radius:0 var(--r-sm) 0 0;box-shadow:none;
+  /* The box itself must go, not only its buttons: its background would stay
+     painted over the end of the title. */
   visibility:hidden;
 }
+.col .trow-end .trow-actions > button{width:28px;height:28px}
+/* On a subtask row the first line starts below the row's 7px top padding
+   and is 12px type, so the actions come down to sit on its middle. */
+.col .taskwrap .task ~ .task .trow-end{top:2px}
 .col .task:hover .trow-end,
 .col .task:focus-within .trow-end{visibility:visible}
 /* On a board the whole card is the handle, as in Todoist's own board. */
@@ -1193,7 +1185,7 @@
 /* One column that can shrink below its content: a long "project / section"
    is cut with an ellipsis rather than widening the form around it (#102). */
 .fselect{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:4px;min-width:0}
-.fselect-label{font-size:var(--fs-11);font-weight:600;color:var(--faint)}
+.fselect-label{font-size:var(--fs-12);font-weight:600;color:var(--faint)}
 .fselect-face{
   width:100%;min-width:0;min-height:34px;padding:0 10px;display:flex;align-items:center;gap:8px;
   border:1px solid var(--border);border-radius:var(--r-sm);
@@ -1270,19 +1262,6 @@
 /* ==========================================================================
    Composer — what the name carries, and the subtasks that go with it
    ========================================================================== */
-
-/* A read-back of everything the parser took out of the name, so the task
-   never gains a date the user did not realise they had typed. */
-.composer-read{display:flex;flex-wrap:wrap;gap:6px}
-.readchip{
-  display:inline-flex;align-items:center;gap:5px;
-  padding:3px 9px;border-radius:var(--r-full);
-  background:var(--subtle);color:var(--muted);
-  font-size:var(--fs-12);font-weight:600;
-}
-.readchip .ic{width:12px;height:12px;color:var(--faint)}
-.readchip.date{background:var(--accent-tint);color:var(--accent-dark)}
-.readchip.date .ic{color:var(--accent)}
 
 .composer-subs{display:grid;gap:2px;padding-top:var(--s2);border-top:1px solid var(--border)}
 .composer-subs .fieldlabel{margin:0 0 4px}
@@ -1477,7 +1456,7 @@
 .namefield{position:relative}
 .namefield .composer-name,
 .namemirror{
-  font:inherit;font-size:var(--fs-16);font-weight:600;
+  font:inherit;font-size:18px;font-weight:650;
   line-height:1.4;letter-spacing:normal;
   padding:9px 0;border:0;
   white-space:pre;overflow-x:auto;
@@ -1498,28 +1477,34 @@
      guess about prose rather than something written on purpose. */
   --mark:var(--accent);
 
-  /* A mark is a highlighted word, not a chip.
-     The chip was the wrong shape for the space available: a mark cannot be
-     wider than the word under it without the mirror drifting off the input,
-     and a space between two words is four pixels — so pills either touched or
-     the sentence had to be stretched to make room for them, and a title typed
-     with gaps between every word is worse than a tight mark.
-     What is left is the tint alone, with as much air as the padding can take
-     back through the margin, and a hairline of the field's own colour drawn
-     outside the box — a shadow takes no width, so it is what keeps two marks
-     that nearly touch reading as two. */
-  background:color-mix(in srgb, var(--mark) 14%, var(--surface));
-  /* Air on all four sides, out of a budget of four pixels.
-     Inner air and the gap between two marks come out of the same space — the
-     one the sentence puts between two words — so padding the box would take
-     the gap with it: at 2px a side, two marked words had half a pixel of
-     daylight between them. The sides are painted rather than padded instead:
-     a shadow spreads the fill a pixel and a half past the box and takes no
-     width at all, which leaves the words where they were and still leaves the
-     better part of a space between one mark and the next. */
-  padding:5px 0;margin:0;border-radius:5px;
-  box-shadow:0 0 0 1.5px color-mix(in srgb, var(--mark) 14%, var(--surface));
+  /* A mark is a highlight behind the words, never a chip (#112).
+
+     The mirror sits under the input and has to keep its text metrics exactly,
+     so nothing here may take width: no padding, margin, border, letter or
+     word spacing on the sides. Three earlier tries each broke that or the
+     sentence — padded pills with negative margins (neighbouring marks
+     touched), wider word spacing (every ordinary title got wider gaps), and
+     an outward shadow that spread the tint into the space between words
+     whatever was on the other side of it.
+
+     The tint is painted, never padded: two copies of the mark's own
+     background, shifted sideways as shadows, take no room at all. Next to
+     ordinary text or the field's edge each side reaches 2px past the word,
+     for air around the letters. Facing another mark across a space it
+     reaches less than a pixel (`join-left` / `join-right`, set by the
+     field), so two marks side by side keep most of the space between them as
+     daylight. Vertical padding on an inline box takes no layout room either.
+     `clone` gives each line of a wrapped mark its own rounded ends. */
+  --mark-tint:color-mix(in srgb, var(--mark) 13%, var(--surface));
+  --mark-left:2px;
+  --mark-right:2px;
+  background:var(--mark-tint);
+  padding:4px 0;margin:0;border-radius:5px;
+  box-shadow:calc(var(--mark-left) * -1) 0 0 0 var(--mark-tint), var(--mark-right) 0 0 0 var(--mark-tint);
+  -webkit-box-decoration-break:clone;box-decoration-break:clone;
 }
+.nmark.join-left{--mark-left:.75px}
+.nmark.join-right{--mark-right:.75px}
 
 /* A guess has no colour of its own. A duration has none either: an estimate is
    a number, not a thing with a colour in Todoist. */
@@ -2180,17 +2165,28 @@
   max-width:min(340px,calc(100vw - 16px));max-height:min(320px,60vh);
   overflow-y:auto;padding:var(--s2);
 }
+/* The typed field at the top of every menu and picker (#114): the date
+   picker, the row's Move menu, the bulk bar's Move and Tags, a searchable
+   select, the tag pickers. One bordered field, the same height, the same
+   focus ring, wherever a menu lets you type to narrow it. It stays at the
+   top of a list that scrolls, on a band of the menu's own surface so rows
+   never show through around it. */
 .pickersearch{
   position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:7px;
-  margin:calc(var(--s2) * -1) calc(var(--s2) * -1) var(--s2);
-  padding:var(--s2);border-bottom:1px solid var(--border);background:var(--surface);
+  min-height:var(--ctl-h);margin:0 0 var(--s2);padding:0 10px;
+  border:1px solid var(--border-strong);border-radius:var(--r-sm);background:var(--surface);
+  box-shadow:0 0 0 var(--s2) var(--surface);
+}
+.pickersearch:focus-within{
+  border-color:var(--accent);
+  box-shadow:var(--focus-ring), 0 0 0 var(--s2) var(--surface);
 }
 .pickersearch > .ic{flex:0 0 auto;color:var(--faint)}
 .pickersearch input{
-  width:100%;min-width:0;height:30px;padding:0;border:0;outline:0;
-  background:transparent;color:var(--text);font:inherit;font-size:var(--fs-13);
+  width:100%;min-width:0;height:calc(var(--ctl-h) - 2px);padding:0;border:0;outline:0;
+  background:transparent;color:var(--text);font:inherit;font-size:var(--fs-13);font-weight:600;
 }
-.pickersearch input::placeholder{color:var(--faint)}
+.pickersearch input::placeholder{color:var(--faint);font-weight:400}
 .listbox .menuhint{padding:8px}
 .listbox .opt{
   width:100%;display:flex;align-items:center;gap:8px;justify-content:flex-start;
@@ -2212,8 +2208,7 @@
 
 /* ---------- The calendar ---------- */
 .datefield{display:grid;grid-template-columns:minmax(0,1fr);gap:4px;min-width:0}
-.datepanel{position:fixed;z-index:95;width:278px;padding:var(--s3)}
-.datepanel .pickersearch{position:static;margin:calc(var(--s3) * -1) calc(var(--s3) * -1) var(--s3);padding:var(--s2) var(--s3)}
+.datepanel{position:fixed;z-index:95;width:288px;padding:var(--s2)}
 .pickersuggestions{display:grid;margin:-4px 0 var(--s3);border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden}
 .pickersuggestions button{display:flex;justify-content:space-between;gap:10px;padding:7px 8px;text-align:left;font-size:var(--fs-12)}
 .pickersuggestions button:hover,.pickersuggestions button.active{background:var(--hover)}
@@ -2225,26 +2220,7 @@
    the calendar's own search, so the highlighted candidate is actually
    visible while walking the list with the arrow keys (#97 follow-up — this
    had no styling at all, so the highlight moved with nothing to show it). */
-.schedulefield{
-  width:100%;padding:8px 10px;margin-bottom:var(--s2);
-  border:1px solid var(--border);border-radius:var(--r-sm);
-  background:var(--surface);color:var(--text);font-size:var(--fs-13);
-}
-.schedulefield:focus{outline:2px solid var(--accent);outline-offset:-1px}
-.schedulesuggest{display:grid;margin:-4px 0 var(--s2);border:1px solid var(--border);border-radius:var(--r-sm);overflow:hidden}
-.scheduleoption{display:flex;justify-content:space-between;gap:10px;padding:7px 8px;text-align:left;font-size:var(--fs-12)}
-.scheduleoption:hover,.scheduleoption.on{background:var(--hover)}
-.scheduleoption small{color:var(--faint)}
-.schedulepreview{margin:-4px 0 var(--s2);padding:7px 8px;border-radius:var(--r-sm);background:var(--hover);font-size:var(--fs-12)}
-.schedulepreview.none{color:var(--faint)}
 
-.datepanel-quick{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--s3)}
-.datepanel-quick button{
-  min-height:28px;padding:0 10px;border-radius:var(--r-full);
-  border:1px solid var(--border);background:var(--surface);
-  color:var(--muted);font-size:var(--fs-12);font-weight:600;
-}
-.datepanel-quick button:hover{border-color:var(--accent);color:var(--accent-dark);background:var(--accent-tint)}
 
 .datepanel-head{
   display:flex;align-items:center;justify-content:space-between;gap:var(--s2);
@@ -2275,16 +2251,7 @@
    be picked is visible, but plainly not a choice. */
 .dateday:disabled{color:var(--faint);opacity:.4;cursor:default}
 .dateday:disabled:hover{background:transparent}
-.datepanel-quick button:disabled{opacity:.4;cursor:default}
-.datepanel-quick button:disabled:hover{border-color:var(--border);color:inherit;background:transparent}
 
-.datepanel-clear{
-  width:100%;margin-top:var(--s3);padding-top:var(--s2);
-  display:flex;align-items:center;justify-content:center;gap:6px;
-  border-top:1px solid var(--border);
-  color:var(--muted);font-size:var(--fs-12);font-weight:600;min-height:30px;
-}
-.datepanel-clear:hover{color:var(--accent)}
 
 /* The property rows in a task's panel hold these too. */
 .prop .fselect,.prop .datefield{margin-top:4px}

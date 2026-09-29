@@ -30,6 +30,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   const resolver = useRef<((value: boolean) => void) | null>(null);
 
   const ask = useCallback<Ask>((next) => {
+    /* A question asked while another is open replaces it, and the first must
+       still be answered: its promise would never settle, and whatever awaits
+       it would wait for good (#125). Closing over it counts as "no". */
+    resolver.current?.(false);
     setRequest(next);
     return new Promise<boolean>((resolve) => {
       resolver.current = resolve;

@@ -42,26 +42,36 @@ test('a bulk toast stands above the bulk-edit bar (#88)', async ({ demo: page })
   expect(toastBox.y + toastBox.height).toBeLessThanOrEqual(Math.min(barBox.y, panelBox.y));
 });
 
-test('a row menu on a short board stays inside the board (#87)', async ({ demo: page }) => {
+test('every row menu on a short board uses the whole page, never the column (#87, #111)', async ({ demo: page }) => {
   await go(page, '#/project/site');
   await page.getByRole('button', { name: 'Display' }).click();
   await page.getByRole('button', { name: 'Board' }).click();
   await page.keyboard.press('Escape');
 
   const board = page.locator('.screen.active .board');
-  const last = board.locator('.col').first().locator('[data-task-id]').last();
-  await last.hover();
-  for (const name of ['Schedule', 'Move to project']) {
+  // The shortest column: its last card sits near the board's own bottom edge.
+  const last = board.locator('.col').last().locator('[data-task-id]').last();
+  const viewport = page.viewportSize()!;
+  for (const name of ['Schedule', 'Move to project', 'More actions']) {
+    await last.hover();
     await last.getByRole('button', { name }).click();
     const menu = page.locator('.rowmenu');
     await expect(menu).toBeVisible();
-    const menuBox = (await menu.boundingBox())!;
-    const boardBox = (await board.boundingBox())!;
-    expect(menuBox.x).toBeGreaterThanOrEqual(boardBox.x - 1);
-    expect(menuBox.y).toBeGreaterThanOrEqual(boardBox.y - 1);
-    expect(menuBox.y + menuBox.height).toBeLessThanOrEqual(boardBox.y + boardBox.height + 1);
+    const box = (await menu.boundingBox())!;
+    // Inside the window, whole.
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+    // And nothing the row sits in cuts it: both corners are the menu's own.
+    const corners = await menu.evaluate((m) => {
+      const r = m.getBoundingClientRect();
+      return [[r.left + 4, r.top + 4], [r.right - 4, r.bottom - 4]]
+        .map(([x, y]) => m.contains(document.elementFromPoint(x, y)));
+    });
+    expect(corners).toEqual([true, true]);
     await page.keyboard.press('Escape');
-    await last.hover();
+    await expect(menu).toHaveCount(0);
   }
 });
 
@@ -99,14 +109,18 @@ test('after a priority change, T and V still reach the selection, and the panels
   await page.keyboard.press('t');
   const date = page.getByRole('menu', { name: 'Date' });
   await expect(date).toBeVisible();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(page.getByRole('dialog').getByRole('textbox')).toBeFocused();
+  // The one date picker (#110), inside the panel itself: its field has the
+  // caret, ↓ walks the quick choices and then the month.
+  await expect(date.getByRole('textbox')).toBeFocused();
   await page.keyboard.press('ArrowDown');
-  await expect(page.locator('.dateday:focus')).toBeVisible();
+  await expect(date.locator('.datepicker-options .opt').first()).toBeFocused();
+  for (let at = 0; at < 8 && !(await date.locator('.dateday:focus').count()); at += 1) {
+    await page.keyboard.press('ArrowDown');
+  }
+  await expect(date.locator('.dateday:focus')).toBeVisible();
   // One Escape closes the whole panel, field and all, not just the field.
   await page.keyboard.press('Escape');
   await expect(date).toHaveCount(0);
-  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('toolbar')).toContainText('3 selected');
 
   // V: the Move panel; Escape closes it even from its search field.

@@ -328,6 +328,12 @@ export interface ViewPrefs {
   group: GroupKey;
   sort: SortKey;
   filters: ViewFilters;
+  /**
+   * A board as wide as the page, rather than as wide as the header above it
+   * (#108 follow-up). Off by default: a board opens at the width of a list,
+   * and the Display control widens it for a page that wants the room.
+   */
+  wide?: boolean;
 }
 
 /**
