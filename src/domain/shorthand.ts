@@ -1,4 +1,5 @@
 import { readNaturalDate } from './nlp';
+import type { DateFormat } from './dates';
 import { findLinks } from './markdown';
 import { readRecurrence, type RecurrenceLang } from './recurrence';
 import { parseDurationInput } from './estimates';
@@ -103,6 +104,7 @@ function readName<T>(text: string, find: (name: string) => T | undefined): { fou
 
 export function parseShorthand(
   raw: string, snapshot: Snapshot, naturalDates: boolean, refused: TextRange[] = [],
+  dateFormat: DateFormat = 'dmy',
 ): Shorthand {
   const ranges: Highlight[] = [];
   const claim = (start: number, length: number, kind: HighlightKind, tone?: string, keep?: boolean) =>
@@ -111,6 +113,19 @@ export function parseShorthand(
   /** Whether a candidate covers ground the caller has already turned down. */
   const isRefused = (start: number, length: number) =>
     refused.some((r) => start < r.end && start + length > r.start);
+
+  /*
+   * A link is content, not instructions (#144). `https://example.com/p1` is an
+   * address, not a priority, and `[tomorrow](https://example.com)` is a label,
+   * not a date. The links are found once, before anything else reads the name,
+   * and every reader below leaves that ground alone.
+   */
+  const linkRanges: TextRange[] = findLinks(raw).map(({ start, end }) => ({ start, end }));
+  const inLink = (start: number, length: number) =>
+    linkRanges.some((r) => start < r.end && start + length > r.start);
+  /** Ground a reading of prose or syntax must not take: turned down, or part of a link. */
+  const isOff = (start: number, length: number) =>
+    isRefused(start, length) || inLink(start, length);
 
   let projectId: string | null = null;
   let sectionId: string | null = null;
@@ -145,7 +160,7 @@ export function parseShorthand(
     if (!project) continue;
     const whole = project.length === projectText.length;
     const tokenLength = 1 + (whole && sectionText !== null ? token[1].length : project.length);
-    if (isRefused(hash, tokenLength)) continue;
+    if (isOff(hash, tokenLength)) continue;
     projectId = project.found.id;
     sectionId = null;
 
@@ -171,7 +186,7 @@ export function parseShorthand(
 
   let flagClaim: { start: number; length: number } | null = null;
   for (const flag of raw.matchAll(/\bp([1-4])\b/gi)) {
-    if (isRefused(flag.index!, flag[0].length)) continue;
+    if (isOff(flag.index!, flag[0].length)) continue;
     priority = Number(flag[1]) as DisplayPriority;
     flagClaim = { start: flag.index!, length: flag[0].length };
   }
@@ -179,8 +194,11 @@ export function parseShorthand(
     claim(flagClaim.start, flagClaim.length, 'priority', `var(--p${priority})`);
   }
 
-  for (const label of raw.matchAll(/@([\p{L}\p{N}_-]+)/gu)) {
-    if (isRefused(label.index!, label[0].length)) continue;
+  /* A tag starts a word: `@work` after a space or at the start. Glued to
+     something, it is not one: `@@link0@@` is text, and so is the `@example` of
+     an address like `me@example.com`, which used to make a tag out of it. */
+  for (const label of raw.matchAll(/(?<=^|\s)@([\p{L}\p{N}_-]+)/gu)) {
+    if (isOff(label.index!, label[0].length)) continue;
     labels.push(label[1]);
     const tag = Object.values(snapshot.labels).find(
       (l) => !l.is_deleted && fold(l.name) === fold(label[1]),
@@ -193,7 +211,7 @@ export function parseShorthand(
      alone, because brackets in a task name are usually just brackets. */
   let durationClaim: { start: number; length: number } | null = null;
   for (const bracket of raw.matchAll(/\(([^)]{1,12})\)/g)) {
-    if (isRefused(bracket.index!, bracket[0].length)) continue;
+    if (isOff(bracket.index!, bracket[0].length)) continue;
     const value = parseDurationInput(bracket[1]);
     if (value === null) continue;
     minutes = value;
@@ -217,7 +235,7 @@ export function parseShorthand(
    */
   let recurrence: Shorthand['recurrence'] = null;
   if (naturalDates) {
-    let text = mask(raw, [...ranges, ...refused]);
+    let text = mask(raw, [...ranges, ...refused, ...linkRanges]);
     let last: { at: number; length: number; reading: ReturnType<typeof readRecurrence> } | null = null;
     for (let guard = 0; guard < 8; guard += 1) {
       const repeat = readRecurrence(text);
@@ -240,10 +258,10 @@ export function parseShorthand(
     /* The date is read from what the explicit syntax has not already claimed,
        blanked out rather than removed so every index still points at the same
        character of the original string. */
-    let text = mask(raw, [...ranges, ...refused]);
+    let text = mask(raw, [...ranges, ...refused, ...linkRanges]);
     let last: { at: number; length: number; date: string } | null = null;
     for (let guard = 0; guard < 8; guard += 1) {
-      const reading = readNaturalDate(text);
+      const reading = readNaturalDate(text, new Date(), { dateFormat });
       if (!reading) break;
       last = { at: reading.index, length: reading.matched.length, date: reading.date };
       text = blank(text, reading.index, reading.matched.length);
@@ -254,12 +272,10 @@ export function parseShorthand(
     }
   }
 
-  /* A link, marked last and never over ground something else already
-     claimed — a URL's own `#fragment` is not a project, but a name typed
-     with both is read as whichever came first. */
-  for (const span of findLinks(raw)) {
-    if (isRefused(span.start, span.end - span.start)) continue;
-    claim(span.start, span.end - span.start, 'link', undefined, true);
+  /* A link is marked last. Nothing above reads inside one, so a mark can no
+     longer land on ground a link already covers. */
+  for (const { start, end } of linkRanges) {
+    if (!isRefused(start, end - start)) claim(start, end - start, 'link', undefined, true);
   }
 
   const clean = dedupe(ranges);
@@ -268,6 +284,34 @@ export function parseShorthand(
     projectId, sectionId, priority, labels, date, recurrence, minutes,
     ranges: clean,
   };
+}
+
+/**
+ * Every reading a name already saved would get, turned down in advance.
+ *
+ * The task panel reuses the composer's field, and the composer reads what is
+ * typed. A title that was saved long ago was not typed just now: "Daily
+ * review" opened again is a name, not a request to repeat the task every day
+ * (#117). So the panel starts from these refusals — the saved words stay plain
+ * text, and only what is typed from there on is read. Clicking a word still
+ * takes its reading back, and editing into one drops its refusal, as with any
+ * other.
+ *
+ * Refusing one reading can let the next candidate in the same sentence in, so
+ * this reads again until nothing is left. A link is shown, never read, and is
+ * left alone.
+ */
+export function savedRefusals(
+  raw: string, snapshot: Snapshot, naturalDates: boolean, dateFormat: DateFormat = 'dmy',
+): TextRange[] {
+  const refused: TextRange[] = [];
+  for (let guard = 0; guard < 16; guard += 1) {
+    const found = parseShorthand(raw, snapshot, naturalDates, refused, dateFormat).ranges
+      .filter((range) => !range.keep);
+    if (found.length === 0) break;
+    refused.push(...found.map(({ start, end }) => ({ start, end })));
+  }
+  return refused.sort((a, b) => a.start - b.start);
 }
 
 /**

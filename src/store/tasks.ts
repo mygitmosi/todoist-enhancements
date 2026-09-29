@@ -5,9 +5,13 @@ import { fetchComments, fetchTask, itemFromCompleted } from '@/api/tasks';
 import { isUncompletable, toTodoistPriority, type Item, type Note, type Snapshot } from '@/domain/types';
 import { withEstimate } from '@/domain/estimates';
 import { toApiDate } from '@/domain/dates';
+import { readTime } from '@/domain/nlp';
 import { translate } from '@/i18n';
 import { byChildOrder, keyBetween, keysInOrder } from '@/domain/orderKey';
-import { UNDO_TOAST_MS, advanceDemoRecurrence, hidePending, patchItem, pendingDeletes, schedulePersist, settleFromServer } from './helpers';
+import {
+  UNDO_TOAST_MS, advanceDemoRecurrence, branchOf, deletionRoots, hidePending, patchItem, pendingDeletes,
+  restoreOrder, schedulePersist, settleFromServer,
+} from './helpers';
 import type { Slice, TasksSlice } from './types';
 
 /**
@@ -21,7 +25,16 @@ import type { Slice, TasksSlice } from './types';
 export const provisionalDue = (due: Item['due'] | undefined): Item['due'] => {
   if (!due) return null;
   if (due.date) return due;
-  return { ...due, date: toApiDate(new Date()), timezone: due.timezone ?? null };
+  /* The rule can carry a time ("every day at 15h"), and the row should show it
+     as it will be once Todoist answers: "Today 15:00", not a date with none. */
+  const time = due.is_recurring ? readTime(due.string ?? '') : null;
+  const today = toApiDate(new Date());
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return {
+    ...due,
+    date: time ? `${today}T${pad(time.hours)}:${pad(time.minutes)}:00` : today,
+    timezone: due.timezone ?? null,
+  };
 };
 
 /**
@@ -96,7 +109,8 @@ export const createTasksSlice: Slice<TasksSlice> = (set, get) => ({
           items: { ...current.snapshot.items, [item.id]: item },
           notes: { ...current.snapshot.notes, ...Object.fromEntries(notes.map((note) => [note.id, note])) },
         };
-        schedulePersist(snapshot);
+        // The demo is never written to the slot a real account's copy lives in.
+        if (!current.demo) schedulePersist(snapshot);
         return { snapshot };
       });
     };
@@ -259,23 +273,14 @@ export const createTasksSlice: Slice<TasksSlice> = (set, get) => ({
    */
   async removeTasks(ids) {
     const snapshot = get().snapshot;
-    const wanted = ids.filter((id) => snapshot.items[id]);
+    /* What the person picked, and what has to be sent: a subtask picked with
+       its parent goes with it and is not deleted a second time (#126). */
+    const picked = [...new Set(ids.filter((id) => snapshot.items[id]))];
+    const wanted = deletionRoots(picked, snapshot.items);
     if (wanted.length === 0) return;
 
     // Every descendant, so the whole branch comes back rather than its top.
-    const doomed: Item[] = [];
-    const walk = (parentId: string) => {
-      for (const item of Object.values(snapshot.items)) {
-        if (item.parent_id === parentId && !item.is_deleted) {
-          doomed.push(item);
-          walk(item.id);
-        }
-      }
-    };
-    for (const id of wanted) {
-      doomed.push(snapshot.items[id]);
-      walk(id);
-    }
+    const doomed = branchOf(wanted, snapshot.items);
     // Their comments too, for the copy a late undo has to make.
     const doomedIds = new Set(doomed.map((item) => item.id));
     const notes = Object.values(snapshot.notes)
@@ -299,11 +304,13 @@ export const createTasksSlice: Slice<TasksSlice> = (set, get) => ({
       queued: false,
     });
     set({ snapshot: hidePending(get().snapshot) });
-    schedulePersist(get().snapshot);
+    if (!get().demo) schedulePersist(get().snapshot);
 
-    const label = wanted.length === 1
-      ? translate(get().prefs.locale, 'task.deletedOne', { name: snapshot.items[wanted[0]].content })
-      : translate(get().prefs.locale, 'task.deletedMany', { count: wanted.length });
+    /* The message counts the tasks that were selected, so it still says what
+       the person did. */
+    const label = picked.length === 1
+      ? translate(get().prefs.locale, 'task.deletedOne', { name: snapshot.items[picked[0]].content })
+      : translate(get().prefs.locale, 'task.deletedMany', { count: picked.length });
 
     get().toast(label, () => {
       const pending = pendingDeletes.get(key);
@@ -315,13 +322,13 @@ export const createTasksSlice: Slice<TasksSlice> = (set, get) => ({
         const items = { ...get().snapshot.items };
         for (const item of pending.items) items[item.id] = item;
         set({ snapshot: { ...get().snapshot, items } });
-        schedulePersist(get().snapshot);
+        if (!get().demo) schedulePersist(get().snapshot);
         return;
       }
       // Already sent: Todoist has no undelete, so a copy is the best there is.
       void get().restoreTasks(doomed, notes).then(() => {
         get().toast(translate(get().prefs.locale, 'task.restoredAsCopy', {
-          count: wanted.length,
+          count: picked.length,
         }));
       });
     });
@@ -330,13 +337,12 @@ export const createTasksSlice: Slice<TasksSlice> = (set, get) => ({
     if (items.length === 0) return;
 
     /* Parents first, so a child's new parent id is known — or at least sent as
-       a temp id in the same call, which Todoist resolves inside one request. */
-    const tempIds = new Map(items.map((item) => [item.id, newUuid()]));
-    const ordered = [...items].sort((a, b) => {
-      if (a.parent_id === b.id) return 1;
-      if (b.parent_id === a.id) return -1;
-      return 0;
-    });
+       a temp id in the same call, which Todoist resolves inside one request.
+       The caller hands the branch over parent-first (`branchOf`); the list is
+       only made free of repeats here, since one id twice is two `item_add`s
+       sharing a temp id. */
+    const ordered = restoreOrder(items);
+    const tempIds = new Map(ordered.map((item) => [item.id, newUuid()]));
 
     const commands = ordered.map((item) => addItem({
       content: item.content,

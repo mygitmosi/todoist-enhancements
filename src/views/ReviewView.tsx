@@ -175,7 +175,11 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
    * instead of removing it.
    *
    * Tasks that arrive in the bucket later are added, and one deleted outright
-   * drops out, because it no longer exists to show.
+   * drops out, because it no longer exists to show. One ticked off drops out
+   * too, wherever it was ticked: from its own row, or from the task panel
+   * opened from it (#116) — finishing a task is not an answer to the step's
+   * question, it is the task leaving. Unticked again while the step is still
+   * open, it comes back where it was.
    */
   const shown = useRef<{ stepId: string | null; ids: string[] }>({ stepId: null, ids: [] });
   const rowsFor = (s: ReviewStep): Item[] => {
@@ -192,7 +196,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
        act in slower motion. Where it was is where it stays. */
     return shown.current.ids
       .map((id) => snapshot.items[id])
-      .filter((item): item is Item => !!item && !item.is_deleted);
+      .filter((item): item is Item => !!item && !item.is_deleted && !item.checked);
   };
 
   /**
@@ -313,7 +317,12 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
           <section className="reviewstep" key={step.id}>
             <h2>{t(`review.step.${step.id}` as TranslationKey)}</h2>
             <p className="reviewask">
-              {t(`review.ask.${step.id}` as TranslationKey, { days: prefs.quietAfterDays })}
+              {/* The daily pass asks about less than the weekly one does, and
+                  says so: its "no estimate" is today's work, not the week's. */}
+              {t(
+                (step.id === 'unestimated' ? `review.ask.unestimated.${cadence}` : `review.ask.${step.id}`) as TranslationKey,
+                { days: prefs.quietAfterDays },
+              )}
             </p>
             <div className="reviewbody">{body()}</div>
           </section>
@@ -877,15 +886,25 @@ function Estimates({
 }) {
   const { t, locale } = useT();
   const setEstimates = useStore((s) => s.setEstimates);
+  const live = useStore((s) => s.snapshot.items);
   const listRef = useRef<HTMLDivElement>(null);
   const [drafts, setDrafts] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
   /* The list is fixed when the step opens. Writing the estimates changes what
      the step would contain, and a list that empties itself under your hands is
      the thing this is fixing. */
-  const [frozen] = useState(() => items);
+  const [opened] = useState(() => items.map((item) => item.id));
+  /* Fixed, but not blind: a task deleted or ticked off from its panel, opened
+     from this list, is gone from it at once (#116), and its title follows an
+     edit made there. A task that joins the step while it is open — made in
+     the composer, dated today — is added at the end rather than missed. */
+  const arrived = items.map((item) => item.id).filter((id) => !opened.includes(id));
+  const frozen = [...opened, ...arrived]
+    .map((id) => live[id])
+    .filter((item): item is Item => !!item && !item.is_deleted && !item.checked);
+  const kept = new Set(frozen.map((item) => item.id));
 
-  const filled = Object.entries(drafts);
+  const filled = Object.entries(drafts).filter(([id]) => kept.has(id));
   const total = filled.reduce((sum, [, minutes]) => sum + minutes, 0);
 
   const record = (id: string, minutes: number | null) =>

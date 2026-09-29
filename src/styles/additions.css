@@ -135,7 +135,11 @@
 /* While the bulk-edit bar is up, the toasts stand just above it rather than
    over its buttons. `--bulkbar-room` is set by the bar itself. */
 .toasts{position:fixed;left:50%;bottom:max(24px, calc(var(--bulkbar-room, 0px) + 10px));transform:translateX(-50%);
-  z-index:200;display:grid;gap:8px;width:max-content;max-width:min(520px,92vw)}
+  z-index:200;display:grid;width:max-content;max-width:min(520px,92vw)}
+/* Two live regions, one stack (#136): each lane spaces its own toasts, and a
+   second lane in use sits a gap below the first. An empty lane takes no room. */
+.toastlane{display:grid;gap:8px}
+.toastlane:not(:empty) ~ .toastlane:not(:empty){margin-top:8px}
 /* The stack owns the placement now, so every property the older single-toast
    rule still sets has to be handed back — including the opacity:0 and the
    pointer-events:none it used to lift with a `show` class that nothing adds.
@@ -154,6 +158,12 @@
 @keyframes toastIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.toast{animation:none}}
 .toast button{color:var(--surface);font-weight:600;font-size:var(--fs-12);text-decoration:underline}
+/* The way out of any toast (#140): in the toast's own colours, at its right end
+   on a phone, where the toast is as wide as the screen. */
+.toast .toastclose{flex:0 0 auto;width:24px;height:24px;padding:0;margin-left:auto;margin-right:-4px;
+  display:grid;place-items:center;border-radius:var(--r-sm);color:var(--surface);opacity:.7;text-decoration:none}
+.toast .toastclose:hover,.toast .toastclose:focus-visible{opacity:1;
+  background:color-mix(in srgb,var(--surface) 14%,transparent)}
 /* A phone puts the navigation bar where the toast was going to sit. */
 @media (max-width:720px){
   .toasts{bottom:max(calc(76px + env(safe-area-inset-bottom)), calc(var(--bulkbar-room, 0px) + 10px));
@@ -659,9 +669,6 @@
   scrollbar-width:none;
 }
 .bulkpop-list::-webkit-scrollbar{width:0;height:0}
-.bulkpop-list > .pickersearch{margin-left:0;margin-right:0}
-.bulkpop-date{padding:2px}
-.bulkpop-date .datefield{width:100%}
 .bulkpop .opt > span{display:inline-flex;align-items:center;gap:8px;min-width:0}
 .bulkpop .opt .hash{flex:0 0 auto}
 .bulkpop-list .opt{width:100%;min-width:0;overflow:hidden}
@@ -693,12 +700,8 @@
 
 /* The calendar inside the row's schedule menu, given the width of the menu
    rather than the width of its own label. */
-.rowmenu-date .datefield{width:100%}
 /* The menu's own rules turn every button into a grid, which stacked the
    calendar's icon, its date and its caret into three lines. */
-.rowmenu-date .fselect-face{
-  width:100%;display:flex;align-items:center;gap:8px;justify-content:flex-start;
-}
 
 /* ==========================================================================
    1.1.1 — the review
@@ -764,7 +767,7 @@
   margin-bottom:var(--s4);padding:var(--s4);
   border:1px solid var(--border);border-radius:var(--r-lg);background:var(--subtle);
 }
-.reviewload .loadpill{font-size:var(--fs-15);padding:4px 12px}
+.reviewload .loadpill{font-size:var(--fs-16);padding:4px 12px}
 .reviewload-figures{display:grid;gap:2px}
 .reviewload-figures b{font-size:var(--fs-20);font-weight:700;letter-spacing:-.015em}
 .reviewload-figures small,
@@ -777,7 +780,7 @@
   padding:var(--s6) var(--s4);text-align:center;
   border:1px dashed var(--border);border-radius:var(--r-lg);background:var(--subtle);
 }
-.reviewmail strong{color:var(--text);font-size:var(--fs-15);font-weight:700}
+.reviewmail strong{color:var(--text);font-size:var(--fs-16);font-weight:700}
 .reviewmail > span{max-width:52ch;color:var(--muted);font-size:var(--fs-13);line-height:1.5}
 .reviewmail .reviewclear-mark{background:var(--accent)}
 .reviewmail.cleared .reviewclear-mark{background:var(--ok)}
@@ -790,22 +793,8 @@
 /* No heading: the field says what the menu is for, and a label above a thing
    that is already obvious was most of the space this menu was wasting. */
 .schedulemenu{min-width:252px;padding:6px}
-.schedulefield{
-  width:100%;box-sizing:border-box;min-height:34px;padding:0 10px;
-  border:1px solid var(--border-strong);border-radius:var(--r-sm);
-  background:var(--surface);color:var(--text);
-  font:inherit;font-size:var(--fs-13);font-weight:600;
-}
-.schedulefield::placeholder{color:var(--faint);font-weight:400}
-.schedulefield:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
-.schedulepreview{
-  padding:4px 10px 2px;color:var(--accent-dark);
-  font-size:var(--fs-12);font-weight:600;
-}
-.schedulepreview.none{color:var(--faint);font-weight:400}
 .schedulemenu .opt{min-height:30px}
 .schedulemenu hr{margin:4px 0}
-.rowmenu-date{padding:2px 0 0}
 
 /* A number that counts something needs the something beside it. */
 .setunit{display:inline-flex;align-items:center;gap:8px}
@@ -814,20 +803,6 @@
 
 /* What the field could still become: a short list, not a row of pills. Three
    lines at most — a fourth is a menu, and this is a hint. */
-.schedulesuggest{display:grid;gap:2px;padding:6px 0 2px}
-.schedulesuggest .scheduleoption{
-  /* Stated, because every button inside a row's action cluster is otherwise a
-     thirty-pixel square icon button. */
-  width:100%;height:auto;
-  display:flex;align-items:baseline;justify-content:space-between;gap:var(--s3);
-  min-height:30px;padding:0 8px;border-radius:var(--r-sm);
-  font-size:var(--fs-13);color:var(--text);text-align:left;
-}
-.schedulesuggest .scheduleoption small{
-  color:var(--faint);font-size:var(--fs-12);white-space:nowrap;
-}
-.schedulesuggest .scheduleoption.on{background:var(--accent-soft);color:var(--accent-dark)}
-.schedulesuggest .scheduleoption.on small{color:var(--accent-dark)}
 
 /* The mail step stopped asking to be ticked: Next already means "done". */
 .reviewmail{padding-bottom:var(--s5)}
@@ -1091,11 +1066,11 @@
   /* Tapping the row opens the task, so the button that opens the task is the
      one the tray does without. */
   .trow-actions .rowact-wide{display:none}
-  .trow-actions button{
+  .trow-actions > button{
     width:44px;height:44px;border-radius:var(--r-full);
     background:var(--subtle);color:var(--muted);
   }
-  .trow-actions button:active{background:var(--hover);color:var(--text)}
+  .trow-actions > button:active{background:var(--hover);color:var(--text)}
   .trow-actions .ic{width:18px;height:18px}
 
   /* A row pulled aside is the one thing being acted on; the rest of the list
@@ -1118,7 +1093,7 @@
   padding:var(--s2) var(--s2) var(--s3);
 }
 .rowsheet .rowmenu.asSheet .opt{min-height:44px}
-.rowsheet .rowmenu.asSheet .schedulefield{min-height:44px}
+.rowsheet .rowmenu.asSheet .pickersearch{min-height:var(--ctl-h-touch)}
 .rowsheet .rowmenu.asSheet .movelist{max-height:44vh}
 .rowsheet .estimatesheet h5{
   margin:0 0 var(--s2);font-size:var(--fs-11);font-weight:700;letter-spacing:.06em;
@@ -1203,3 +1178,173 @@
 }
 .dragoverlay.project .hash{width:18px;height:18px;font-size:var(--fs-12);flex:0 0 auto}
 .dragoverlay.tag .ic{color:var(--muted);flex:0 0 auto}
+
+/* What's new (#115). The title and the buttons hold still; the list scrolls
+   between them. The sheet itself stops scrolling so there is one scroller,
+   and it is no taller than the composer, with the composer's side room. */
+.sheet:has(> .whatsnew){overflow:hidden;display:flex}
+.whatsnew{display:flex;flex-direction:column;width:100%;max-height:min(620px, calc(100vh - 56px));min-height:0}
+.whatsnew-head{flex:0 0 auto;align-items:center;padding:var(--s4) var(--s5)}
+.whatsnew-pills{
+  flex:0 0 auto;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;
+  padding:var(--s3) var(--s5);border-bottom:1px solid var(--border);
+}
+.whatsnew-pills::-webkit-scrollbar{display:none}
+.whatsnew-pill{
+  flex:0 0 auto;min-height:26px;padding:0 10px;border-radius:var(--r-full);
+  border:1px solid var(--border-strong);background:var(--surface);
+  color:var(--muted);font-size:var(--fs-12);font-weight:600;font-variant-numeric:tabular-nums;
+}
+.whatsnew-pill:hover{color:var(--text);background:var(--hover)}
+.whatsnew-pill[aria-current="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-dark)}
+.whatsnew-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.whatsnew-body{flex:1 1 auto;min-height:0;overflow:auto;padding:var(--s4) var(--s5) var(--s5);display:grid;gap:var(--s5);align-content:start}
+.whatsnew-loading{color:var(--muted);font-size:var(--fs-13)}
+.whatsnew-release h3{display:flex;align-items:baseline;gap:8px;font-size:var(--fs-16);font-weight:700;margin-bottom:6px}
+.whatsnew-lang{font-size:var(--fs-12);font-weight:500;color:var(--faint)}
+.whatsnew-intro{color:var(--muted);font-size:var(--fs-13);line-height:1.5;margin-bottom:var(--s3)}
+.whatsnew-release ul{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.whatsnew-change{display:grid;grid-template-columns:24px 1fr;gap:6px;font-size:var(--fs-13);line-height:1.55}
+.whatsnew-mark{line-height:1.55}
+.whatsnew-change code{font-size:.92em;padding:0 4px;border-radius:4px;background:var(--hover)}
+.whatsnew-change a{color:inherit;text-decoration:underline}
+.whatsnew-more a{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-13);color:var(--muted)}
+.whatsnew-foot{flex:0 0 auto;position:static;padding:var(--s3) var(--s5)}
+/* The coffee is an offer, never the way out: a quiet yellow, next to the
+   button that closes the dialog. */
+.btn.coffee{border-color:transparent;background:#fff8d6;color:#342e10;text-decoration:none}
+.btn.coffee:hover{background:#fff1b3}
+.btn.coffee .ic{color:#342e10}
+:root[data-theme="dark"] .btn.coffee{background:rgba(254,215,0,.14);color:#f3e7a6}
+:root[data-theme="dark"] .btn.coffee:hover{background:rgba(254,215,0,.22)}
+:root[data-theme="dark"] .btn.coffee .ic{color:#f3e7a6}
+
+/* A board's "Add section" column (#108): a place, not a card — dashed and
+   quiet at rest, the same column shape as the others once it is a field. */
+.addsection-col{
+  width:100%;min-height:52px;padding:var(--s3) var(--s4);
+  display:flex;align-items:center;gap:6px;
+  border:1px dashed var(--border-strong);border-radius:var(--r-lg);
+  color:var(--muted);font-size:var(--fs-13);font-weight:600;text-align:left;
+  background:transparent;
+}
+.addsection-col:hover{color:var(--text);border-color:var(--muted);background:var(--hover)}
+.addsection-col:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.addsection-form{gap:var(--s3)}
+.addsection-field{
+  width:100%;padding:7px 10px;border:1px solid var(--border-strong);border-radius:var(--r-ctl);
+  background:var(--surface);color:var(--text);font:inherit;font-size:var(--fs-13);font-weight:700;
+}
+.addsection-field:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.addsection-actions{display:flex;justify-content:flex-end;gap:var(--s2)}
+
+/* ---------- The one date picker (#110) ----------
+   The same body in the row's schedule menu, the bulk bar's Date panel and
+   every date field's panel: a bordered field to type in, the quick choices
+   one per line with the day each lands on, the month, then the context's
+   own actions. Only the container differs. */
+.datepicker{display:grid;min-width:0;text-align:left}
+.datepicker .pickersuggestions,
+.datepicker .pickerreading{margin:0 0 6px}
+.datepicker .pickerreading{display:flex;align-items:center;gap:6px}
+.datepicker .pickersuggestions button.active{background:var(--accent-soft);color:var(--accent-dark)}
+.datepicker .pickersuggestions button.active small{color:var(--accent-dark)}
+.datepicker-options{display:grid;gap:1px;padding-bottom:6px;margin-bottom:8px;border-bottom:1px solid var(--border)}
+.datepicker button.opt{
+  width:100%;height:auto;display:flex;align-items:center;justify-content:space-between;gap:var(--s3);
+  min-height:30px;padding:0 8px;border-radius:var(--r-sm);
+  font-size:var(--fs-13);color:var(--text);text-align:left;background:transparent;
+}
+.datepicker button.opt > span{display:inline-flex;align-items:center;gap:8px;min-width:0}
+.datepicker button.opt > span .ic{color:var(--muted)}
+.datepicker button.opt small{color:var(--faint);font-size:var(--fs-12);white-space:nowrap}
+.datepicker button.opt:hover{background:var(--hover)}
+.datepicker button.opt:focus-visible{outline:none;background:var(--accent-soft);color:var(--accent-dark)}
+.datepicker button.opt:focus-visible small,
+.datepicker button.opt:focus-visible .ic{color:var(--accent-dark)}
+.datepicker button.opt:disabled{opacity:.4;cursor:default}
+.datepicker-month{padding:0 2px}
+.datepicker-foot{display:grid;gap:1px;margin-top:8px;padding-top:6px;border-top:1px solid var(--border)}
+.rowmenu.schedulemenu{width:288px;max-width:calc(100vw - 16px)}
+.bulkpop:has(.datepicker){width:288px}
+.datepicker .dateday{aspect-ratio:auto;height:32px}
+
+/* Row menus are drawn into the document and placed against the row's
+   buttons with fixed coordinates (#111), so no box the row sits in — a
+   short board column, a short list — can clip one. */
+.rowmenu.floating,
+.rowmenu.floating.up{position:fixed;right:auto;bottom:auto;z-index:95}
+.datepicker .pickersuggestions button{font-size:var(--fs-13)}
+
+/* ---------- The composer, direction B (#113) ----------
+   Four levels read top to bottom: the task (title, then its description on
+   the same edge, quieter), planning as one line of chips, subtasks with a
+   heading and a count, and the way out on a bar of its own. Spacing and
+   type make the hierarchy; there is no card inside the card. */
+.sheet .composerbox{padding:0;gap:0}
+/* Margin, not padding: the mirror behind the name covers its box exactly,
+   and padding would put the marks above the words. */
+.composerbox > .namefield{margin:var(--s4) var(--s5) 0}
+.composerbox .composer-desc{
+  display:block;width:100%;min-height:0;margin:-4px 0 var(--s3);padding:0 var(--s5);
+  border:0;border-radius:0;background:transparent;resize:none;overflow:hidden;
+  color:var(--muted);font-size:var(--fs-13);line-height:1.5;
+}
+.composerbox .composer-desc:focus{outline:none;color:var(--text)}
+.composerbox .composer-desc::placeholder{color:var(--faint)}
+
+.composer-chips{
+  display:flex;flex-wrap:wrap;align-items:center;gap:6px;
+  padding:0 var(--s5) var(--s4);position:relative;
+}
+.fselect.inchips,.datefield.inchips{display:inline-flex;width:auto;min-width:0;max-width:100%}
+.fselect-face.chipface{
+  width:auto;max-width:100%;min-height:30px;padding:0 10px;gap:6px;
+  border:1px solid var(--border-strong);border-radius:var(--r-full);
+  background:var(--subtle);color:var(--text);font-size:var(--fs-13);font-weight:600;
+}
+.fselect-face.chipface .fselect-value{flex:0 1 auto}
+.fselect-face.chipface.unset{border-style:dashed;background:transparent;font-weight:400}
+.fselect-face.chipface.unset,
+.fselect-face.chipface.unset .ic,
+.fselect-face.chipface.unset .fselect-value{color:var(--faint)}
+.fselect-face.chipface.unset:hover,
+.fselect-face.chipface.unset:hover .ic,
+.fselect-face.chipface.unset:hover .fselect-value{color:var(--text)}
+/* The repeat, standing in the date's place, keeps its accent. */
+.fselect-face.chipface.crepeat{width:auto;background:var(--accent-tint);color:var(--accent-dark);border-color:var(--accent-line)}
+.fselect-face.chipface.crepeat .ic{color:var(--accent-dark)}
+.fselect-face.chipface.tagchip > .ic:last-child{color:var(--faint)}
+.fselect-face.chipface.tagchip:hover > .ic:last-child{color:var(--accent-dark)}
+/* The estimate chip while its number is being typed. */
+.fselect-face.chipface.chipedit{cursor:text;border-color:var(--accent);background:var(--surface)}
+.chipedit .estfield{gap:4px}
+.chipedit .estinput{width:64px;height:26px;padding:0;border:0;background:transparent;font-weight:600}
+.chipedit .estinput:focus{outline:none}
+.composer-chips .tagpicker{left:var(--s5)}
+
+.composerbox .composer-subs{
+  gap:0;margin:0 var(--s5);padding:var(--s3) 0 var(--s2);border-top:1px solid var(--border);
+}
+.composer-subhead{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}
+.composer-subhead strong{font-size:var(--fs-13);font-weight:700}
+.composer-subhead small{color:var(--faint);font-size:var(--fs-12);font-variant-numeric:tabular-nums}
+.composer-sub + .composer-sub{border-top:1px solid var(--border)}
+.composer-sub.adding input::placeholder{color:var(--faint)}
+
+.composerbox .composer-actions{
+  display:flex;align-items:center;justify-content:flex-end;gap:var(--s2);
+  width:100%;margin:0;padding:var(--s3) var(--s4);border-top:1px solid var(--border);
+}
+.composer-hint{
+  margin-right:auto;display:inline-flex;align-items:center;gap:4px;
+  color:var(--faint);font-size:var(--fs-12);
+}
+.composer-hint kbd{
+  min-width:18px;padding:1px 5px;border:1px solid var(--border-strong);border-radius:var(--r-xs);
+  font:inherit;font-size:var(--fs-11);text-align:center;color:var(--muted);
+}
+@media (max-width:720px){
+  .composer-hint{display:none}
+  .composerbox .composer-actions .btn{flex:1;justify-content:center;min-height:var(--ctl-h-touch)}
+}

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { copyText, isTemporaryId, todoistTaskUrl } from '@/api/links';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Overlay } from './Overlay';
+import { isTopOverlay } from './overlayStack';
 import { Icon } from '../Icon';
 import { useT } from '@/hooks/useT';
 import { useMenuKeys } from '@/hooks/useMenuKeys';
@@ -12,9 +13,11 @@ import { useConfirm } from './Confirm';
 import {
   effectiveEstimate, formatDuration, withEstimate,
 } from '@/domain/estimates';
-import { deadlineDate, dueDate, formatRelativeDay, toApiDate } from '@/domain/dates';
+import {
+  deadlineDate, dueDate, formatRelativeDay, hasTime, toApiDate, toApiDateTime,
+} from '@/domain/dates';
 import { plainTitle, renderMarkdown, titleLinks } from '@/domain/markdown';
-import { parseShorthand, type TextRange } from '@/domain/shorthand';
+import { parseShorthand, savedRefusals, type TextRange } from '@/domain/shorthand';
 import { dueForDate, readRecurrence } from '@/domain/recurrence';
 import { EstimateField } from '../EstimateField';
 import { TaskNameField } from '../TaskNameField';
@@ -289,9 +292,12 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   const setRecurrence = useStore((s) => s.setRecurrence);
   const skipOccurrence = useStore((s) => s.skipOccurrence);
   const naturalDates = useStore((s) => s.prefs.naturalDates);
+  const dateFormat = useStore((s) => s.prefs.dateFormat);
   const toast = useStore((s) => s.toast);
   const demo = useStore((s) => s.demo);
   const confirm = useConfirm();
+  /* Named, so the panel's own keys can tell whether it is the dialog in front. */
+  const overlayId = useId();
 
   const item = taskId ? snapshot.items[taskId] : null;
   const loadTask = useStore((s) => s.loadTask);
@@ -389,6 +395,10 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   useEffect(() => {
     if (!item) return;
     const onKey = (event: KeyboardEvent) => {
+      /* A confirmation or a search opened over the panel is in front of it,
+         and the keys are its own: ↓ and J used to walk to the next task behind
+         the question, and "." opened the panel's menu (#125). */
+      if (!isTopOverlay(overlayId)) return;
       const target = event.target as HTMLElement | null;
       if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA'
         || target?.isContentEditable) return;
@@ -434,7 +444,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
 
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [askThenDelete, item]);
+  }, [askThenDelete, item, overlayId]);
 
   const fitDescription = useCallback(() => {
     const el = descriptionRef.current;
@@ -454,7 +464,9 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
     setEditingDescription(false);
     setAddingSubtask(false);
     setSubtaskDraft('');
-    setRefusals([]);
+    /* The saved title is a name, not something being typed: nothing in it is
+       read until it is edited (#117). */
+    setRefusals(savedRefusals(item.content, snapshot, naturalDates, dateFormat));
     setMenuOpen(false);
     setTagPickerOpen(false);
   }, [item?.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -480,7 +492,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   if (!item) {
     if (!taskId || !missing) return null;
     return (
-      <Overlay open onClose={onClose} label={t('detail.title')}>
+      <Overlay open onClose={onClose} label={t('detail.title')} overlayId={overlayId}>
         <p className={`detail-missing${missing === 'loading' ? ' loading' : ''}`} role="status">
           {t(missing === 'loading' ? 'detail.loading' : missing === 'gone' ? 'detail.gone' : 'detail.offline')}
         </p>
@@ -550,16 +562,17 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
 
   const cancelTitle = () => {
     setTitle(item.content);
-    setRefusals([]);
+    setRefusals(savedRefusals(item.content, snapshot, naturalDates, dateFormat));
     releaseTitle();
   };
 
   const commitTitle = () => {
-    const read = parseShorthand(title, snapshot, naturalDates, refusals);
+    const read = parseShorthand(title, snapshot, naturalDates, refusals, dateFormat);
     const next = read.content.trim();
     if (!next) {
       // Nothing left to call it by: the edit is dropped rather than the name.
       setTitle(item.content);
+      setRefusals(savedRefusals(item.content, snapshot, naturalDates, dateFormat));
       return;
     }
 
@@ -609,7 +622,9 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
     ].filter(Boolean);
     if (applied.length > 0) toast(applied.join(' · '));
 
-    setRefusals([]);
+    /* Saved, the title is a name again: what is left of it is not read a
+       second time. */
+    setRefusals(savedRefusals(next, snapshot, naturalDates, dateFormat));
     setTitle(next);
     releaseTitle();
   };
@@ -633,6 +648,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
       open
       onClose={onClose}
       label={t('detail.title')}
+      overlayId={overlayId}
       returnFocusTo={() => (walked.current && taskId
         ? document.querySelector<HTMLElement>(`.screen.active [data-task-id="${taskId}"]`)
         : null)}
@@ -831,17 +847,23 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
 
               {titleDirty && (
                 <div className="titleactions">
-                  {/* Pressed before the field can lose the caret, or the blur
-                      would land on the field and the click on nothing. */}
+                  {/* The action runs on `click`, which is what a mouse press and
+                      Enter or Space on a focused button both send (#145). It
+                      used to run on `mousedown`, which the keyboard never
+                      sends, so the buttons did nothing for anyone tabbing to
+                      them. The mouse-down is only kept to stop the field
+                      losing its caret before the click lands. */}
                   <button
                     className="btn sm"
-                    onMouseDown={(e) => { e.preventDefault(); cancelTitle(); }}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={cancelTitle}
                   >
                     {t('common.cancel')}
                   </button>
                   <button
                     className="btn sm primary"
-                    onMouseDown={(e) => { e.preventDefault(); commitTitle(); }}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={commitTitle}
                   >
                     {t('common.save')}
                   </button>
@@ -985,7 +1007,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
           <div className="prop" data-prop="start">
             <PropLabel name={t('detail.startDate')} prop="start" />
             <DateField
-              value={due ? toApiDate(due) : ''}
+              withTime
+              value={due ? (hasTime(item.due) ? toApiDateTime(due) : toApiDate(due)) : ''}
               label={t('detail.startDate')}
               placeholder={t('date.pick')}
               onChange={(value) => {

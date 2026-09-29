@@ -25,8 +25,9 @@ export function EisenhowerDisplayMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const workspaces = Object.values(snapshot.workspaces);
-  const changed = Number(prefs.eisenhowerLayout !== 'matrix')
-    + Number(prefs.eisenhowerUrgent.join('|') !== 'overdue|today')
+  /* Matrix or list is how the page is drawn, not a setting on what it
+     shows: like list or board on the other pages, it does not count. */
+  const changed = Number(prefs.eisenhowerUrgent.join('|') !== 'overdue|today')
     + Number(prefs.eisenhowerImportant.join('|') !== '1|2')
     + Number(prefs.eisenhowerShowFuture)
     + Number(prefs.eisenhowerIncludeSomeday)

@@ -38,6 +38,15 @@ export const isFuture = (item: Item, now = new Date()): boolean => {
 };
 
 /** The API wants a plain calendar date for date-only changes. */
+/**
+ * How long until the local day changes, in milliseconds.
+ *
+ * Asked of the next local midnight rather than "24 hours from now", so a day
+ * that is 23 or 25 hours long where the clocks change still ends on time.
+ */
+export const msUntilNextDay = (now: Date): number =>
+  startOfDay(addDays(now, 1)).getTime() - now.getTime();
+
 export const toApiDate = (d: Date): string => format(d, 'yyyy-MM-dd');
 /** And a floating local datetime when a time of day is kept. */
 export const toApiDateTime = (d: Date): string => format(d, "yyyy-MM-dd'T'HH:mm:ss");

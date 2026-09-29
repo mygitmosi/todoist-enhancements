@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { isTopOverlay, overlayCount, pushOverlay, removeOverlay } from './overlayStack';
 
 interface OverlayProps {
   open: boolean;
@@ -15,7 +16,16 @@ interface OverlayProps {
    * down a list hands the keyboard to the last task shown (#104).
    */
   returnFocusTo?: () => HTMLElement | null;
+  /**
+   * The name this dialog goes by in the stack of open ones. A dialog whose
+   * owner has keys of its own (the task panel) gives it, so that owner can ask
+   * whether its dialog is still the one in front (`isTopOverlay`).
+   */
+  overlayId?: string;
 }
+
+/** What the page's scroll was set to before the first dialog took it. */
+let scrollWas = '';
 
 /**
  * Something open in front of the dialog: a menu, a date picker, a select.
@@ -37,8 +47,10 @@ const FOCUSABLE = [
  * where it came from on close, and the page behind held still throughout.
  */
 export function Overlay({
-  open, onClose, children, label, variant = 'sheet', size = 'md', returnFocusTo,
+  open, onClose, children, label, variant = 'sheet', size = 'md', returnFocusTo, overlayId,
 }: OverlayProps) {
+  const ownId = useId();
+  const id = overlayId ?? ownId;
   const sheetRef = useRef<HTMLDivElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
 
@@ -59,10 +71,18 @@ export function Overlay({
     if (!open) return;
 
     restoreTo.current = document.activeElement as HTMLElement | null;
-    const { overflow } = document.body.style;
+    /* The first dialog to open remembers the scroll setting and the last one to
+       close gives it back, whatever order they close in: a second dialog used
+       to remember the "hidden" the first had just set. */
+    if (overlayCount() === 0) scrollWas = document.body.style.overflow;
+    pushOverlay(id);
     document.body.style.overflow = 'hidden';
 
     const onKey = (e: KeyboardEvent) => {
+      /* Every open dialog hears every key, and the oldest hears it first. Only
+         the one in front answers: Escape closes it alone, and Tab is moved
+         inside it once rather than by each dialog in turn (#125). */
+      if (!isTopOverlay(id)) return;
       if (e.key === 'Escape') {
         /* Already answered by something inside the dialog — a field leaving
            itself, a picker closing. React stops the native event at its own
@@ -121,11 +141,12 @@ export function Overlay({
 
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = overflow;
+      removeOverlay(id);
+      if (overlayCount() === 0) document.body.style.overflow = scrollWas;
       (returnRef.current?.() ?? restoreTo.current)?.focus?.();
     };
     /* `open` and nothing else. See closeRef above. */
-  }, [open]);
+  }, [open, id]);
 
   if (!open) return null;
 

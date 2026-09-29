@@ -14,6 +14,8 @@
  * where every tab reads it and renewed under a lock, one tab at a time.
  */
 
+import { sessionGet, sessionRemove, sessionSet } from '@/lib/sessionStore';
+
 export const OAUTH_CLIENT_ID = `${__PUBLIC_URL__}oauth/client.json`;
 const AUTHORIZE_URL = 'https://app.todoist.com/oauth/authorize';
 const TOKEN_URL = 'https://api.todoist.com/oauth/access_token';
@@ -113,12 +115,17 @@ export function builtForElsewhere(): string | null {
 /* ---------- The round trip ---------- */
 
 /** Leaves for Todoist's consent page. The page is gone after this. */
-export async function beginSignIn(): Promise<void> {
+export async function beginSignIn(): Promise<boolean> {
   const verifier = randomString(64);
   const state = randomString(24);
-  sessionStorage.setItem(PENDING_KEY, JSON.stringify({
+  /* The verifier has to survive the round trip through Todoist's page, and this
+     is the only place it can. With site storage blocked it cannot, so the page
+     stays where it is and says so, rather than leaving for a sign-in that could
+     only end in an error (#128). */
+  const kept = sessionSet(PENDING_KEY, JSON.stringify({
     verifier, state, redirectUri: redirectUri(), route: window.location.hash,
   }));
+  if (!kept) return false;
   const url = new URL(AUTHORIZE_URL);
   url.searchParams.set('client_id', OAUTH_CLIENT_ID);
   url.searchParams.set('scope', SCOPE);
@@ -128,6 +135,7 @@ export async function beginSignIn(): Promise<void> {
   url.searchParams.set('code_challenge', await challengeOf(verifier));
   url.searchParams.set('code_challenge_method', 'S256');
   window.location.assign(url.toString());
+  return true;
 }
 
 export type SignInResult = 'none' | 'signed-in' | 'denied' | 'failed';
@@ -144,11 +152,16 @@ export async function completeSignIn(): Promise<SignInResult> {
   const error = params.get('error');
   if (!code && !error) return 'none';
 
-  const pendingRaw = sessionStorage.getItem(PENDING_KEY);
-  sessionStorage.removeItem(PENDING_KEY);
-  const pending = pendingRaw
-    ? (JSON.parse(pendingRaw) as { verifier: string; state: string; redirectUri: string; route: string })
-    : null;
+  const pendingRaw = sessionGet(PENDING_KEY);
+  sessionRemove(PENDING_KEY);
+  /* Unreadable is the same as absent: a sign-in this tab cannot vouch for is
+     never finished. */
+  let pending: { verifier: string; state: string; redirectUri: string; route: string } | null = null;
+  try {
+    pending = pendingRaw ? JSON.parse(pendingRaw) : null;
+  } catch {
+    pending = null;
+  }
   window.history.replaceState(null, '', `${window.location.pathname}${pending?.route ?? ''}`);
 
   if (error) return error === 'access_denied' ? 'denied' : 'failed';

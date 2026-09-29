@@ -34,6 +34,8 @@ export interface SyncedView {
   sort: ViewPrefs['sort'];
   showSubtasks: boolean;
   showCompleted: boolean;
+  /** A board as wide as the page (ViewPrefs.wide). */
+  wide?: boolean;
 }
 
 /**
@@ -61,6 +63,7 @@ export function syncedPreferences(prefs: Preferences): SyncedPreferences {
       sort: view.sort,
       showSubtasks: view.filters.showSubtasks,
       showCompleted: view.filters.showCompleted,
+      ...(view.wide ? { wide: true } : {}),
     }]);
   return { ...rest, views: Object.fromEntries(projectViews) };
 }
@@ -125,6 +128,7 @@ export function mergeSynced(
       mode: shared.mode ?? mine.mode,
       group: shared.group ?? mine.group,
       sort: shared.sort ?? mine.sort,
+      wide: shared.wide === true,
       filters: {
         ...mine.filters,
         showSubtasks: shared.showSubtasks ?? mine.filters.showSubtasks,
@@ -305,6 +309,13 @@ export interface Preferences {
    * the device also remembers it on its own (domain/onboarding.ts).
    */
   onboarded: boolean;
+  /** Whether a release that brings something new says so once, after the update (#115). */
+  whatsNew: boolean;
+  /**
+   * The last version whose "What's new" was shown or skipped. Null on an
+   * account that has not been past one yet.
+   */
+  seenVersion: string | null;
 }
 
 export const defaultPreferences = (locale: Locale): Preferences => ({
@@ -336,6 +347,8 @@ export const defaultPreferences = (locale: Locale): Preferences => ({
   eisenhowerIncludeSomeday: false,
   eisenhowerWorkspace: null,
   onboarded: false,
+  whatsNew: true,
+  seenVersion: null,
 });
 
 /**
@@ -396,6 +409,10 @@ export function hydratePreferences(stored: unknown, locale: Locale): Preferences
     eisenhowerIncludeSomeday: s.eisenhowerIncludeSomeday === true,
     eisenhowerWorkspace: typeof s.eisenhowerWorkspace === 'string' ? s.eisenhowerWorkspace : null,
     onboarded: s.onboarded === true,
+    whatsNew: s.whatsNew !== false,
+    seenVersion: typeof s.seenVersion === 'string' && /^\d+\.\d+\.\d+$/.test(s.seenVersion)
+      ? s.seenVersion
+      : null,
     views: s.views ?? {},
   };
 }

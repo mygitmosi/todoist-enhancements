@@ -30,6 +30,8 @@ export function ConnectView() {
   const [leaving, setLeaving] = useState(false);
   /** The address this copy was built for, once a sign-in has been refused for it. */
   const [elsewhere, setElsewhere] = useState<string | null>(null);
+  /** Site storage is blocked, so a sign-in through Todoist's page cannot come back. */
+  const [storageBlocked, setStorageBlocked] = useState(false);
   // The token route opens by itself when it is what failed, or what the sign-in fell back to.
   const [tokenOpen, setTokenOpen] = useState(signInError === 'failed');
 
@@ -61,13 +63,19 @@ export function ConnectView() {
             const expected = builtForElsewhere();
             if (expected) { setElsewhere(expected); setTokenOpen(true); return; }
             setLeaving(true);
-            void beginSignIn();
+            void beginSignIn().then((left) => {
+              if (left) return;
+              setLeaving(false);
+              setStorageBlocked(true);
+              setTokenOpen(true);
+            });
           }}
         >
           {leaving ? t('connect.oauthLeaving') : t('connect.oauth')}
         </button>
         {signInError === 'denied' && <p className="connect-error">{t('connect.oauthDenied')}</p>}
         {signInError === 'failed' && <p className="connect-error">{t('connect.oauthFailed')}</p>}
+        {storageBlocked && <p className="connect-error" role="alert">{t('connect.storageBlocked')}</p>}
         {elsewhere && (
           <p className="connect-error">
             {t('connect.oauthElsewhere', {

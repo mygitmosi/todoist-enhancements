@@ -17,7 +17,11 @@ export type DropTarget =
   | { kind: 'quick' }
   | { kind: 'anytime' }
   | { kind: 'someday' }
-  | { kind: 'day'; date: Date }
+  /**
+   * A calendar day, and optionally a time of day (`HH:mm:ss`) typed with it in
+   * a date picker. Without one a task keeps the time it already has.
+   */
+  | { kind: 'day'; date: Date; time?: string }
   | { kind: 'project'; projectId: string }
   | { kind: 'section'; sectionId: string | null; projectId: string }
   | { kind: 'label'; label: string }
@@ -61,7 +65,8 @@ const withWeek = (labels: string[]): string[] =>
  * into `due.string` while leaving `is_recurring` true, which leaves a task
  * wearing a repeat marker that will never repeat again.
  */
-const dueOn = (item: Item, date: Date) => dueForDate(item.due, toApiDate(date));
+const dueOn = (item: Item, date: Date, time?: string) =>
+  dueForDate(item.due, time ? `${toApiDate(date)}T${time}` : toApiDate(date));
 
 /**
  * Where a task typed into a group should land, from what the group means.
@@ -130,7 +135,7 @@ export function dropMutation(item: Item, target: DropTarget): DropMutation | nul
       /* A real date and the week tag on the same task is the contradiction the
          app reports rather than resolves, so giving a task a day takes the tag
          off — exactly as dropping it on Today does. */
-      return { update: { due: dueOn(item, target.date), labels: withoutWeek(item.labels) } };
+      return { update: { due: dueOn(item, target.date, target.time), labels: withoutWeek(item.labels) } };
 
     case 'anytime':
       // Committed to this week, but to no particular day.

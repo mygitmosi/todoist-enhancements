@@ -96,3 +96,32 @@ describe('dropMutation', () => {
     expect(dropMutation(item(), { kind: 'favourites' })).toBeNull();
   });
 });
+
+describe('a day with a time typed in a date picker (#143)', () => {
+  const day = new Date('2026-09-30T00:00:00');
+
+  it('gives every task the time that was typed, replacing the one it had', () => {
+    const timed = item({ due: due('2026-09-25T09:00:00') });
+    const plain = item({ due: null });
+    expect(dropMutation(timed, { kind: 'day', date: day, time: '14:30:00' })?.update)
+      .toMatchObject({ due: { date: '2026-09-30T14:30:00' } });
+    expect(dropMutation(plain, { kind: 'day', date: day, time: '14:30:00' })?.update)
+      .toMatchObject({ due: { date: '2026-09-30T14:30:00' } });
+  });
+
+  it('keeps the time a task already has when no time was typed', () => {
+    const timed = item({ due: due('2026-09-25T09:00:00') });
+    expect(dropMutation(timed, { kind: 'day', date: day })?.update)
+      .toMatchObject({ due: { date: '2026-09-30T09:00:00' } });
+  });
+
+  it('moves one occurrence of a repeating task and keeps its rule', () => {
+    const repeating = item({
+      due: due('2026-09-25T09:00:00', { is_recurring: true, string: 'every day at 9' }),
+    });
+    expect(dropMutation(repeating, { kind: 'day', date: day, time: '14:30:00' })?.update)
+      .toMatchObject({
+        due: { date: '2026-09-30T14:30:00', is_recurring: true, string: 'every day at 9' },
+      });
+  });
+});

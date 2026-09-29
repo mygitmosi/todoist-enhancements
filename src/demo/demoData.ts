@@ -1,4 +1,4 @@
-import { addDays, format, startOfDay, subDays } from 'date-fns';
+import { addDays, format, isMonday, nextMonday, startOfDay, subDays } from 'date-fns';
 import type {
   CompletedItem, Item, Label, Project, Section, Snapshot, TodoistUser,
 } from '@/domain/types';
@@ -280,7 +280,9 @@ export function buildDemoSnapshot(locale: Locale = 'en', seed = 20260914): Snaps
     { due: due(subDays(today, 1)), priority: 3, labels: ['est-25'] },
     { due: due(today), priority: 2, labels: ['quick', 'est-10'] },
     { due: due(today), priority: 1, labels: ['est-3'], project_id: 'home' },
-    { due: due(today, undefined, everyWeek), priority: 1, labels: ['est-5'], project_id: 'home' },
+    /* On a Monday, because the rule says so: seeded on today it moved a week
+       ahead to another day that is not a Monday when ticked (#130). */
+    { due: due(isMonday(today) ? today : nextMonday(today), undefined, everyWeek), priority: 1, labels: ['est-5'], project_id: 'home' },
     { due: due(today, '14:00:00', everyDay), priority: 3, labels: ['est-60'] },
     { due: due(today, '09:30:00'), priority: 2, labels: ['est-30'], project_id: 'client-a' },
     { labels: ['week', 'est-90'], priority: 4, project_id: 'site', section_id: 's-doing' },

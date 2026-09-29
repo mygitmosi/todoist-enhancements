@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseShorthand } from './shorthand';
+import { carryRanges, parseShorthand, savedRefusals } from './shorthand';
 import { emptySnapshot, type Project, type Section, type Snapshot } from './types';
 
 const project = (id: string, name: string): Project => ({
@@ -65,5 +65,41 @@ describe('#project names with any character (#102)', () => {
     const raw = 'Refaire #aliasdigital. ';
     const start = raw.indexOf('#');
     expect(parseShorthand(raw, snapshot, false, [{ start, end: start + 14 }]).projectId).toBeNull();
+  });
+});
+
+describe('a saved title opens as plain text (#117)', () => {
+  const natural = (raw: string, refused = savedRefusals(raw, snapshot, true)) =>
+    parseShorthand(raw, snapshot, true, refused);
+
+  it('reads nothing in a saved title that would otherwise be read', () => {
+    for (const title of ['Daily review', 'Call Anne tomorrow p1 @home', 'Plan #Perso (25)']) {
+      expect(parseShorthand(title, snapshot, true).ranges.length).toBeGreaterThan(0);
+      const parsed = natural(title);
+      expect(parsed.ranges).toEqual([]);
+      expect(parsed.content).toBe(title);
+    }
+  });
+
+  it('refuses the next candidate too, when refusing the first lets it in', () => {
+    const title = 'Weekly review every monday';
+    expect(natural(title).ranges).toEqual([]);
+  });
+
+  it('leaves a link shown', () => {
+    const title = 'Read https://example.com tomorrow';
+    const parsed = natural(title);
+    expect(parsed.ranges.map((r) => r.kind)).toEqual(['link']);
+    expect(parsed.date).toBeNull();
+  });
+
+  it('still reads what is typed after the saved words', () => {
+    const saved = 'Daily review';
+    const typed = `${saved} p2`;
+    const refused = carryRanges(savedRefusals(saved, snapshot, true), saved, typed);
+    const parsed = parseShorthand(typed, snapshot, true, refused);
+    expect(parsed.priority).toBe(2);
+    expect(parsed.recurrence).toBeNull();
+    expect(parsed.content).toBe(saved);
   });
 });

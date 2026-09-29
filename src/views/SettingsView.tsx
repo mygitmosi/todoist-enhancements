@@ -390,6 +390,14 @@ export function SettingsView() {
               </div>
             </div>
 
+            <Row title={t('settings.whatsNew')} hint={t('settings.whatsNewHint')}>
+              <Switch checked={prefs.whatsNew} onChange={() => setPrefs({ whatsNew: !prefs.whatsNew })} label={t('settings.whatsNew')} />
+            </Row>
+            <Row title={t('settings.changelog')} hint={t('settings.changelogHint')}>
+              <button className="btn outline" onClick={() => window.dispatchEvent(new Event('enhanced:changelog'))}>
+                {t('settings.changelogAction')}
+              </button>
+            </Row>
             <Row title={t('settings.replayWalkthrough')} hint={t('settings.replayWalkthroughHint')}>
               <button className="btn outline" onClick={() => window.dispatchEvent(new Event('enhanced:replay-onboarding'))}>
                 {t('settings.replayWalkthroughAction')}

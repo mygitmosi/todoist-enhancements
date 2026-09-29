@@ -40,6 +40,7 @@
  * but the caller shows it, so it is reported.
  */
 
+import { MONTH_WORDS, WEEKDAY_WORDS } from './dateVocabulary';
 import type { TodoistDue } from './types';
 
 export type RecurrenceLang = 'en' | 'fr';
@@ -96,11 +97,8 @@ const EN: Words = {
   workday: '(?:weekdays?|workdays?|working days?)',
   weekend: 'weekends?',
   shorthand: ['daily', 'weekly', 'monthly', 'quarterly', 'yearly', 'annually', 'hourly'],
-  weekdays: ['sunday|sun', 'monday|mon', 'tuesday|tues|tue', 'wednesday|weds|wed',
-    'thursday|thurs|thur|thu', 'friday|fri', 'saturday|sat'],
-  months: ['january|jan', 'february|feb', 'march|mar', 'april|apr', 'may', 'june|jun',
-    'july|jul', 'august|aug', 'september|sept|sep', 'october|oct', 'november|nov',
-    'december|dec'],
+  weekdays: WEEKDAY_WORDS.en,
+  months: MONTH_WORDS.en,
   ordinal: '\\d{1,2}(?:st|nd|rd|th)',
   position: '(?:first|second|third|fourth|fifth|last)',
   at: '(?:at|@)',
@@ -119,11 +117,8 @@ const FR: Words = {
   weekend: '(?:week-?ends?|fins? de semaine)',
   shorthand: ['quotidien(?:ne)?', 'hebdomadaire', 'mensuel(?:le)?',
     'trimestriel(?:le)?', 'annuel(?:le)?'],
-  weekdays: ['dimanches?|dim', 'lundis?|lun', 'mardis?|mar', 'mercredis?|mer',
-    'jeudis?|jeu', 'vendredis?|ven', 'samedis?|sam'],
-  months: ['janvier|janv', 'fevrier|fevr', 'mars', 'avril|avr', 'mai', 'juin',
-    'juillet|juil', 'aout', 'septembre|sept', 'octobre|oct', 'novembre|nov',
-    'decembre|dec'],
+  weekdays: WEEKDAY_WORDS.fr,
+  months: MONTH_WORDS.fr,
   ordinal: '\\d{1,2}(?:ers?|emes?|es?)',
   position: '(?:premiers?|1ers?|deuxiemes?|troisiemes?|quatriemes?|derniers?|dernieres?|premieres?)',
   at: '(?:a|vers)',

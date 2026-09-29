@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { command, MAX_COMMANDS_PER_CALL, sendCommands } from './commands';
-import { request } from './client';
+import { ApiError, request } from './client';
 
 vi.mock('./client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./client')>()),
@@ -49,5 +49,26 @@ describe('sendCommands', () => {
 
   it('refuses to send nothing', async () => {
     await expect(sendCommands('token', [])).rejects.toThrow();
+  });
+});
+
+describe('a request Todoist refuses outright (#134)', () => {
+  /* The one path a refusal takes: `sendCommands` resolves, with a failure for
+     each command in the refused request. It never throws a refusal, which is
+     why the callers have no branch for one. */
+  it('resolves, with every command of the request as a failure that says why', async () => {
+    const commands = [command('item_update', { id: 'a' }), command('item_update', { id: 'b' })];
+    sent.mockRejectedValue(new ApiError('Todoist responded 400', 400, { error: 'Invalid argument' }));
+
+    const result = await sendCommands('token', commands);
+
+    expect(result.failures).toEqual(commands.map((cmd) => ({ uuid: cmd.uuid, error: 'Invalid argument' })));
+    expect(result.delivered).toEqual(commands.map((cmd) => cmd.uuid));
+    expect(result.undelivered).toEqual([]);
+  });
+
+  it('still throws a network failure when nothing had gone yet', async () => {
+    sent.mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(sendCommands('token', [command('item_update', { id: 'a' })])).rejects.toThrow('Failed to fetch');
   });
 });

@@ -93,9 +93,21 @@ export function findLinks(text: string): LinkSpan[] {
   return found.sort((a, b) => a.start - b.start);
 }
 
-/** Stand-ins for the pieces lifted out while the other inline rules run. */
-const CODE_SLOT = (index: number) => `@@code${index}@@`;
-const LINK_SLOT = (index: number) => `@@link${index}@@`;
+/**
+ * Stand-ins for the pieces lifted out while the other inline rules run.
+ *
+ * Written with two characters from Unicode's private-use block, which
+ * `escapeHtml` never produces and which no title or description has a reason to
+ * carry: the input is stripped of them first, so text can never forge a slot.
+ * The stand-ins used to be `@@link0@@` and `@@code0@@`, which a template
+ * placeholder or a pasted log can contain, and were then swapped for an
+ * unrelated link, or for "undefined" when the number was out of range (#135).
+ */
+const OPEN = '\uE000';
+const CLOSE = '\uE001';
+const CODE_SLOT = (index: number) => `${OPEN}c${index}${CLOSE}`;
+const LINK_SLOT = (index: number) => `${OPEN}l${index}${CLOSE}`;
+const SLOT_CHARS = new RegExp(`[${OPEN}${CLOSE}]`, 'g');
 
 /** Emphasis, applied only to text that carries no generated markup. */
 const emphasise = (text: string): string =>
@@ -115,7 +127,7 @@ export interface InlineOptions {
 }
 
 function inline(text: string, { anchors = true }: InlineOptions = {}): string {
-  let out = escapeHtml(text);
+  let out = escapeHtml(text.replace(SLOT_CHARS, ''));
 
   // Code spans are lifted out first so later rules cannot reach inside them.
   const codes: string[] = [];
@@ -161,8 +173,13 @@ function inline(text: string, { anchors = true }: InlineOptions = {}): string {
 
   out = emphasise(out);
 
-  out = out.replace(/@@link(\d+)@@/g, (_match, index: string) => links[Number(index)]);
-  out = out.replace(/@@code(\d+)@@/g, (_match, index: string) => `<code>${codes[Number(index)]}</code>`);
+  /* A number with nothing behind it is dropped, never printed as "undefined".
+     Links go back first: a link's label can itself hold a code span. */
+  out = out.replace(new RegExp(`${OPEN}l(\\d+)${CLOSE}`, 'g'), (_match, index: string) => links[Number(index)] ?? '');
+  out = out.replace(new RegExp(`${OPEN}c(\\d+)${CLOSE}`, 'g'), (_match, index: string) => {
+    const code = codes[Number(index)];
+    return code === undefined ? '' : `<code>${code}</code>`;
+  });
   return out;
 }
 
