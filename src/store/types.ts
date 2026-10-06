@@ -5,6 +5,7 @@ import type { CompletedItem, DisplayPriority, Item, Note, Snapshot, ViewPrefs } 
 import type { RecurrenceReading } from '@/domain/recurrence';
 import type { Locale } from '@/i18n';
 import type { DropTarget } from '@/domain/dnd';
+import type { DustLedger } from '@/domain/views';
 import type { Preferences } from './prefs';
 
 export type SyncState = 'idle' | 'loading' | 'syncing' | 'error' | 'offline';
@@ -38,6 +39,22 @@ export interface UndoEntry {
   run: () => void | Promise<void>;
 }
 
+/**
+ * The panels that slide in from the right. One at a time: opening one closes
+ * whichever was open, so there is never a second column fighting for the page.
+ */
+export type SidePanel = 'insights' | 'time';
+
+/** What the "I have time" panel is asked (#159): not remembered across a reload. */
+export interface TimeFilter {
+  /** How long you have, or null while none is chosen. */
+  minutes: number | null;
+  /** Where to look: the page the pill was opened from, or every open task. */
+  scope: 'page' | 'everywhere';
+  /** How each group is ordered: shortest first, or the most important first. */
+  sort: 'duration' | 'priority';
+}
+
 export interface AppState {
   ready: boolean;
   connected: boolean;
@@ -63,6 +80,13 @@ export interface AppState {
   resolvedIds: Record<string, string>;
   /** Why the last "Continue with Todoist" did not end signed in, for the connect screen. */
   signInError: 'denied' | 'failed' | null;
+  /**
+   * The Someday tasks kept on purpose, task id to the day they were kept
+   * (#161). Local to this device: nothing about it is sent to Todoist.
+   */
+  dustKept: DustLedger;
+  /** Keeps a task out of Gathering dust for another full delay, with an undo. */
+  keepInSomeday: (id: string) => void;
 
   /* Lifecycle */
   init: () => Promise<void>;
@@ -118,7 +142,7 @@ export interface AppState {
    * Filling in a page's missing estimates is a single act, so it costs a
    * single round trip and undoes as a single mistake.
    */
-  setEstimates: (entries: Array<{ id: string; minutes: number }>) => Promise<void>;
+  setEstimates: (entries: Array<{ id: string; minutes: number | null }>) => Promise<void>;
   toggleTask: (id: string) => Promise<void>;
   /**
    * The Logbook row a task was just opened from (#103): the date it was
@@ -167,6 +191,8 @@ export interface AppState {
     destination: string,
   ) => Promise<void>;
   createTask: (args: Record<string, unknown>) => Promise<void>;
+  /** Independent tasks, all in one request: the screen shows them at once. */
+  createTasks: (list: Array<Record<string, unknown>>) => Promise<void>;
   moveTask: (id: string, target: { project_id?: string; section_id?: string | null }) => Promise<void>;
   /**
    * Sends a task to a destination, by the same table drag and drop uses.
@@ -286,14 +312,22 @@ export interface AppState {
   /** The section currently in flight, so the slots between sections can open up. */
   draggingSectionId: string | null;
   setDraggingSection: (id: string | null) => void;
+  /** The right-hand panel that is open, if any. */
+  sidePanel: SidePanel | null;
+  openSidePanel: (panel: SidePanel) => void;
+  /** Closes the panel, or only that one when it is the one that is open. */
+  closeSidePanel: (panel?: SidePanel) => void;
+  timeFilter: TimeFilter;
+  setTimeFilter: (patch: Partial<TimeFilter>) => void;
 }
 
 /** One slice of the store: its part of the state, built with the whole store's `set` and `get`. */
 export type Slice<T> = StateCreator<AppState, [], [], T>;
 
 export type SyncSlice = Pick<AppState, 'ready' | 'connected' | 'snapshot' | 'syncState' | 'syncError' | 'pendingCount' | 'demo' | 'resolvedIds' | 'signInError' | 'init' | 'connect' | 'startDemo' | 'disconnect' | 'refresh' | 'startPolling' | 'apply'>;
+export type DustSlice = Pick<AppState, 'dustKept' | 'keepInSomeday'>;
 export type PreferencesSlice = Pick<AppState, 'prefs' | 'walkthrough' | 'setPrefs' | 'setViewPrefs' | 'setLocale' | 'ensurePreferencesTask' | 'beginTourPreview' | 'endTourPreview' | 'setWalkthrough'>;
-export type TasksSlice = Pick<AppState, 'logbookEntry' | 'setLogbookEntry' | 'loadTask' | 'updateTask' | 'setRecurrence' | 'setEstimates' | 'toggleTask' | 'completeTasks' | 'removeTask' | 'removeTasks' | 'restoreTasks' | 'createTask' | 'setTaskLabels' | 'setTaskPriority' | 'skipOccurrence' | 'skipOccurrences' | 'reorderSubtasks'>;
+export type TasksSlice = Pick<AppState, 'logbookEntry' | 'setLogbookEntry' | 'loadTask' | 'updateTask' | 'setRecurrence' | 'setEstimates' | 'toggleTask' | 'completeTasks' | 'removeTask' | 'removeTasks' | 'restoreTasks' | 'createTask' | 'createTasks' | 'setTaskLabels' | 'setTaskPriority' | 'skipOccurrence' | 'skipOccurrences' | 'reorderSubtasks'>;
 export type TasksMoveSlice = Pick<AppState, 'sendTo' | 'sendManyTo' | 'updateMany' | 'moveMany' | 'moveTask'>;
 export type StructureSlice = Pick<AppState, 'createLabel' | 'setLabelFavourite' | 'reorderLabels' | 'reorderProjects' | 'nestProject' | 'createProject' | 'archiveProject' | 'deleteProject' | 'duplicateProject' | 'updateProjectFields' | 'createSection' | 'moveSection' | 'removeSection' | 'updateSectionFields'>;
-export type UiSlice = Pick<AppState, 'toasts' | 'undoStack' | 'draggingTaskId' | 'draggingSectionId' | 'nesting' | 'outdenting' | 'draggingProjectId' | 'draggingTag' | 'selection' | 'selectionAnchor' | 'toast' | 'dismissToast' | 'pushUndo' | 'undo' | 'consumeUndo' | 'setDraggingSection' | 'setDraggingTag' | 'setNesting' | 'setOutdenting' | 'setDraggingProject' | 'toggleSelection' | 'setSelectionAnchor' | 'selectRange' | 'clearSelection' | 'setDragging'>;
+export type UiSlice = Pick<AppState, 'toasts' | 'undoStack' | 'draggingTaskId' | 'draggingSectionId' | 'nesting' | 'outdenting' | 'draggingProjectId' | 'draggingTag' | 'selection' | 'selectionAnchor' | 'toast' | 'dismissToast' | 'pushUndo' | 'undo' | 'consumeUndo' | 'setDraggingSection' | 'setDraggingTag' | 'setNesting' | 'setOutdenting' | 'setDraggingProject' | 'sidePanel' | 'openSidePanel' | 'closeSidePanel' | 'timeFilter' | 'setTimeFilter' | 'toggleSelection' | 'setSelectionAnchor' | 'selectRange' | 'clearSelection' | 'setDragging'>;

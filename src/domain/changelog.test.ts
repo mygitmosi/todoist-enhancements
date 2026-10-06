@@ -93,7 +93,9 @@ describe('the changelog (#115)', () => {
   });
 
   it('the running version opens the window after an update (#148)', () => {
-    const running = unseenReleases(parseChangelog(english), VERSION, '1.17.0');
+    // Updating from the release just before the running one.
+    const [, previous] = parseChangelog(english);
+    const running = unseenReleases(parseChangelog(english), VERSION, previous.version);
     expect(running.map((r) => r.version)).toEqual([VERSION]);
     expect(hasChanges(running)).toBe(true);
   });

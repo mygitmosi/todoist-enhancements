@@ -72,3 +72,13 @@ describe('a request Todoist refuses outright (#134)', () => {
     await expect(sendCommands('token', [command('item_update', { id: 'a' })])).rejects.toThrow('Failed to fetch');
   });
 });
+
+describe('estimate read-back metadata (#151)', () => {
+  it('sends the native duration object but never local metadata', async () => {
+    answerOk();
+    await sendCommands('token', [{ ...command('item_update', { id: 'a', duration: { amount: 25, unit: 'minute' }, labels: [] }), estimateMinutes: 25 }]);
+    const [wire] = JSON.parse((sent.mock.calls[0][1] as { form: { commands: string } }).form.commands);
+    expect(wire.args.duration).toEqual({ amount: 25, unit: 'minute' });
+    expect(wire).not.toHaveProperty('estimateMinutes');
+  });
+});

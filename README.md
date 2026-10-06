@@ -38,7 +38,7 @@ affiliated with, or supported by Todoist.**
 ## New features for Todoist
 
 Everything here is stored in properties Todoist already has: an estimate is a
-label, "anytime this week" is a label, and the rest is projects, sections,
+label (or Todoist's own duration, which is read too), "anytime this week" is a label, and the rest is projects, sections,
 priorities and dates. Open the official app afterwards and nothing looks
 unusual. If this project stopped working tomorrow your data would be
 untouched, because it never lived anywhere else.
@@ -50,7 +50,12 @@ untouched, because it never lived anywhere else.
   dated. Anytime this week is what you have committed to without pinning to an
   afternoon. Someday is what you are not committing to yet — out of the week
   but not out of the app, read back to you at the weekly review so it never
-  quietly becomes a graveyard.
+  quietly becomes a graveyard. On the page itself, tasks that have sat there
+  for months (three by default, 1 to 12 in Settings) are gathered at the top in
+  a group called Gathering dust, each with three actions: This week, Keep or
+  Delete. A task you keep stays in Someday on purpose and comes back only
+  after another full delay; that is remembered on the device, and nothing is
+  written to Todoist for it.
 
 - **Eisenhower matrix:** the same tasks, sorted into four quadrants instead of
   a list — urgent and important, important but not urgent, urgent but not
@@ -73,7 +78,27 @@ untouched, because it never lived anywhere else.
   filled to 140% says so before you start it, not at six in the evening. A
   parent with no estimate of its own sums its subtasks, and anything still
   unestimated is counted separately and listed in one place so you can fill a
-  page of them in one pass.
+  page of them in one pass. A duration set in Todoist's own field counts too,
+  with the source chosen in Settings taking priority when both are present.
+  Tags are the default and work on every plan; editing a tag estimate keeps
+  Todoist’s calendar duration. Duration mode is blocked on free accounts.
+  Every native estimate write is checked against server data; a dropped or
+  refused duration switches back to tags and recovers the estimate. An
+  unavailable verification stays queued for the next sync. Durations in days
+  are ignored; estimates of 24 hours or more keep their exact minute value.
+  Settings offers a conversion preview for open tasks, including subtasks,
+  with skipped conflicts and a result per batch. Converting timed durations
+  to tags preserves calendar blocks; untimed durations are cleared. Account
+  labels and completed tasks are never deleted by conversion.
+
+- **I have time:** a pill next to the load figure on My week, projects, tags,
+  the Inbox and Someday. Pick how long you have, 5 minutes to an hour or any
+  duration you type, and a panel on the right lists the tasks that fit, by
+  when they are due: overdue, today, tomorrow, this week, no date. It looks in
+  the page you are on or everywhere, never guesses at a task with no estimate
+  (it counts them, and offers to estimate them), and leaves the page behind it
+  exactly as it was. Nothing is changed and nothing is remembered after a
+  reload.
 
 - **Folders:** group projects inside a folder the way Todoist's own apps do —
   a collapsible row you can expand or collapse on its own, in your personal
@@ -85,7 +110,11 @@ untouched, because it never lived anywhere else.
   minutes, or tagged `quick`. It sits at the top because that is when it is
   useful: the five minutes before a meeting are the five minutes those tasks
   are for. A task tagged quick but estimated at forty minutes is not quick, so
-  it stays out and is reported as a contradiction instead.
+  it stays out and is reported as a contradiction instead. The same group
+  leads a project, a tag, the Inbox and Someday, with the tasks that are late,
+  due today or without a date (a quick task due next month stays where it is);
+  each row says which section or project it comes from, and nothing is listed
+  twice. On a board it is a blue first column, to look at rather than to drop tasks on. One switch in Settings turns it off everywhere.
 
 - **Visible subtasks:** drawn under their parent in the list, indented, rather
   than hidden behind a count you have to open the task to see. The parent
@@ -227,14 +256,15 @@ be installed. No UI or CSS framework.
 
 ```bash
 npm install
-npm run dev      # Node 20+, pinned in .nvmrc
+npm run dev      # Node 22, pinned in .nvmrc
 npm run build    # a static site in dist/, see docs/deploying.md
+npm run lint     # ESLint, including React hook rules
 npm test         # unit tests on the rules (Vitest)
 npm run e2e      # demo journeys in a browser (Playwright); add --headed to watch
 ```
 
 The journeys need Playwright's Chromium: `npx playwright install chromium`
-once on a new machine. GitHub runs the typecheck, the unit tests and a build
+once on a new machine. GitHub runs lint, the typecheck, the unit tests and a build
 on every push, and the journeys on every pull request.
 
 ### Self-hosting

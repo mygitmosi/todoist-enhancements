@@ -177,7 +177,7 @@ export function InsightsView({ onOpen }: { onOpen?: (id: string) => void }) {
         value: entry.count,
         color: seriesColor(index),
       })),
-    [summary.byLabel, t],
+    [summary.byLabel],
   );
 
   const tasksPerDay = spanOf(range) > 0
@@ -692,7 +692,7 @@ function Logbook({ completed, onOpen }: { completed: CompletedItem[]; onOpen?: (
               </h4>
               {entry.rows.map((task) => {
                 const project = snapshot.projects[task.project_id];
-                const minutes = task.labels ? estimateOf({ labels: task.labels } as never) : null;
+                const minutes = estimateOf({ labels: task.labels ?? [], duration: task.duration });
                 const priority = toDisplayPriority(task.priority ?? 1);
                 return (
                   <div

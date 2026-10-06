@@ -1,4 +1,4 @@
-import type { Item, TodoistDue } from '@/domain/types';
+import type { Item, TodoistDue } from '../domain/types';
 
 /**
  * A task with every field filled in, for tests: only what a test is about

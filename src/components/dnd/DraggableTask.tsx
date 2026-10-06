@@ -8,6 +8,8 @@ interface DraggableTaskProps {
   childrenOf: (id: string) => Item[];
   onOpen: (id: string) => void;
   showProject?: boolean;
+  showSection?: boolean;
+  dust?: boolean;
   /**
    * `row` is picked up by its handle; `card` by any point of its surface.
    * A board card has no gutter for a handle, and a board is dragged by the
@@ -24,7 +26,7 @@ interface DraggableTaskProps {
  * keeps a plain click on a card from starting a drag too.
  */
 export function DraggableTask({
-  item, childrenOf, onOpen, showProject, surface = 'row',
+  item, childrenOf, onOpen, showProject, showSection, dust, surface = 'row',
 }: DraggableTaskProps) {
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: item.id });
   const card = surface === 'card';
@@ -43,6 +45,8 @@ export function DraggableTask({
         childrenOf={childrenOf}
         onOpen={onOpen}
         showProject={showProject}
+        showSection={showSection}
+        dust={dust}
         dragHandleProps={{ ...attributes, ...listeners }}
         /* A board card is moved sideways between columns all the time; a
            drift to the right there must not read as "put it inside". */

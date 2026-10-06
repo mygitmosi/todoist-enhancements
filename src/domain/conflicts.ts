@@ -1,4 +1,4 @@
-import { SYSTEM_LABELS, weekLabel, type Item } from './types';
+import { SYSTEM_LABELS, estimateStorage, weekLabel, type Item } from './types';
 import { readEstimate, estimateOf } from './estimates';
 import { hasLabel, QUICK_THRESHOLD_MINUTES } from './views';
 
@@ -12,6 +12,7 @@ import { hasLabel, QUICK_THRESHOLD_MINUTES } from './views';
  */
 
 export type ConflictKind =
+  | 'estimate-mismatch'
   | 'multiple-estimates'
   | 'invalid-estimate'
   | 'date-and-week'
@@ -40,6 +41,7 @@ export interface Conflict {
 }
 
 export interface ConflictSettings {
+  estimateMismatch: boolean;
   dateAndWeek: boolean;
   multipleEstimates: boolean;
   quickTooLong: boolean;
@@ -48,6 +50,7 @@ export interface ConflictSettings {
 }
 
 export const defaultConflictSettings = (): ConflictSettings => ({
+  estimateMismatch: true,
   dateAndWeek: true,
   multipleEstimates: true,
   quickTooLong: true,
@@ -63,7 +66,18 @@ export function detectConflicts(
   const out: Conflict[] = [];
 
   for (const item of items) {
-    const reading = readEstimate(item.labels);
+    const reading = readEstimate(item);
+    if (settings.estimateMismatch && estimateStorage() === 'duration' && reading.mismatch && !reading.multiple && !reading.invalid) {
+      out.push({
+        id: `${item.id}:estimate-mismatch`, kind: 'estimate-mismatch', itemId: item.id,
+        messageKey: 'estimates.mismatch',
+        messageValues: { duration: reading.durationMinutes!, tag: reading.tagMinutes! },
+        options: [
+          { id: 'keep-duration', labelKey: 'estimates.keepDuration', recommended: true },
+          { id: 'keep-tag', labelKey: item.due?.date.includes('T') ? 'estimates.keepTagTimed' : 'estimates.keepTag' },
+        ],
+      });
+    }
 
     if (settings.multipleEstimates && reading.multiple) {
       out.push({
@@ -151,5 +165,5 @@ export function detectConflicts(
 
 /** Tasks with no estimate. Listed for completion, never flagged as errors. */
 export function detectIncomplete(items: Item[]): Item[] {
-  return items.filter((i) => readEstimate(i.labels).minutes === null);
+  return items.filter((i) => estimateOf(i) === null);
 }

@@ -58,7 +58,7 @@ export function Search({ open, onClose, onOpen, seed = '' }: SearchProps) {
     /* `seed` deliberately left out: it is read at the moment of opening, and
        nothing that changes it afterwards should retype the field under
        somebody's hands. */
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Read the seed only on opening; later changes must preserve typed text.
   }, [open]);
 
   /**

@@ -124,15 +124,23 @@ export const createTasksMoveSlice: Slice<TasksMoveSlice> = (_set, get) => ({
     ) => (current: Snapshot): Snapshot =>
       changes.reduce((acc, change) => patchItem(acc, change.id, fields(change)), current);
 
-    await get().apply(
+    /* The screen changes the moment `apply` starts, so the toast says so
+       then rather than after the round trip (#162). Its undo waits for that
+       write to settle first: sent earlier, it could reach Todoist before the
+       change it undoes, and be undone by it. */
+    const done = get().apply(
       changes.map((change) => updateItem(change.id, change.update)),
       patchAll((change) => change.update),
     );
 
-    get().toast(message, () => void get().apply(
-      changes.map((change) => updateItem(change.id, change.before)),
-      patchAll((change) => change.before),
-    ));
+    get().toast(message, async () => {
+      await done;
+      await get().apply(
+        changes.map((change) => updateItem(change.id, change.before)),
+        patchAll((change) => change.before),
+      );
+    });
+    await done;
   },
   /**
    * A selection, into a project.

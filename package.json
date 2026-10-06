@@ -1,7 +1,7 @@
 {
   "name": "todoist-enhancements",
   "private": true,
-  "version": "1.17.1",
+  "version": "1.20.0",
   "engines": {
     "node": ">=20"
   },
@@ -14,6 +14,7 @@
     "package": "npm run build && node scripts/package.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
+    "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test"
@@ -31,12 +32,17 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.5.1",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
     "typescript": "^5.7.3",
+    "typescript-eslint": "^8.71.1",
     "vite": "^6.0.11",
     "vite-plugin-pwa": "^0.21.1",
     "vitest": "^3.2.7"

@@ -130,7 +130,7 @@ export function summariseInsights(
     if (tags.length === 0) untagged += 1;
     for (const tag of tags) labelCounts.set(tag, (labelCounts.get(tag) ?? 0) + 1);
 
-    const minutes = task.labels ? estimateOf({ labels: task.labels } as Item) : null;
+    const minutes = estimateOf({ labels: task.labels ?? [], duration: task.duration });
     if (minutes === null) completedWithoutEstimate += 1;
     else completedMinutes += minutes;
   }

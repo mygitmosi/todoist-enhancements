@@ -5,7 +5,9 @@ import { DisplayMenu } from '@/components/DisplayMenu';
 import { TaskGroup } from '@/components/TaskGroup';
 import { ModeSurface } from '@/components/ModeSurface';
 import { Icon } from '@/components/Icon';
+import { TimePanel } from '@/components/TimePanel';
 import { useT } from '@/hooks/useT';
+import { useTimePill } from '@/hooks/useTimePill';
 import { useData } from '@/hooks/useData';
 import { useStore } from '@/store/store';
 import { useConfirm } from '@/components/overlays/Confirm';
@@ -17,7 +19,7 @@ import { toApiDate } from '@/domain/dates';
 import { dueForDate } from '@/domain/recurrence';
 import { weekLabel } from '@/domain/types';
 import { placementFor, type TaskPlacement } from '@/domain/dnd';
-import type { GroupKey } from '@/domain/types';
+import type { GroupKey, Item } from '@/domain/types';
 
 /**
  * How much of the week this page is showing.
@@ -32,7 +34,7 @@ export type WeekScope = 'all' | 'today' | 'anytime';
 interface WeekViewProps {
   onOpen: (id: string) => void;
   onInsights: () => void;
-  onUnestimated: () => void;
+  onUnestimated: (items?: Item[]) => void;
   onAddTaskTo: (placement: TaskPlacement) => void;
   scope?: WeekScope;
 }
@@ -67,10 +69,10 @@ function WeekBody({
   onOpen, onInsights, onUnestimated, onAddTaskTo, scope = 'all',
 }: WeekViewProps) {
   const { t } = useT();
+  const timePill = useTimePill();
   const { snapshot, items, childrenOf } = useData();
   const prefs = useStore((s) => s.prefs);
-  const updateTask = useStore((s) => s.updateTask);
-  const toast = useStore((s) => s.toast);
+  const updateMany = useStore((s) => s.updateMany);
   const confirm = useConfirm();
   /* Two pages, two sets of display preferences: a filter set on Today has no
      business following you to the rest of the week. */
@@ -120,17 +122,21 @@ function WeekBody({
     if (!ok) return;
 
     const today = toApiDate(new Date());
-    for (const item of affected) {
-      // Moving to today drops the `week` label, which would otherwise put the
-      // same task in two groups at once.
-      /* A repeating task among them keeps its rule: this button catches up on
-         what is late, and a series being late is not a reason to end it. */
-      await updateTask(item.id, {
+    const week = weekLabel().toLowerCase();
+    /* One request for the lot, shown at once, with one undo (#162): a request
+       per task emptied the block at the speed of the network. */
+    await updateMany(
+      affected.map((item) => item.id),
+      (item) => ({
+        // A repeating task among them keeps its rule: this button catches up
+        // on what is late, and a series being late is not a reason to end it.
         due: dueForDate(item.due, today),
-        labels: item.labels.filter((l) => l.toLowerCase() !== weekLabel().toLowerCase()),
-      });
-    }
-    toast(t('group.rescheduleAll'));
+        // Moving to today drops the `week` label, which would otherwise put
+        // the same task in two groups at once.
+        labels: item.labels.filter((l) => l.toLowerCase() !== week),
+      }),
+      t('task.rescheduledMany', { count: affected.length }),
+    );
   }
 
   /* A week is drawn from every project at once, so the order it is put into
@@ -153,8 +159,9 @@ function WeekBody({
     const today = [
       { id: 'overdue', title: t('group.overdue'), items: groups.overdue },
       ...(prefs.showQuickGroup
-        ? [{ id: 'quick', title: t('group.quick'), items: groups.quick,
-            dropTarget: { kind: 'quick' as const } }]
+        /* Blue, and a place to look rather than somewhere to drop: a card is
+           not made quick by being dragged here. */
+        ? [{ id: 'quick', title: t('group.quick'), items: groups.quick, accent: 'quick' as const }]
         : []),
       { id: 'untimed', title: t('group.untimed'), items: groups.untimed,
         dropTarget: { kind: 'today' as const } },
@@ -171,7 +178,6 @@ function WeekBody({
       .map((column) => ({
         ...column, items: sortItems(column.items, current.sort, childrenOf, 'day', snapshot),
       }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groups, prefs.showQuickGroup, current.sort, childrenOf, snapshot, t, scope]);
 
   return (
@@ -193,6 +199,13 @@ function WeekBody({
         }
         load={load}
         onOpenUnestimated={load.unestimatedCount > 0 ? onUnestimated : undefined}
+        time={timePill}
+      />
+      <TimePanel
+        pageItems={scoped}
+        pageLabel={t(scope === 'today' ? 'nav.today' : 'nav.week')}
+        onOpen={onOpen}
+        onUnestimated={onUnestimated}
       />
 
 

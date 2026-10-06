@@ -20,6 +20,8 @@ interface TaskGroupProps {
   tint?: 'late' | 'quick';
   actions?: ReactNode;
   showProject?: boolean;
+  /** Names each task's section in its row, for a group gathered from several. */
+  showSection?: boolean;
   defaultCollapsed?: boolean;
   /** Adds a task straight into this section. */
   onAddTask?: () => void;
@@ -32,8 +34,12 @@ interface TaskGroupProps {
   viewKey?: string;
   /** Stays on the page with nothing in it, so the line that fills it is there. */
   keepWhenEmpty?: boolean;
-  /** An accent for the sections that carry meaning: late, and quick. */
-  accent?: 'late' | 'quick';
+  /** An accent for the sections that carry meaning: late, quick, and gathering dust. */
+  accent?: 'late' | 'quick' | 'dust';
+  /** Said quietly after the title, as "over 3 months" is after Gathering dust. */
+  subtitle?: string;
+  /** The tasks here have been gathering dust: each row says its age and offers three actions. */
+  dust?: boolean;
   /** When set, the whole group accepts tasks dropped onto it. */
   dropTarget?: DropTarget;
   /** A real section can be renamed, moved and deleted; a derived grouping cannot. */
@@ -46,8 +52,9 @@ interface TaskGroupProps {
 
 export function TaskGroup({
   title, items, childrenOf, onOpen, tint, actions,
-  showProject = true, defaultCollapsed = false, dropTarget, onAddTask, accent,
+  showProject = true, showSection = false, defaultCollapsed = false, dropTarget, onAddTask, accent,
   sectionId, onRename, onDelete, reorderable, viewKey, keepWhenEmpty = false, draggable = true,
+  subtitle, dust = false,
 }: TaskGroupProps) {
   const { t, locale } = useT();
   const dragging = useStore((s) => s.draggingTaskId !== null);
@@ -66,7 +73,7 @@ export function TaskGroup({
 
   // The meaning stays in the heading's colour rather than a panel behind it.
   const mark = accent ?? tint;
-  const className = `group${mark === 'late' ? ' accent-late' : mark === 'quick' ? ' accent-quick' : ''}`;
+  const className = `group${mark ? ` accent-${mark}` : ''}`;
 
   const body = (isOver: boolean) => (
     <section
@@ -102,6 +109,7 @@ export function TaskGroup({
             ) : (
               <span className="gname">{title}</span>
             )}
+            {subtitle && <span className="gsub">{subtitle}</span>}
             {totalMinutes > 0 && <span className="gtime">{formatDuration(totalMinutes, locale)}</span>}
           </button>
           {actions && <span className="gactions">{actions}</span>}
@@ -138,6 +146,8 @@ export function TaskGroup({
             childrenOf={childrenOf}
             onOpen={onOpen}
             showProject={showProject}
+            showSection={showSection}
+            dust={dust}
           />
         ) : (
           <TaskRow
@@ -146,12 +156,16 @@ export function TaskGroup({
             childrenOf={childrenOf}
             onOpen={onOpen}
             showProject={showProject}
+            showSection={showSection}
+            dust={dust}
           />
         ))}
 
       {/* A block with no heading has nothing to say it is empty about: the
           add line under it is the whole point of it being there. */}
-      {!collapsed && items.length === 0 && (title || sectionId) && (
+      {/* With a line to add a task, that line is where the first task would
+          be: saying "Nothing here" above it is saying it twice. */}
+      {!collapsed && items.length === 0 && (title || sectionId) && !onAddTask && (
         <p className="empty">{t('group.empty')}</p>
       )}
 

@@ -1,3 +1,4 @@
+import { useStore } from '@/store/store';
 import { useEffect, useState } from 'react';
 import { Icon } from './Icon';
 import { useT } from '@/hooks/useT';
@@ -231,6 +232,42 @@ export function DensityChoice({
           </span>
         </button>
       ))}
+    </div>
+  );
+}
+
+/** The same storage choice in first run, existing accounts and Settings. */
+export function EstimateStorageChoice({ value, allowed, onChange }: {
+  value: import('@/domain/types').EstimateStorage | null;
+  allowed: boolean;
+  onChange: (value: import('@/domain/types').EstimateStorage) => void;
+}) {
+  const { t } = useT();
+  const user = useStore((s) => s.snapshot.user);
+  const recommendation = !allowed ? 'tag' : user?.is_premium === true || user?.premium_status === 'teams_business_member' ? 'duration' : null;
+  return (
+    <div className="estimate-choice">
+      <div className="estimate-toggle" role="radiogroup" aria-label={t('estimates.storage')}>
+        {(['tag', 'duration'] as const).map((option) => (
+          <button type="button" key={option} role="radio" aria-label={t(`estimates.${option}`)} aria-description={t(option === 'tag' ? 'estimates.tagPlans' : 'estimates.durationPlans')} aria-checked={(value ?? 'tag') === option}
+            disabled={option === 'duration' && !allowed}
+            className={(value ?? 'tag') === option ? 'selected' : undefined}
+            onClick={() => onChange(option)}
+            onKeyDown={(event) => {
+              if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+              event.preventDefault();
+              const next = option === 'tag' && allowed ? 'duration' : 'tag';
+              onChange(next);
+              (event.currentTarget.parentElement?.querySelector(`[data-storage="${next}"]`) as HTMLButtonElement | null)?.focus();
+            }} data-storage={option}>
+            <Icon name={option === 'tag' ? 'tag' : 'clock'} size="sm" />
+            <span><strong>{t(`estimates.${option}`)}</strong><small>{t(option === 'tag' ? 'estimates.tagPlans' : 'estimates.durationPlans')}{recommendation === option && <span className="estimate-recommended">{t('estimates.recommended')}</span>}</small></span>
+            <span className="estimate-toggle-check"><Icon name="check" size="sm" /></span>
+          </button>
+        ))}
+      </div>
+      <p className="estimate-choice-hint">{t(!allowed ? 'estimates.unavailable' : (value ?? 'tag') === 'tag' ? 'estimates.tagHint' : 'estimates.durationHint')}</p>
+      <details className="estimate-choice-details"><summary>{t('estimates.more')}</summary><p>{t('estimates.durationHelp')}</p><p>{t('estimates.longHelp')}</p></details>
     </div>
   );
 }

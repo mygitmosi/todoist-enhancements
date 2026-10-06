@@ -1,4 +1,5 @@
 /** Talking to Todoist: signing in and out, reading, writing, the offline queue, the demo. */
+import { verifyEstimateWrites } from './estimate-safety';
 import { auth } from '@/api/auth';
 import { completeSignIn } from '@/api/oauth';
 import { ApiError, NotConnectedError } from '@/api/client';
@@ -6,6 +7,7 @@ import { applySync, applyWrite, sync } from '@/api/sync';
 import { sendCommands, type Command } from '@/api/commands';
 import * as idb from '@/db/idb';
 import { emptySnapshot, setWeekLabel } from '@/domain/types';
+import { readKept } from '@/domain/views';
 import { detectLocale, translate } from '@/i18n';
 import { buildDemoSnapshot } from '@/demo/demoData';
 import { sessionGet, sessionRemove, sessionSet } from '@/lib/sessionStore';
@@ -16,6 +18,7 @@ import {
 import {
   PREFS_KEY, preferencesWriteTimer, remotePreferences, tourSnapshotBackup, withOnboarding,
 } from './preferences';
+import { DUST_KEY } from './dust';
 import type { AppState } from './types';
 import type { Slice, SyncSlice } from './types';
 
@@ -49,6 +52,7 @@ export async function flushQueue(
     .map(({ queuedAt: _q, attempts: _a, userId: _u, ...cmd }) => cmd);
   if (commands.length === 0) return false;
   try {
+    const optimistic = get().snapshot;
     const result = await sendCommands(get().snapshot.syncToken, commands);
     let merged = applyWrite(get().snapshot, result.responses, result.mapping);
 
@@ -73,18 +77,22 @@ export async function flushQueue(
     }
 
     set({ snapshot: hidePending(merged), resolvedIds: { ...get().resolvedIds, ...result.mapping } });
-    await idb.dequeue(result.delivered);
+    const safety = await verifyEstimateWrites(get, set, commands, result, optimistic);
+    await idb.dequeue(result.delivered.filter((id) => !safety.pending.some((cmd) => cmd.uuid === id)));
+    if (safety.pending.length > 0) await idb.updateQueued(safety.pending);
     if (result.undelivered.length > 0) await idb.updateQueued(result.undelivered);
-    set({ pendingCount: result.undelivered.length });
-    if (result.failures.length > 0) {
+    set({ pendingCount: (await idb.readQueue()).length });
+    schedulePersist(get().snapshot);
+    const failures = result.failures.filter((f) => !safety.handled.has(f.uuid));
+    if (failures.length > 0) {
       get().toast(
-        explainFailures(result.failures, result.delivered.length, get().prefs.locale),
+        explainFailures(failures, result.delivered.length, get().prefs.locale),
         undefined,
         { tone: 'error' },
       );
     }
     // A full read would wipe the placeholders of what is still waiting to go.
-    return stale && result.undelivered.length === 0;
+    return stale && get().pendingCount === 0;
   } catch {
     /* Only the network can throw from here (see `failures` above), so this is
        always "still unreachable": the queue is left alone and retried later. */
@@ -144,10 +152,11 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
       if (signIn === 'signed-in') sessionRemove('demo');
       if (signIn === 'denied' || signIn === 'failed') set({ signInError: signIn });
 
-      const [storedPrefs, snapshot, queue] = await Promise.all([
+      const [storedPrefs, snapshot, queue, storedKept] = await Promise.all([
         idb.loadPrefs<Preferences>(PREFS_KEY),
         idb.loadSnapshot(),
         idb.readQueue(),
+        idb.loadPrefs<unknown>(DUST_KEY),
       ]);
 
       const prefs = hydratePreferences(storedPrefs, detectLocale());
@@ -166,6 +175,8 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
         demo: resumeDemo,
         ready: true,
         pendingCount: queue.length,
+        // The demo is a sandbox: it never reads what a real account kept here.
+        dustKept: resumeDemo ? {} : readKept(storedKept),
       });
 
       if (connected) {
@@ -193,7 +204,10 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
       if (canonical) setWeekLabel(canonical.weekLabel);
       const adopted = canonical ?? get().prefs;
       const prefs = withOnboarding(snapshot, adopted);
-      set({ connected: true, snapshot, prefs, syncState: 'idle' });
+      set({
+        connected: true, snapshot, prefs, syncState: 'idle',
+        sidePanel: null, timeFilter: { minutes: null, scope: 'page', sort: 'duration' },
+      });
       void idb.saveSnapshot(snapshot);
       if (canonical || prefs !== adopted) void idb.savePrefs(PREFS_KEY, prefs);
       /* What the same person left waiting goes out now; what another account
@@ -235,6 +249,10 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
       pendingCount: 0,
       syncState: 'idle',
       resolvedIds: {},
+      dustKept: {},
+      // What was asked of one account's tasks is not asked of the next one's.
+      sidePanel: null,
+      timeFilter: { minutes: null, scope: 'page', sort: 'duration' },
     });
   },
   async refresh(full = false, signedIn) {
@@ -363,13 +381,17 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
 
       /* Only what Todoist received leaves the queue. What the network lost
          part-way stays, with the ids resolved so far written into it. */
-      await idb.dequeue(result.delivered);
+      const safety = await verifyEstimateWrites(get, set, commands, result, after);
+      await idb.dequeue(result.delivered.filter((id) => !safety.pending.some((cmd) => cmd.uuid === id)));
+      if (safety.pending.length > 0) await idb.updateQueued(safety.pending);
       if (result.undelivered.length > 0) await idb.updateQueued(result.undelivered);
-      set({ pendingCount: Math.max(0, get().pendingCount - result.delivered.length) });
+      set({ pendingCount: Math.max(0, get().pendingCount - result.delivered.length + safety.pending.length) });
 
-      if (result.failures.length > 0) {
+      schedulePersist(get().snapshot);
+      const failures = result.failures.filter((f) => !safety.handled.has(f.uuid));
+      if (failures.length > 0) {
         get().toast(explainFailures(
-          result.failures, result.delivered.length, get().prefs.locale,
+          failures, result.delivered.length, get().prefs.locale,
         ), undefined, { tone: 'error' });
       }
       return result.mapping;

@@ -381,3 +381,34 @@ const strip = (raw: string, ranges: Highlight[]): string => {
   out += raw.slice(cursor);
   return out.replace(/\s{2,}/g, ' ').trim();
 };
+
+/**
+ * A subtask typed in the composer, with the estimate it ends with (#163).
+ *
+ * The same brackets and the same reader as a task's name — `(5)`, `(1h15)`,
+ * `(90 min)` through `parseDurationInput` — but only at the very end of the
+ * line: a subtask has no highlighted field to show that something was read,
+ * so the one place a reading is unmistakable is the only place it is taken.
+ * Anything else in brackets, `(maybe)` or `(5 pages)`, stays in the title, and
+ * so does a line that is nothing but an estimate.
+ */
+export function splitTrailingEstimate(text: string): { content: string; minutes: number | null } {
+  const trimmed = text.trim();
+  const found = trailingEstimate(trimmed);
+  if (!found) return { content: trimmed, minutes: null };
+  return { content: trimmed.slice(0, found.start).trim(), minutes: found.minutes };
+}
+
+/**
+ * Where the estimate that ends a subtask sits in `text`, with its minutes, or
+ * null. The same reading `splitTrailingEstimate` takes, so the field can mark
+ * exactly what will be taken off the title.
+ */
+export function trailingEstimate(text: string): { start: number; end: number; minutes: number } | null {
+  const body = text.trimEnd();
+  const match = /\(([^)]{1,12})\)$/.exec(body);
+  if (!match) return null;
+  const minutes = parseDurationInput(match[1]);
+  if (minutes === null || !body.slice(0, match.index).trim()) return null;
+  return { start: match.index, end: body.length, minutes };
+}

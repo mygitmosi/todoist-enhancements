@@ -154,9 +154,34 @@ accent + ring on focus) shared by `.gnamefield`, `EditableTitle` and
 Next: `.btn.danger` and `.opt.danger` share one colour pair; `sm` becomes
 `--ctl-h-sm` everywhere.
 
+### Groups that carry a meaning, and side panels — ✅ (#154, #159, #161)
+
+A `TaskGroup` can say something about what is in it with `accent`: `late`
+(Behind schedule, red), `quick` (Quick, blue) and `dust` (Gathering dust,
+amber). An accent is a wash behind the group, a heading colour and a count
+chip, from tokens that exist in both schemes (`--late-*`, `--wash-quick-deep`,
+`--dust-*`); a new meaning is a new token family and a new accent, never a
+one-off colour. `subtitle` is the quiet "· over 3 months" after a title. Such
+a group takes no drop and has no "Add task" line unless the page says so: it
+is a view of tasks that belong somewhere else.
+
+Panels that slide in from the right (Insights, I have time) are one at a time:
+`sidePanel` in the store says which is open, and opening one closes the other.
+A panel that must stay beside the page it answers about (I have time: its pill
+is clicked again to put it away, the page behind is left alone) is not modal.
+On a phone it is a full-screen sheet with 44px targets.
+
 ## Next migrations, in order
 
 1. Project and section: one destination list (Move, bulk Move, `PlacementField`).
 2. Labels: one tag picker with a tri-state variant.
 3. Inline-edit fields: one style.
 4. Priority in the bulk bar through `Select`'s option rendering.
+
+## Estimate storage and tag creation (1.20)
+
+`EstimateStorageChoice` is shared by setup, the existing-account dialog and Settings. Its recommendation badge favours tags on Free and durations on known Pro or Business plans, without changing a saved choice.
+
+`useCreateTag` normalises names, checks duplicates and creates tags in the composer, task details, bulk selection and display filters. `CreateTagInput` is the inline creation control for filters; task-name @ completion also offers creation. A refused creation must not attach a nonexistent label.
+
+Bulk estimates accept minutes or hours (25, 1h15, 90 min), with an explicit Apply button and a separate Remove action. Conversion rows distinguish ready, checking, verified, pending and failed states; verified rows use a green check and struck-through title.

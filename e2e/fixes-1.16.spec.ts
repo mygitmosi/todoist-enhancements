@@ -56,12 +56,12 @@ test('#108 a project board adds a section from its last column', async ({ demo: 
   await add.click();
   // Escape makes nothing.
   await page.keyboard.press('Escape');
-  await expect(board.locator('.col .chead strong')).toHaveText(['To do', 'In progress', 'To review']);
+  await expect(board.locator('.col:not(.accent-quick) .chead strong')).toHaveText(['To do', 'In progress', 'To review']);
 
   await add.click();
   await page.keyboard.type('Launch');
   await page.keyboard.press('Enter');
-  await expect(board.locator('.col .chead strong')).toHaveText(['To do', 'In progress', 'To review', 'Launch']);
+  await expect(board.locator('.col:not(.accent-quick) .chead strong')).toHaveText(['To do', 'In progress', 'To review', 'Launch']);
 
   // The same section in the list.
   await page.getByRole('button', { name: 'Display' }).click();
@@ -87,8 +87,13 @@ test('#110 the row menu and the bulk bar show the same date picker', async ({ de
   await page.getByRole('toolbar').getByRole('button', { name: 'Date' }).click();
   const bulk = page.getByRole('menu', { name: 'Date' });
   await expect(bulk.locator('.datepicker')).toBeVisible();
-  expect(await labels(bulk)).toEqual(fromRow);
-  expect(fromRow.map((l) => l.trim())).toEqual(['Today', 'Tomorrow', 'Next week', 'This week', 'Someday']);
+  const fromBulk = (await labels(bulk)).map((l) => l.trim());
+  const choices = ['Today', 'Tomorrow', 'Next week', 'This week', 'Someday'];
+  // The same choices in the same order, ending in "Pick a date"; the row
+  // menu adds what only a task can do (remove its date) between the two (#153).
+  expect(fromRow.map((l) => l.trim()).slice(0, 5)).toEqual(choices);
+  expect(fromBulk).toEqual([...choices, 'Pick a date']);
+  expect(fromRow.map((l) => l.trim()).at(-1)).toBe('Pick a date');
 });
 
 test('#115 the changelog opens from Settings, in the app', async ({ demo: page }) => {

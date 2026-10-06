@@ -1,4 +1,4 @@
-import { addDays, format, isMonday, nextMonday, startOfDay, subDays } from 'date-fns';
+import { addDays, addMonths, format, isMonday, nextMonday, startOfDay, subDays } from 'date-fns';
 import type {
   CompletedItem, Item, Label, Project, Section, Snapshot, TodoistUser,
 } from '@/domain/types';
@@ -42,6 +42,10 @@ interface Copy {
   sections: Array<{ name: string; description?: string }>;
   parent: { title: string; description: string; children: string[] };
   tasks: Array<[string, string]>;
+  /** Short tasks with no date: what the Quick group gathers on a project, a tag, the Inbox. */
+  quick: string[];
+  /** Old, undated and not short: what has been gathering dust in Someday. */
+  dust: string[];
   completed: string[];
 }
 
@@ -98,6 +102,14 @@ const COPY: Record<Locale, Copy> = {
       ['Vérifier les sauvegardes', ''],
       ['Planifier les congés', ''],
       ['Commander les cartes de visite', ''],
+    ],
+    quick: [
+      'Répondre à l’imprimeur', 'Archiver les anciennes maquettes', 'Payer l’amende de stationnement',
+      'Renouveler la carte de médiathèque', 'Envoyer le mot de remerciement',
+    ],
+    dust: [
+      'Apprendre les bases de la menuiserie', 'Repeindre le couloir', 'Numériser les albums de famille',
+      'Rédiger le plan du livre', 'Vendre l’ancien écran',
     ],
     completed: [
       'Relire la proposition', 'Envoyer le devis', 'Appeler la banque', 'Ranger le dressing',
@@ -159,6 +171,14 @@ const COPY: Record<Locale, Copy> = {
       ['Check the backups', ''],
       ['Plan the time off', ''],
       ['Order business cards', ''],
+    ],
+    quick: [
+      'Reply to the printer', 'Archive the old mockups', 'Pay the parking ticket',
+      'Renew the library card', 'Send the thank-you note',
+    ],
+    dust: [
+      'Learn the basics of woodworking', 'Repaint the hallway', 'Digitise the family albums',
+      'Write the book outline', 'Sell the old monitor',
     ],
     completed: [
       'Review the proposal', 'Send the quote', 'Call the bank', 'Sort the wardrobe',
@@ -284,7 +304,10 @@ export function buildDemoSnapshot(locale: Locale = 'en', seed = 20260914): Snaps
        ahead to another day that is not a Monday when ticked (#130). */
     { due: due(isMonday(today) ? today : nextMonday(today), undefined, everyWeek), priority: 1, labels: ['est-5'], project_id: 'home' },
     { due: due(today, '14:00:00', everyDay), priority: 3, labels: ['est-60'] },
-    { due: due(today, '09:30:00'), priority: 2, labels: ['est-30'], project_id: 'client-a' },
+    /* Two estimates kept in Todoist's own duration field rather than a tag
+       (#151): one on a timed task, where it is also the calendar block, and
+       one on a task with no date. Both count like a tag. */
+    { due: due(today, '09:30:00'), priority: 2, duration: { amount: 30, unit: 'minute' }, project_id: 'client-a' },
     { labels: ['week', 'est-90'], priority: 4, project_id: 'site', section_id: 's-doing' },
     { labels: ['week', 'est-45'], priority: 3, project_id: 'site', section_id: 's-todo' },
     { labels: ['week'], priority: 2, project_id: 'site', section_id: 's-todo' },
@@ -301,7 +324,7 @@ export function buildDemoSnapshot(locale: Locale = 'en', seed = 20260914): Snaps
     { priority: 1, project_id: 'client-a' },
     { priority: 3, project_id: 'client-b', labels: ['est-180'] },
     { priority: 1 },
-    { priority: 1, labels: ['est-30'], project_id: 'personal' },
+    { priority: 1, duration: { amount: 30, unit: 'minute' }, project_id: 'personal' },
     { priority: 1, project_id: 'home' },
   ];
 
@@ -344,6 +367,32 @@ export function buildDemoSnapshot(locale: Locale = 'en', seed = 20260914): Snaps
     priority: 1,
     labels: ['quick', 'est-25'],
   });
+
+  /* Short tasks with no date, in a section and in a project, one of them under
+     a tag, so the Quick group has something to gather on pages other than My
+     week. The last one is dated next week: quick, but not yet something to do.
+     They sit after everything above so nothing before them is drawn
+     differently. */
+  const [reply, archive, parking, library, thanks] = copy.quick;
+  addItem({ content: reply, project_id: 'site', section_id: 's-todo', labels: ['est-2'] });
+  addItem({ content: archive, project_id: 'site', section_id: 's-review', labels: ['est-4'] });
+  addItem({ content: parking, project_id: 'home', labels: ['est-2'] });
+  addItem({ content: library, project_id: 'home', labels: ['quick'] });
+  addItem({
+    content: thanks, project_id: 'site', section_id: 's-todo', labels: ['est-2'],
+    due: due(addDays(today, 8)),
+  });
+
+  /* Someday, months old: what the Gathering dust group names (#161). The last
+     one is also quick, and goes to Quick rather than being listed twice. */
+  const [wood, hallway, albums, outline, monitor] = copy.dust;
+  const monthsAgo = (months: number, days = 0) =>
+    subDays(addMonths(today, -months), days).toISOString();
+  addItem({ content: wood, project_id: 'personal', added_at: monthsAgo(10, 3) });
+  addItem({ content: hallway, project_id: 'home', labels: ['est-180'], added_at: monthsAgo(8, 12) });
+  addItem({ content: albums, project_id: 'home', labels: ['est-120'], added_at: monthsAgo(6, 5) });
+  addItem({ content: outline, project_id: 'personal', labels: ['est-90'], added_at: monthsAgo(4, 9) });
+  addItem({ content: monitor, project_id: 'home', labels: ['est-3'], added_at: monthsAgo(7) });
 
   const user: TodoistUser = {
     id: 'demo-user',

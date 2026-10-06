@@ -1,6 +1,6 @@
 name: CI
 
-# Typecheck, unit tests and a build on every push and pull request. A red
+# Lint, typecheck, unit tests and a build on every push and pull request. A red
 # check means don't release.
 on:
   push:
@@ -20,6 +20,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run lint
       - run: npm test
       - run: npm run build
 

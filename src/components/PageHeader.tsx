@@ -4,6 +4,16 @@ import { useT } from '@/hooks/useT';
 import { formatDuration } from '@/domain/estimates';
 import type { LoadSummary } from '@/domain/load';
 
+/** The "I have time" pill (#159): the page offers it by passing this. */
+export interface TimePillProps {
+  /** How long was chosen, or null while nothing is. */
+  minutes: number | null;
+  /** The panel is open. */
+  open: boolean;
+  onToggle: () => void;
+  onClear: () => void;
+}
+
 interface PageHeaderProps {
   /** A node, not a string: a project's title renames in place. */
   title: ReactNode;
@@ -14,6 +24,8 @@ interface PageHeaderProps {
   load: LoadSummary;
   /** Opens the list of tasks on this page that have no estimate. */
   onOpenUnestimated?: () => void;
+  /** Offers the time filter on this page. Left out on the pages it does not belong on. */
+  time?: TimePillProps;
 }
 
 /**
@@ -22,7 +34,7 @@ interface PageHeaderProps {
  * something, which the caller decides by passing it or not.
  */
 export function PageHeader({
-  title, subtitle, actions, load, onOpenUnestimated,
+  title, subtitle, actions, load, onOpenUnestimated, time,
 }: PageHeaderProps) {
   const { t, locale } = useT();
 
@@ -67,13 +79,44 @@ export function PageHeader({
           </>
         )}
 
+        {time && (
+          <>
+            <span className="sep">·</span>
+            {/* Right after the load pill: the same line, the same question —
+                how much room there is — asked the other way round. */}
+            <span className={`timepill${time.minutes !== null && time.open ? ' on' : ''}`} data-tour="time">
+              <button
+                className="timepill-main"
+                aria-expanded={time.open}
+                title={t('time.pillHint')}
+                onClick={time.onToggle}
+              >
+                <Icon name="clock" size="sm" />
+                {time.minutes !== null
+                  ? t('time.pillActive', { duration: formatDuration(time.minutes, locale) })
+                  : t('time.pill')}
+              </button>
+              {time.minutes !== null && (
+                <button
+                  className="timepill-x"
+                  aria-label={t('time.clear')}
+                  title={t('time.clear')}
+                  onClick={time.onClear}
+                >
+                  <Icon name="close" size="sm" />
+                </button>
+              )}
+            </span>
+          </>
+        )}
+
         {load.unestimatedCount > 0 && (
           <>
             <span className="sep">·</span>
             {onOpenUnestimated ? (
               <button
                 className="metric metric-link"
-                onClick={onOpenUnestimated}
+                onClick={() => onOpenUnestimated()}
                 title={t('issues.toComplete')}
               >
                 {t('metrics.unestimated', { count: load.unestimatedCount })}

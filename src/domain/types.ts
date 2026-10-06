@@ -167,6 +167,8 @@ export interface CompletedItem {
   content: string;
   completed_at: string;
   labels?: string[];
+  /** Todoist's own duration, read as an estimate like on an open task (#151). */
+  duration?: TodoistDuration | null;
   priority?: TodoistPriority;
   note_count?: number;
 }
@@ -242,6 +244,11 @@ export const DEFAULT_WEEK_LABEL = 'week';
  * knowing about preferences. The store sets it once when preferences load and
  * again whenever the setting changes.
  */
+export type EstimateStorage = 'tag' | 'duration';
+let estimateStorageName: EstimateStorage = 'tag';
+export const estimateStorage = (): EstimateStorage => estimateStorageName;
+export const setEstimateStorage = (value: EstimateStorage | null): void => { estimateStorageName = value ?? 'tag'; };
+
 let weekLabelName: string = DEFAULT_WEEK_LABEL;
 
 export const weekLabel = (): string => weekLabelName;

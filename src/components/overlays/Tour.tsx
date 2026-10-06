@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../Icon';
 import { useT } from '@/hooks/useT';
-import type { TranslationKey } from '@/i18n';
+import { tourStops, type TourStop } from '@/domain/tour';
 
 /**
  * The tour: a few things worth pointing at, pointed at.
@@ -22,21 +22,7 @@ import type { TranslationKey } from '@/i18n';
  * controls are its own.
  */
 
-interface Stop {
-  /** The `data-tour` value of the element to light up. */
-  target: string;
-  title: TranslationKey;
-  body: TranslationKey;
-}
-
-const STOPS: Stop[] = [
-  { target: 'metrics', title: 'walkthrough.feature.estimates', body: 'walkthrough.feature.estimatesBody' },
-  { target: 'folder', title: 'walkthrough.feature.folders', body: 'walkthrough.feature.foldersBody' },
-  { target: 'project-icon', title: 'walkthrough.feature.icons', body: 'walkthrough.feature.iconsBody' },
-  { target: 'quick', title: 'tour.quick', body: 'tour.quickBody' },
-  { target: 'subtasks', title: 'tour.subtasks', body: 'tour.subtasksBody' },
-  { target: 'review', title: 'tour.review', body: 'tour.reviewBody' },
-];
+type Stop = TourStop;
 
 /** Where the element is, in viewport coordinates, plus a little air. */
 interface Hole { top: number; left: number; width: number; height: number }
@@ -99,7 +85,17 @@ function targetElement(target: string): HTMLElement | null {
   }) ?? null;
 }
 
-export function Tour({ open, onDone }: { open: boolean; onDone: () => void }) {
+interface TourProps {
+  open: boolean;
+  onDone: () => void;
+  /**
+   * Only the stops that came with these releases: what an update brought, for
+   * the "Show me" button in What's new. Left out, the whole tour.
+   */
+  versions?: string[] | null;
+}
+
+export function Tour({ open, onDone, versions = null }: TourProps) {
   const { t } = useT();
   const [index, setIndex] = useState(0);
   const [hole, setHole] = useState<Hole | null>(null);
@@ -114,11 +110,11 @@ export function Tour({ open, onDone }: { open: boolean; onDone: () => void }) {
     // A beat's delay: the view this runs over has usually just been navigated
     // to, and measuring before it has laid out finds nothing and skips it all.
     const id = window.setTimeout(
-      () => setStops(STOPS.filter((s) => exists(s.target))),
+      () => setStops(tourStops(versions).filter((s) => exists(s.target))),
       150,
     );
     return () => window.clearTimeout(id);
-  }, [open]);
+  }, [open, versions]);
 
   const stop = stops?.[index];
 

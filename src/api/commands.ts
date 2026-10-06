@@ -15,6 +15,8 @@ export interface Command {
   uuid: string;
   args: Record<string, unknown>;
   temp_id?: string;
+  /** Local read-back metadata, retained in the outbox and never sent to Todoist. */
+  estimateMinutes?: number | null;
 }
 
 export const newUuid = (): string =>
@@ -128,7 +130,7 @@ export async function sendCommands(
         form: {
           sync_token: token,
           resource_types: JSON.stringify(['items', 'projects', 'sections', 'labels', 'notes', 'project_notes']),
-          commands: JSON.stringify(batch),
+          commands: JSON.stringify(batch.map(({ estimateMinutes: _estimate, ...cmd }) => cmd)),
         },
       });
       result.responses.push(response);

@@ -8,7 +8,7 @@ import { useStore } from '@/store/store';
 import { detectConflicts, detectIncomplete, type Conflict } from '@/domain/conflicts';
 import { rootItems } from '@/store/selectors';
 import { toDisplayPriority, SYSTEM_LABELS, weekLabel } from '@/domain/types';
-import { readEstimate, withEstimate } from '@/domain/estimates';
+import { readEstimate } from '@/domain/estimates';
 import type { TranslationKey } from '@/i18n';
 import { plainTitle } from '@/domain/markdown';
 
@@ -55,13 +55,20 @@ export function Issues({ open, onClose, onOpen }: IssuesProps) {
       const others = item.labels.filter(
         (l) => !l.toLowerCase().startsWith('est-') || l === keep,
       );
-      await updateTask(item.id, { labels: others });
+      const minutes = readEstimate([keep]).minutes;
+      await updateTask(item.id, minutes === null ? { labels: others } : { estimateMinutes: minutes });
       return;
     }
 
     switch (optionId) {
+      case 'keep-duration':
+        await updateTask(item.id, { estimateMinutes: readEstimate(item).durationMinutes });
+        break;
+      case 'keep-tag':
+        await updateTask(item.id, { estimateMinutes: readEstimate(item).tagMinutes });
+        break;
       case 'remove-estimate':
-        await updateTask(item.id, { labels: withEstimate(item.labels, null) });
+        await updateTask(item.id, { estimateMinutes: null });
         break;
       case 'edit-estimate':
         onOpen(item.id);
@@ -84,7 +91,7 @@ export function Issues({ open, onClose, onOpen }: IssuesProps) {
         setDismissed((prev) => new Set(prev).add(conflict.id));
         break;
       case 'clear-parent':
-        await updateTask(item.id, { labels: withEstimate(item.labels, null) });
+        await updateTask(item.id, { estimateMinutes: null });
         break;
       default:
         break;

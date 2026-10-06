@@ -9,6 +9,8 @@ interface EstimateFieldProps {
   onCancel?: () => void;
   autoFocus?: boolean;
   placeholder?: string;
+  unitLabel?: string;
+  inputMode?: 'numeric' | 'text';
   /**
    * Reports every keystroke, for a list that holds its answers and saves them
    * in one go rather than writing each field as it is left.
@@ -29,7 +31,7 @@ interface EstimateFieldProps {
  * accepted and normalised: 25, 1h15, 90 min.
  */
 export function EstimateField({
-  minutes, onCommit, onCancel, autoFocus, placeholder, onChange, onAdvance,
+  minutes, onCommit, onCancel, autoFocus, placeholder, onChange, onAdvance, unitLabel, inputMode = 'numeric',
 }: EstimateFieldProps) {
   const { t } = useT();
   const [draft, setDraft] = useState(minutes === null ? '' : String(minutes));
@@ -58,7 +60,7 @@ export function EstimateField({
       <input
         ref={ref}
         className="estinput"
-        inputMode="numeric"
+        inputMode={inputMode}
         autoFocus={autoFocus}
         /* Also claims the focus a dialog hands out on opening, which lands on
            the close button otherwise. */
@@ -110,7 +112,7 @@ export function EstimateField({
           }
         }}
       />
-      <span className="estunit" aria-hidden="true">{t('common.minutes')}</span>
+      <span className="estunit" aria-hidden="true">{unitLabel ?? t('common.minutes')}</span>
     </span>
   );
 }

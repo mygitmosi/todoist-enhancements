@@ -1,7 +1,9 @@
+import { EstimateConversion } from '@/components/overlays/EstimateConversion';
+import { canStoreDurations } from '@/domain/estimates';
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { Select } from '@/components/Select';
-import { AccentChoice, DensityChoice, ThemeChoice } from '@/components/Choosers';
+import { AccentChoice, DensityChoice, ThemeChoice, EstimateStorageChoice } from '@/components/Choosers';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { avatarUrl } from '@/domain/colors';
@@ -10,6 +12,7 @@ import { defaultCapacity, weeklyCapacity, type DailyCapacity } from '@/domain/lo
 import { DATE_FORMATS, formatDay, type DateFormat } from '@/domain/dates';
 import { HOME_VIEWS, WEEK_LAYOUTS, type HomeView, type WeekLayout } from '@/store/prefs';
 import { DEFAULT_WEEK_LABEL } from '@/domain/types';
+import { DUST_MONTHS, isDustMonths } from '@/domain/views';
 import type { Locale, TranslationKey } from '@/i18n';
 import { APP_NAME, AUTHOR, AUTHOR_AVATAR_URL, COFFEE_URL, GITHUB_URL, SITE_URL, VERSION } from '@/app-info';
 import { karmaStanding } from '@/domain/karma';
@@ -234,9 +237,16 @@ export function SettingsView() {
                 return (
                   <label className="capday" key={name}>
                     <span>{name}</span>
+                    {/* Said as a duration ("5 h", "1 h 30"), and typed as one:
+                        a bare number is minutes, which "300" never said. */}
                     <input
-                      defaultValue={String(prefs.dailyCapacity[dayIndex])}
-                      onBlur={(event) => setDayCapacity(dayIndex, event.target.value)}
+                      key={prefs.dailyCapacity[dayIndex]}
+                      defaultValue={formatDuration(prefs.dailyCapacity[dayIndex], locale)}
+                      onBlur={(event) => {
+                        setDayCapacity(dayIndex, event.target.value);
+                        event.target.value = formatDuration(prefs.dailyCapacity[dayIndex], locale);
+                      }}
+                      onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
                       aria-label={name}
                     />
                   </label>
@@ -261,11 +271,14 @@ export function SettingsView() {
               <Row title={t('settings.weeklyValue')} hint={t('settings.weeklyOverride')}>
                 <input
                   className="estinput"
-                  defaultValue={String(prefs.weeklyCapacityOverride)}
+                  key={prefs.weeklyCapacityOverride}
+                  defaultValue={formatDuration(prefs.weeklyCapacityOverride, locale)}
                   onBlur={(event) => {
                     const minutes = parseDurationInput(event.target.value);
                     if (minutes !== null) setPrefs({ weeklyCapacityOverride: minutes });
+                    else event.target.value = formatDuration(prefs.weeklyCapacityOverride!, locale);
                   }}
+                  onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
                   aria-label={t('settings.weeklyValue')}
                 />
               </Row>
@@ -286,6 +299,10 @@ export function SettingsView() {
             {/* The tag is a name on the user's own board, not a setting this
                 app invented, so it is typed rather than chosen from a list:
                 the tag it should read may not exist here yet. */}
+            <Row title={t('estimates.storage')} hint={t('estimates.dialogIntro')} wide>
+              <EstimateStorageChoice value={prefs.estimateStorage} allowed={canStoreDurations(user)} onChange={(value) => setPrefs({ estimateStorage: value })} />
+              <EstimateConversion target={prefs.estimateStorage ?? 'tag'} />
+            </Row>
             <Row title={t('settings.weekLabel')} hint={t('settings.weekLabelHint')}>
               <input
                 className="estinput"
@@ -304,6 +321,29 @@ export function SettingsView() {
                 checked={prefs.showQuickGroup}
                 onChange={() => setPrefs({ showQuickGroup: !prefs.showQuickGroup })}
                 label={t('settings.showQuick')}
+              />
+            </Row>
+
+            <Row title={t('settings.showDust')} hint={t('settings.showDustHint')}>
+              <Switch
+                checked={prefs.showDustGroup}
+                onChange={() => setPrefs({ showDustGroup: !prefs.showDustGroup })}
+                label={t('settings.showDust')}
+              />
+            </Row>
+
+            <Row title={t('settings.dustAfter')} hint={t('settings.dustAfterHint')}>
+              <Select
+                value={String(prefs.dustAfterMonths)}
+                onChange={(value) => {
+                  const months = Number(value);
+                  if (isDustMonths(months)) setPrefs({ dustAfterMonths: months });
+                }}
+                ariaLabel={t('settings.dustAfter')}
+                options={DUST_MONTHS.map((months) => ({
+                  value: String(months),
+                  label: t('settings.months', { count: months }),
+                }))}
               />
             </Row>
 
@@ -360,6 +400,7 @@ export function SettingsView() {
             <h2>{t('settings.conflicts')}</h2>
             {(
               [
+                ['estimateMismatch', 'estimates.conflictSetting', 'estimates.conflictHint'],
                 ['dateAndWeek', 'settings.conflictDateWeek', 'settings.conflictDateWeekHint'],
                 ['multipleEstimates', 'settings.conflictMultiple', 'settings.conflictMultipleHint'],
                 ['quickTooLong', 'settings.conflictQuick', 'settings.conflictQuickHint'],

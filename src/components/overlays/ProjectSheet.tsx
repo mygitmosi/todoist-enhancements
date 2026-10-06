@@ -86,7 +86,7 @@ export function ProjectSheet({ target, onClose }: ProjectSheetProps) {
     setFavourite(false);
     setDestination(target.workspaceId ?? PERSONAL);
     // Reading the project once, on opening, is the point: later edits are ours.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Seed fields only when opening; later project updates must preserve the draft.
   }, [target]);
 
   const destinations = useMemo(

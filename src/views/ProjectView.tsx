@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, Fragment } from 'react';
+import { useCallback, useEffect, useMemo, useState, Fragment } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { SubtasksProvider } from '@/components/TaskRow';
 import { DisplayMenu } from '@/components/DisplayMenu';
@@ -11,12 +11,15 @@ import type { ProjectSheetTarget } from '@/components/overlays/ProjectSheet';
 import { AddSectionLine } from '@/components/AddSectionLine';
 import { useConfirm } from '@/components/overlays/Confirm';
 import { Icon } from '@/components/Icon';
+import { TimePanel } from '@/components/TimePanel';
 import { useT } from '@/hooks/useT';
+import { useTimePill } from '@/hooks/useTimePill';
 import type { TaskPlacement } from '@/domain/dnd';
 import { useData } from '@/hooks/useData';
+import type { Item } from '@/domain/types';
 import { useStore } from '@/store/store';
 import { viewPrefs } from '@/store/prefs';
-import { applyFilters, rootItems, sortItems } from '@/store/selectors';
+import { applyFilters, pullQuick, rootItems, sortItems } from '@/store/selectors';
 import { summariseLoad } from '@/domain/load';
 import { readProjectIcon, stripProjectIcon, withProjectIcon } from '@/domain/projectIcons';
 import { bySectionOrder } from '@/domain/orderKey';
@@ -26,7 +29,7 @@ interface ProjectViewProps {
   revealSectionId?: string;
   onOpen: (id: string) => void;
   onInsights: () => void;
-  onUnestimated: () => void;
+  onUnestimated: (items?: Item[]) => void;
   /** Adds a task straight into a section of this project. */
   onAddTaskTo: (placement: TaskPlacement) => void;
   /** Opens the project sheet, to edit this one or add one beside it. */
@@ -57,6 +60,7 @@ function ProjectBody({
 }: ProjectViewProps) {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const { t } = useT();
+  const timePill = useTimePill();
   const { snapshot, items, childrenOf } = useData();
   const prefs = useStore((s) => s.prefs);
   const updateProjectFields = useStore((s) => s.updateProjectFields);
@@ -130,6 +134,17 @@ function ProjectBody({
 
   const load = useMemo(() => summariseLoad(scoped, childrenOf, null), [scoped, childrenOf]);
 
+  /* The quick tasks lead the list, above every section, and are listed only
+     there (#154). A board grouped by something other than the sections keeps
+     its columns whole. */
+  const split = useMemo(
+    () => current.mode === 'board' && current.group !== 'none'
+      ? { quick: [], rest: scoped }
+      : pullQuick(scoped, prefs.showQuickGroup, current.sort, childrenOf, 'project', snapshot),
+    [scoped, current.mode, current.group, current.sort, prefs.showQuickGroup, childrenOf, snapshot],
+  );
+  const pool = split.rest;
+
   const sections = useMemo(
     () =>
       Object.values(snapshot.sections)
@@ -138,7 +153,10 @@ function ProjectBody({
     [snapshot.sections, projectId],
   );
 
-  const sorted = (list: typeof scoped) => sortItems(list, current.sort, childrenOf, 'project', snapshot);
+  const sorted = useCallback(
+    (list: typeof scoped) => sortItems(list, current.sort, childrenOf, 'project', snapshot),
+    [current.sort, childrenOf, snapshot],
+  );
 
   /**
    * The tasks in the project itself, in no section.
@@ -149,9 +167,8 @@ function ProjectBody({
    * bottom. The board has always read them this way; the list now agrees.
    */
   const looseItems = useMemo(
-    () => sorted(scoped.filter((i) => !i.section_id)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scoped, current.sort, childrenOf],
+    () => sorted(pool.filter((i) => !i.section_id)),
+    [pool, sorted],
   );
 
   const sectionGroups = useMemo(
@@ -159,10 +176,9 @@ function ProjectBody({
       sections.map((section) => ({
         id: section.id,
         title: section.name,
-        items: sorted(scoped.filter((i) => i.section_id === section.id)),
+        items: sorted(pool.filter((i) => i.section_id === section.id)),
       })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sections, scoped, current.sort, childrenOf],
+    [sections, pool, sorted],
   );
 
   useEffect(() => {
@@ -182,8 +198,13 @@ function ProjectBody({
   }, [revealSectionId, sections]);
 
   const boardColumns = useMemo(
-    () =>
-      [
+    () => [
+      /* Quick leads the board as it leads the list: blue, listed once, and a
+         place to look rather than somewhere to drop (#154). */
+      ...(split.quick.length > 0 && current.mode === 'board'
+        ? [{ id: 'quick', title: t('group.quick'), items: split.quick, accent: 'quick' as const }]
+        : []),
+      ...[
         // An empty "no section" column is noise; a real section stays, because
         // an empty column of your own is still somewhere to drop work. The
         // column keeps a name, unlike the list: a board column with no header
@@ -206,7 +227,8 @@ function ProjectBody({
             group.id === 'none' ? { projectId } : { projectId, sectionId: group.id },
           ),
         })),
-    [sectionGroups, looseItems, projectId, t, onAddTaskTo],
+    ],
+    [sectionGroups, looseItems, projectId, t, onAddTaskTo, split.quick, current.mode],
   );
 
   if (!project) {
@@ -214,6 +236,21 @@ function ProjectBody({
   }
 
   // A Kanban is only offered where sections exist to give it columns.
+
+  /* One group for the whole page, never one per section, and no empty one. It
+     says which section each task comes from; the page already says the
+     project. It takes no drop and has no line to add a task. */
+  const quickGroup = split.quick.length > 0 ? (
+    <TaskGroup
+      title={t('group.quick')}
+      items={split.quick}
+      childrenOf={childrenOf}
+      onOpen={onOpen}
+      showProject={false}
+      showSection
+      accent="quick"
+    />
+  ) : undefined;
 
   return (
     <div className="page">
@@ -283,6 +320,13 @@ function ProjectBody({
         }
         load={load}
         onOpenUnestimated={load.unestimatedCount > 0 ? onUnestimated : undefined}
+        time={timePill}
+      />
+      <TimePanel
+        pageItems={scoped}
+        pageLabel={project.name}
+        onOpen={onOpen}
+        onUnestimated={onUnestimated}
       />
 
 
@@ -318,6 +362,7 @@ function ProjectBody({
         />
       ) : current.mode === 'list' && current.group === 'none' ? (
         <div className="mode">
+          {quickGroup}
           {/* The project's own tasks, first and unlabelled: they are in the
               project, not in a section that happens to be called nothing. */}
           <TaskGroup
@@ -369,9 +414,10 @@ function ProjectBody({
         </div>
       ) : current.mode === 'list' && current.group === 'scheduled' ? (
         <div className="mode">
+          {quickGroup}
           <TaskGroup
             title={t('section.scheduled')}
-            items={sorted(scoped.filter((i) => i.due !== null))}
+            items={sorted(pool.filter((i) => i.due !== null))}
             childrenOf={childrenOf}
             onOpen={onOpen}
             showProject={false}
@@ -379,7 +425,7 @@ function ProjectBody({
           />
           <TaskGroup
             title={t('section.available')}
-            items={sorted(scoped.filter((i) => i.due === null))}
+            items={sorted(pool.filter((i) => i.due === null))}
             childrenOf={childrenOf}
             onOpen={onOpen}
             showProject={false}
@@ -389,7 +435,8 @@ function ProjectBody({
         </div>
       ) : (
         <ModeSurface
-          items={scoped}
+          items={pool}
+          lead={quickGroup}
           childrenOf={childrenOf}
           mode={current.mode}
           wide={current.wide}

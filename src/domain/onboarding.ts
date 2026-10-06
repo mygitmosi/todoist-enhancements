@@ -55,3 +55,12 @@ export function forgetOnboarding(userId: string | null | undefined): void {
     localStorage.setItem(KEY, JSON.stringify(read().filter((id) => id !== userId)));
   } catch { /* ignored, as above */ }
 }
+
+/** Existing accounts are asked only after all startup overlays have settled. */
+export function shouldAskEstimateStorage(state: {
+  ready: boolean; settled: boolean; demo: boolean; quickAdd: boolean;
+  onboarded: boolean; storage: 'tag' | 'duration' | null; busy: boolean; dismissed: boolean;
+}): boolean {
+  return state.ready && state.settled && state.onboarded && state.storage === null
+    && !state.demo && !state.quickAdd && !state.busy && !state.dismissed;
+}

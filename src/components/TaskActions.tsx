@@ -12,9 +12,10 @@ import { copyText, isTemporaryId, todoistTaskUrl } from '@/api/links';
 import { ROW_PRESS_EVENT, type RowMenu } from '@/domain/gestures';
 import { useStore } from '@/store/store';
 import { useConfirm } from './overlays/Confirm';
-import { withEstimate, effectiveEstimate, formatDuration } from '@/domain/estimates';
+import { effectiveEstimate, formatDuration } from '@/domain/estimates';
 import { EstimateField } from './EstimateField';
-import { DatePicker, taskShortcuts, type RecurrenceReading } from './DatePicker';
+import { DatePicker, shortDay, taskShortcuts, type RecurrenceReading } from './DatePicker';
+import { nextOccurrence } from '@/domain/nextOccurrence';
 import { formatDayOrName, formatTime, toApiDate } from '@/domain/dates';
 import { dueForDate } from '@/domain/recurrence';
 import { weekLabel } from '@/domain/types';
@@ -148,6 +149,8 @@ interface TaskActionsProps {
   item: Item;
   childrenOf: (id: string) => Item[];
   onOpen: (id: string) => void;
+  /** Present on a task gathering dust: keeps it in Someday on purpose (#161). */
+  onKeep?: () => void;
 }
 
 /**
@@ -156,7 +159,7 @@ interface TaskActionsProps {
  * Each one is an icon with a real label and tooltip, so nothing depends on the
  * reader guessing what a glyph does.
  */
-export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
+export function TaskActions({ item, childrenOf, onOpen, onKeep }: TaskActionsProps) {
   const { t, locale } = useT();
   const updateTask = useStore((s) => s.updateTask);
   const removeTask = useStore((s) => s.removeTask);
@@ -238,9 +241,11 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
     };
-  }, [menu]);
+  }, [menu, placement.ref]);
 
   const { minutes, computed } = effectiveEstimate(item, childrenOf);
+  /* Where "next occurrence" lands, said only when that is certain. */
+  const nextDate = nextOccurrence(item);
 
   /* Moving a task means moving it somewhere it can live. Where it sits in time
      is the schedule menu's business, which is the button next to this one. */
@@ -445,7 +450,7 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
      wide. */
   const setEstimate = (value: number | null) => {
     setMenu('none');
-    void updateTask(item.id, { labels: withEstimate(item.labels, value) });
+    void updateTask(item.id, { estimateMinutes: value });
   };
 
   const estimateSheet = (
@@ -515,6 +520,7 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
                       onClick={() => { setMenu('none'); void skipOccurrence(item.id); }}
                     >
                       <span><Icon name="repeat" size="sm" /> {t('task.nextOccurrence')}</span>
+                      {nextDate && <small>{shortDay(nextDate, locale)}</small>}
                     </button>
                   )}
                   {item.due && (
@@ -631,6 +637,12 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
                 <hr />
               </>
             )}
+            {onKeep && (
+              <button className="opt" onClick={() => { setMenu('none'); onKeep(); }}>
+                <span><Icon name="someday" size="sm" /> {t('task.keepInSomeday')}</span>
+                <small className="opthint">⇧K</small>
+              </button>
+            )}
             {/* Dragging a subtask out to the left does this too, but a gesture
                 nobody has been told about is not a way out of anything. */}
             {item.parent_id && (
@@ -689,7 +701,7 @@ export function TaskActions({ item, childrenOf, onOpen }: TaskActionsProps) {
           onCancel={() => setMenu('none')}
           onCommit={(value) => {
             setMenu('none');
-            void updateTask(item.id, { labels: withEstimate(item.labels, value) });
+            void updateTask(item.id, { estimateMinutes: value });
           }}
         />
       ) : (

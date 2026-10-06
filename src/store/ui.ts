@@ -17,6 +17,13 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
   draggingTag: null,
   selection: [],
   selectionAnchor: null,
+  sidePanel: null,
+  timeFilter: { minutes: null, scope: 'page', sort: 'duration' },
+  openSidePanel(panel) { set({ sidePanel: panel }); },
+  closeSidePanel(panel) {
+    if (!panel || get().sidePanel === panel) set({ sidePanel: null });
+  },
+  setTimeFilter(patch) { set({ timeFilter: { ...get().timeFilter, ...patch } }); },
   toast(message, undo, options) {
     const id = newUuid();
     /* The toast's own button and Cmd+Z are two ways to the same single step,

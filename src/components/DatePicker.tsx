@@ -46,7 +46,11 @@ interface DatePickerProps {
   /** The earliest and latest days that can be chosen, as API date strings. */
   min?: string;
   max?: string;
-  /** Whatever the context adds at the foot: skip an occurrence, remove the date. */
+  /**
+   * Whatever the context adds after the quick choices, before "Pick date":
+   * skip an occurrence, remove the date. Buttons of class `opt`, so they are
+   * walked by the keyboard like the choices above them.
+   */
   footer?: ReactNode;
   /** Escape, from anywhere in the picker. */
   onEscape?: () => void;
@@ -71,13 +75,17 @@ interface DatePickerProps {
  *
  *   1. a field to type a date in — "next sunday", "12/04", a bare "9" —
  *      with the few days it could mean listed under it;
- *   2. the quick choices, one per line, each saying the day it lands on;
- *   3. the month, always open, for a day easier to point at than to name;
- *   4. whatever the context adds at the foot.
+ *   2. the quick choices, one per line, each saying the day it lands on, then
+ *      whatever the context adds (skip an occurrence, no date);
+ *   3. "Pick date", which swaps the choices for the month, for a day easier
+ *      to point at than to name (#153). The month is not drawn until it is
+ *      asked for: most of the time a shortcut is all that was wanted.
  *
- * The keyboard walks it top to bottom: ↓ from the field to the choices, from
- * the last choice into the month, where the arrows move the day (Home/End the
- * week, Page Up/Down the month, ⇧ a year) and Enter or Space picks it.
+ * The keyboard walks it top to bottom: ↓ from the field to the choices, and
+ * Enter on "Pick date" into the month, where the arrows move the day (Home/End
+ * the week, Page Up/Down the month, ⇧ a year) and Enter or Space picks it.
+ * Escape in the month goes back to the choices without changing anything; the
+ * next one leaves the picker.
  */
 export function DatePicker({
   value, onPick, label, shortcuts, onRecurrence, min, max, footer, onEscape,
@@ -91,6 +99,9 @@ export function DatePicker({
   const [cursor, setCursor] = useState(() => startOfDay(selected ?? new Date()));
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(-1);
+  /* The choices, or the month in their place. */
+  const [view, setView] = useState<'choices' | 'month'>('choices');
+  const pickRef = useRef<HTMLButtonElement>(null);
   const fieldRef = useRef<HTMLInputElement>(null);
   const optionsRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -109,6 +120,10 @@ export function DatePicker({
   }, [autoFocus]);
 
   useLayoutEffect(() => {
+    if (focusPick.current && view === 'choices') {
+      focusPick.current = false;
+      pickRef.current?.focus();
+    }
     if (!focusCursor.current) return;
     const day = gridRef.current?.querySelector<HTMLElement>('[tabindex="0"]');
     if (!day) return;
@@ -182,6 +197,12 @@ export function DatePicker({
     focusCursor.current = true;
   }
   const enterGrid = () => { focusCursor.current = true; setCursor((at) => new Date(at)); };
+  const openMonth = () => { setView('month'); enterGrid(); };
+  /* Back to the choices puts the focus on "Pick a date" as soon as it is
+     drawn, in the same frame: through a timer there was a moment with the
+     focus on nothing, and a second Escape landed on the page behind. */
+  const focusPick = useRef(false);
+  const closeMonth = () => { focusPick.current = true; setView('choices'); };
 
   const optionButtons = () =>
     [...(optionsRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])];
@@ -221,7 +242,6 @@ export function DatePicker({
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
     if (event.key === 'ArrowDown') {
       if (at < buttons.length - 1) buttons[at + 1].focus();
-      else enterGrid();
     } else if (at > 0) buttons[at - 1].focus();
     else fieldRef.current?.focus();
   }
@@ -237,7 +257,12 @@ export function DatePicker({
       role="group"
       aria-label={label}
       onKeyDown={(event) => {
-        if (event.key === 'Escape' && onEscape) {
+        if (event.key !== 'Escape') return;
+        if (view === 'month') {
+          event.preventDefault();
+          event.stopPropagation();
+          closeMonth();
+        } else if (onEscape) {
           event.preventDefault();
           event.stopPropagation();
           onEscape();
@@ -266,7 +291,7 @@ export function DatePicker({
               event.preventDefault();
               const first = optionButtons()[0];
               if (first) first.focus();
-              else enterGrid();
+              else if (view === 'month') enterGrid();
             } else if (event.key === 'Enter') {
               event.preventDefault();
               commitTyped();
@@ -318,22 +343,38 @@ export function DatePicker({
         )
       )}
 
-      <div className="datepicker-options" ref={optionsRef} onKeyDown={onOptionsKey}>
-        {choices.map((choice) => (
+      {view === 'choices' && (
+        <div className="datepicker-options" ref={optionsRef} onKeyDown={onOptionsKey}>
+          {choices.map((choice) => (
+            <button
+              key={choice.key}
+              type="button"
+              className="opt"
+              disabled={choice.disabled}
+              onClick={choice.onSelect}
+            >
+              <span><Icon name={choice.icon} size="sm" /> {choice.label}</span>
+              {choice.hint && <small>{choice.hint}</small>}
+            </button>
+          ))}
+          {footer}
           <button
-            key={choice.key}
             type="button"
             className="opt"
-            disabled={choice.disabled}
-            onClick={choice.onSelect}
+            ref={pickRef}
+            aria-expanded={false}
+            onClick={openMonth}
           >
-            <span><Icon name={choice.icon} size="sm" /> {choice.label}</span>
-            {choice.hint && <small>{choice.hint}</small>}
+            <span><Icon name="calendar" size="sm" /> {t('date.pick')}</span>
           </button>
-        ))}
-      </div>
+        </div>
+      )}
 
+      {view === 'month' && (
       <div className="datepicker-month">
+        <button type="button" className="opt datepicker-back" onClick={closeMonth}>
+          <span><Icon name="arrow-left" size="sm" /> {t('date.backToChoices')}</span>
+        </button>
         <div className="datepanel-head">
           <button
             type="button"
@@ -380,8 +421,7 @@ export function DatePicker({
           })}
         </div>
       </div>
-
-      {footer && <div className="datepicker-foot">{footer}</div>}
+      )}
     </div>
   );
 }

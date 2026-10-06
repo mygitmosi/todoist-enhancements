@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { carryRanges, parseShorthand, savedRefusals } from './shorthand';
+import { carryRanges, parseShorthand, savedRefusals, splitTrailingEstimate, trailingEstimate } from './shorthand';
 import { emptySnapshot, type Project, type Section, type Snapshot } from './types';
 
 const project = (id: string, name: string): Project => ({
@@ -101,5 +101,33 @@ describe('a saved title opens as plain text (#117)', () => {
     expect(parsed.priority).toBe(2);
     expect(parsed.recurrence).toBeNull();
     expect(parsed.content).toBe(saved);
+  });
+});
+
+describe('an estimate at the end of a subtask (#163)', () => {
+  it('is read from trailing brackets and taken off the title', () => {
+    expect(splitTrailingEstimate('Draft outline (5)')).toEqual({ content: 'Draft outline', minutes: 5 });
+    expect(splitTrailingEstimate('Write (25)')).toEqual({ content: 'Write', minutes: 25 });
+    expect(splitTrailingEstimate('Call back (1h)')).toEqual({ content: 'Call back', minutes: 60 });
+    expect(splitTrailingEstimate('Research (1h15)')).toEqual({ content: 'Research', minutes: 75 });
+    expect(splitTrailingEstimate('  Tidy (90 min)  ')).toEqual({ content: 'Tidy', minutes: 90 });
+  });
+
+  it('leaves brackets that are not a duration, or not at the end, in the title', () => {
+    expect(splitTrailingEstimate('Call Sam (maybe)')).toEqual({ content: 'Call Sam (maybe)', minutes: null });
+    expect(splitTrailingEstimate('Review (5 pages)')).toEqual({ content: 'Review (5 pages)', minutes: null });
+    expect(splitTrailingEstimate('Read (5) chapters')).toEqual({ content: 'Read (5) chapters', minutes: null });
+    expect(splitTrailingEstimate('(5)')).toEqual({ content: '(5)', minutes: null });
+    expect(splitTrailingEstimate('Plain title')).toEqual({ content: 'Plain title', minutes: null });
+  });
+});
+
+describe('the estimate marked at the end of a subtask (#163)', () => {
+  it('is located exactly where it is taken from', () => {
+    expect(trailingEstimate('Draft outline (5)')).toEqual({ start: 14, end: 17, minutes: 5 });
+    expect(trailingEstimate('Draft outline (5)  ')).toEqual({ start: 14, end: 17, minutes: 5 });
+    expect(trailingEstimate('Call Sam (maybe)')).toBeNull();
+    expect(trailingEstimate('Read (5) chapters')).toBeNull();
+    expect(trailingEstimate('(5)')).toBeNull();
   });
 });

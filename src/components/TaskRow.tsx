@@ -1,6 +1,7 @@
 import { useDraggable } from '@dnd-kit/core';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
+import { ProgressRing } from './ProgressRing';
 import { useRowTarget } from './dnd/useRowTarget';
 import {
   GROUP_ATTR, TASK_DROP_EVENT, TASK_PLACE_EVENT, groupAnswers, useRowList,
@@ -8,6 +9,7 @@ import {
 } from './dnd/RowList';
 import { ROW_MOVE_EVENT, type RowMove } from '@/hooks/useKeyboard';
 import { TaskActions } from './TaskActions';
+import { DustActions, DustAge } from './DustRow';
 import { useT } from '@/hooks/useT';
 import { usePhoneBehaviour } from '@/hooks/useTouchLayout';
 import { useRowGesture } from '@/hooks/useRowGesture';
@@ -53,6 +55,10 @@ interface TaskRowProps {
   /** Subtasks render indented under their parent. */
   depth?: number;
   showProject?: boolean;
+  /** Names the section the task sits in, for a group that gathers from several (#154). */
+  showSection?: boolean;
+  /** A task that has been gathering dust: its age, and what to do about it (#161). */
+  dust?: boolean;
   dragHandleProps?: Record<string, unknown>;
   /** Whether another task can be dropped onto this row to become its subtask. */
   nestable?: boolean;
@@ -63,8 +69,8 @@ interface TaskRowProps {
 }
 
 export function TaskRow({
-  item, childrenOf, onOpen, depth = 0, showProject = true, dragHandleProps, nestable = false,
-  dragRef, lifted = false,
+  item, childrenOf, onOpen, depth = 0, showProject = true, showSection = false, dust = false, dragHandleProps,
+  nestable = false, dragRef, lifted = false,
 }: TaskRowProps) {
   const { setRowRef, nestOver, landing } = useRowTarget(item.id, { nestable });
   const list = useRowList();
@@ -140,6 +146,7 @@ export function TaskRow({
   const snapshot = useStore((s) => s.snapshot);
   const hour12 = useStore((s) => s.prefs.hour12);
   const toggleTask = useStore((s) => s.toggleTask);
+  const keepInSomeday = useStore((s) => s.keepInSomeday);
   const picked = useStore((s) => s.selection.includes(item.id));
   const toggleSelection = useStore((s) => s.toggleSelection);
   const selectionAnchor = useStore((s) => s.selectionAnchor);
@@ -180,6 +187,7 @@ export function TaskRow({
   const deadline = deadlineDate(item);
   const late = isOverdue(item);
   const project = snapshot.projects[item.project_id];
+  const section = showSection && item.section_id ? snapshot.sections[item.section_id] : undefined;
 
   /**
    * The DOM is the final truth about range order.
@@ -229,6 +237,8 @@ export function TaskRow({
         /* The row the keyboard is on is the row that has focus, so the walk
            needs nothing but a way to recognise a task row in the document. */
         data-task-id={item.id}
+        /* Shift+K keeps it, and only a row in that group answers. */
+        data-dust={dust ? '' : undefined}
         {...gesture.handlers}
         /* The tour lights up a parent together with the children under it,
            because the two being one thing is the point being made. They are
@@ -384,12 +394,23 @@ export function TaskRow({
               </span>
             )}
 
+            {dust && <DustAge item={item} />}
+
+            {section && (
+              <span className="sect">
+                <Icon name="section" size="sm" />
+                {section.name}
+              </span>
+            )}
+
             {children.length > 0 && (
               <span className="subprog">
-                <Icon name="subtask" />
+                <ProgressRing done={doneChildren} total={children.length} />
                 {t('task.subtaskProgress', { done: doneChildren, total: children.length })}
               </span>
             )}
+
+            {dust && <DustActions item={item} />}
           </span>
         </span>
 
@@ -408,7 +429,12 @@ export function TaskRow({
               <Icon name={expanded ? 'caret-up' : 'caret'} size="sm" />
             </button>
           )}
-          <TaskActions item={item} childrenOf={childrenOf} onOpen={onOpen} />
+          <TaskActions
+            item={item}
+            childrenOf={childrenOf}
+            onOpen={onOpen}
+            onKeep={dust ? () => keepInSomeday(item.id) : undefined}
+          />
         </span>
       </div>
 

@@ -1,3 +1,4 @@
+import { CreateTagInput } from './CreateTagInput';
 import { useEffect, useRef, useState } from 'react';
 import { Icon, type IconName } from './Icon';
 import { Select } from './Select';
@@ -191,7 +192,7 @@ export function DisplayMenu({
             ))}
           </div>
 
-          {tags.length > 0 && (
+          {(
             <>
               <h5>{t('filter.labels')}</h5>
               <div className="chiprow scroll">
@@ -207,6 +208,7 @@ export function DisplayMenu({
                   </button>
                 ))}
               </div>
+              <CreateTagInput onCreated={(name) => setFilters({ labels: [...new Set([...current.filters.labels, name])] })} />
             </>
           )}
 

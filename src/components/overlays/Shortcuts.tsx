@@ -94,6 +94,7 @@ const SECTIONS: Array<{ title: TranslationKey; join?: Join; rows: Row[] }> = [
       [[['1', '2', '3', '4']], 'keys.setPriority'],
       [[['X']], 'keys.select'],
       [[['.']], 'task.moreActions'],
+      [[['⇧', 'K']], 'keys.keepInSomeday'],
       [[['⌘', '⌫']], 'task.delete'],
     ],
   },

@@ -13,107 +13,155 @@ things first, then redesigns, then fixes, so write them in the order you
 want within each kind: the most visible, most frequent case first. The
 French translation lives in CHANGELOG.fr.md.
 
+## 1.20.0
+
+Choose where estimates are stored and preview conversions between tags and Todoist durations.
+
+🆕 **Choose tags or Todoist durations for estimates in Settings.** Tags remain the default and keep calendar blocks independent from estimates. Duration mode uses Todoist’s own field, removes estimate tags and changes the calendar block on timed tasks. Free accounts use tags because Todoist does not retain their durations. Every duration write is checked against Todoist; if it is refused or lost, the estimate is recovered as a tag and a message explains the change. Unknown account plans are allowed with the same check.
+
+🆕 **Convert existing estimates with a preview in Settings.** The preview counts open tasks and subtasks, identifies timed tasks and lists skipped invalid tags, differing estimates and durations in days. Converting durations to tags preserves timed calendar blocks and clears untimed durations. Completed tasks and account labels are left alone. The result lists failed tasks or says when changes are waiting for a connection.
+
+🆕 **Settle differing estimates in Conflicts when using durations.** Keep the duration and remove its estimate tag, or use the tag as the duration. The second choice warns when a calendar block will change. Totals and Insights use your selected source first and fall back to the other when needed. Existing accounts get a separate choice after the startup windows, and new accounts choose during setup.
+
+🆕 **Estimate selected tasks together.** Select several tasks, open Estimate in the bottom bar and type minutes or hours such as 25, 1h15 or 90 min to apply one value to all of them, or remove their estimates. The chosen storage mode applies to the whole selection.
+
+🐛 **Create a missing tag wherever you choose tags.** Search for its name and choose Create in task details, the composer or bulk selection to create and attach it. Display filters also offer creation.
+
+🐛 **A click on the page background clears the task selection.** Task rows, bulk controls and open dialogs keep their own interactions.
+
+## 1.19.0
+
+A time filter for the minutes you have, a Gathering dust group in Someday, the Quick group on every list, and a tour of what an update brings.
+
+🆕 **Do what fits in the time you have with the new “I have time” button.** A pill after the load figure on My week, projects, tags, the Inbox and Someday opens a panel on the right. Pick 5, 10, 15 or 30 minutes or an hour, or type any duration, and it lists the tasks that fit, grouped as overdue, today, tomorrow, this week and no date, each with its subtotal. Look in the page you are on or everywhere. A task with no estimate is never guessed at: the panel counts those and offers to estimate them. The page behind is left as it is, nothing is changed and nothing is remembered after a reload. Opening Insights closes it.
+
+🆕 **Someday has a new “Gathering dust” group for tasks parked for months.** Tasks that have sat in Someday for 3 months or more are gathered at the top, under Quick, with how long ago they were added. Each one has three buttons: This week, Keep and Delete. Keep leaves the task in Someday and brings it back only after another full delay; that is remembered on this device only, and nothing is written to Todoist. Settings has a switch for the group and the delay (1, 2, 3, 6 or 12 months), counted from the day the task was created because Todoist does not say when it moved to Someday. ⇧K keeps the task under the cursor.
+
+🆕 **Quick tasks now lead every project, tag, the Inbox and Someday.** Projects, tags, the Inbox and Someday now start with the quick tasks that are late, due today or have no date, and each row says which section or project it comes from. A quick task due tomorrow or later stays where it is, a task is never listed twice, and a board starts with a blue Quick column to look at, not to drop tasks on (on My week too, where dropping used to make a task quick). The Quick switch in Settings turns it off everywhere.
+
+🆕 **A “Show me” button in What's new tours what an update brought.** What's new has a Show me button that runs the tour over only what the update brought, and the tour has a new stop for I have time.
+
+🆕 **A duration set in Todoist now counts as the task's estimate.** A task with a duration in Todoist's own field is now counted in totals, the load pill, the list of tasks without an estimate and Insights, even with no estimate tag. When a task has both, the duration wins; a duration in days is ignored. The app still writes estimates as tags.
+
+## 1.18.0
+
+Paste a list to create several tasks, the date menu starts with shortcuts, subtasks show their progress, and moving everything late to today is instant.
+
+🆕 **Paste a list to create several tasks.** Paste lines of text, with or without bullets, into the new task window's name field and it asks "Create the 3 tasks?" before making one separate task per line. Each line is read as a title on its own, so `(25)`, a date or `#Project` in a line applies to that task. Cancelling keeps what you pasted.
+
+🆕 **Give a new subtask an estimate by ending it with (5) or (1h15).** End a subtask with its estimate in brackets, like `Draft outline (5)` or `Research (1h15)`, in the new task window or when adding a subtask to an open task, and the subtask is created with that estimate. The estimate is highlighted as you type, like in a task's name. Brackets that are not a duration, like `(maybe)`, stay in the title.
+
+🎨 **The date menu starts with shortcuts.** Today, Tomorrow, Next week, This week and Someday come first, then Skip to next occurrence (with the date it goes to, when that is certain) and Remove the date, and the calendar opens only when you choose Pick a date. Escape or the back link returns to the shortcuts without changing anything. The same menu is used in a row, the new task window, the task panel and the bar for several tasks.
+
+🎨 **A completed task's box is filled with its priority colour.** A completed task or subtask is filled with its priority's colour (grey for P4) instead of green.
+
+🎨 **A ring next to “1/3” shows how far a task's subtasks are done.** Next to "1/3", a small ring fills as subtasks are done, in the lists and in the task panel, and turns green when all of them are.
+
+🎨 **“Move all to today” empties Behind schedule instantly.** In My week, Behind schedule empties at once after you confirm, everything is sent in one go, and the message says how many tasks moved, with Undo.
+
+🐛 **A completed subtask now shows as ticked in the task panel.** Its checkbox stayed empty while its title was struck through. Both now show it is done.
+
 ## 1.17.1
 
 Insights counts the right days again, and the What's new window now opens after every update, with the most visible changes first.
 
-🎨 **What's new opens after every update.** It used to open only when a release had something new. Now every release opens it once, and its lines are listed from the most visible to the least: new things, then redesigns, then fixes.
+🎨 **What's new now opens once after every update, with the biggest changes first.** It used to open only when a release had something new. Now every release opens it once, and its lines are listed from the most visible to the least: new things, then redesigns, then fixes.
 
-🐛 **Insights shows the right days.** The day view showed nothing, the last day of every period was left out, and a day went missing between the parts of a quarter or a year. A task completed in the first hours of a period, in France before 2 in the morning, was also missed. Every day of the period you pick is now counted.
+🐛 **Insights now counts every day of the period you pick.** The day view showed nothing, the last day of every period was left out, and a day went missing between the parts of a quarter or a year. A task completed in the first hours of a period, in France before 2 in the morning, was also missed. Every day of the period you pick is now counted.
 
 ## 1.17.0
 
 A round of fixes: the time you type with a date is kept, nothing is created twice, links stay links, and the app copes better with bad connections and blocked browsers.
 
-🐛 **A time typed with a date is kept.** Typing "tomorrow at 14:30" in a task's date now saves 14:30, in the new task window, the task panel, a row's date menu and the bar for several tasks. A deadline stays a day, and says so when you type a time in it.
+🐛 **Typing a time with a date, like “tomorrow at 14:30”, now keeps the time.** Typing "tomorrow at 14:30" in a task's date now saves 14:30, in the new task window, the task panel, a row's date menu and the bar for several tasks. A deadline stays a day, and says so when you type a time in it.
 
-🐛 **Adding a task twice by double-clicking.** The new task window now accepts one save at a time, from the button or from the keyboard. Two tasks with the same name typed on purpose are still two tasks.
+🐛 **Double-clicking Add task no longer creates the task twice.** The new task window now accepts one save at a time, from the button or from the keyboard. Two tasks with the same name typed on purpose are still two tasks.
 
-🐛 **A link no longer changes your task.** `https://example.com/p1` used to make the task P1, and a link ending in `/daily` made it repeat. Links are now read as links, and what you type beside them still works.
+🐛 **A link in a task's name no longer sets its priority or repeat.** `https://example.com/p1` used to make the task P1, and a link ending in `/daily` made it repeat. Links are now read as links, and what you type beside them still works.
 
-🐛 **Months are read properly.** "14 juillet" is July (it was June), "1er juillet" and "July 1st" are understood, and words like "2 maisons" or "2 decks" are no longer taken for dates. A date such as 12/03 follows Settings, Date format.
+🐛 **Dates with a month name, like “14 juillet”, are now read correctly.** "14 juillet" is July (it was June), "1er juillet" and "July 1st" are understood, and words like "2 maisons" or "2 decks" are no longer taken for dates. A date such as 12/03 follows Settings, Date format.
 
-🐛 **Save and Cancel under a task's title work from the keyboard.** Enter and Space now do what a click does.
+🐛 **Save and Cancel under a task's title now work with Enter and Space.** Enter and Space now do what a click does.
 
-🐛 **Upcoming moves on at midnight.** Left open overnight, it now gains the new last day by itself, so a task that just came into range no longer stays hidden until you leave the page.
+🐛 **Upcoming adds the new day by itself when the clock passes midnight.** Left open overnight, it now gains the new last day by itself, so a task that just came into range no longer stays hidden until you leave the page.
 
-🐛 **A dialog over another dialog.** Escape now closes only the one in front, Tab goes round both buttons of a confirmation, and the task panel behind it no longer answers the keys.
+🐛 **Escape and Tab now act on the dialog in front when two are open.** Escape now closes only the one in front, Tab goes round both buttons of a confirmation, and the task panel behind it no longer answers the keys.
 
-🐛 **Deleting a task with its subtasks.** Selecting a parent and its subtasks deletes the branch once, without a false "Todoist refused this", and a late undo brings each task back once.
+🐛 **Deleting a parent task together with its subtasks now works cleanly, undo included.** Selecting a parent and its subtasks deletes the branch once, without a false "Todoist refused this", and a late undo brings each task back once.
 
-🐛 **A custom accent follows dark mode.** When your device switches to dark with the app open, the accent's colours follow instead of waiting for a reload.
+🐛 **A custom accent colour now follows your device into dark mode without a reload.** When your device switches to dark with the app open, the accent's colours follow instead of waiting for a reload.
 
-🐛 **The text "@@link0@@" is shown as written.** It no longer turns into "undefined" in a title or a description, and an @ glued to a word, like the one in an email address, is no longer taken for a tag.
+🐛 **A task name containing “@@link0@@”, or an email address, now shows as written.** It no longer turns into "undefined" in a title or a description, and an @ glued to a word, like the one in an email address, is no longer taken for a tag.
 
-🐛 **The app opens even when the browser blocks site storage.** It used to stay on "Loading…". If something crashes, a short message and a Reload button replace the white page.
+🐛 **The app now opens even when your browser blocks site storage.** It used to stay on "Loading…". If something crashes, a short message and a Reload button replace the white page.
 
-🐛 **Offline changes go to the right account.** Changes made offline with one Todoist account are no longer sent to another account that signs in afterwards. You are told how many were left out.
+🐛 **Changes made offline are no longer sent to a different account that signs in afterwards.** Changes made offline with one Todoist account are no longer sent to another account that signs in afterwards. You are told how many were left out.
 
-🐛 **A change made just before closing is kept offline.** Switching app or closing the tab right after a change no longer loses it from the copy kept on your device.
+🐛 **A change made just before closing the tab or switching app is no longer lost.** Switching app or closing the tab right after a change no longer loses it from the copy kept on your device.
 
-🐛 **A slow or stalled connection ends cleanly.** A download that stops halfway now counts as a timeout, and a long "retry after" from Todoist no longer freezes syncing.
+🐛 **A slow or stalled connection no longer freezes syncing.** A download that stops halfway now counts as a timeout, and a long "retry after" from Todoist no longer freezes syncing.
 
-🐛 **The demo repeats tasks correctly.** Ticking a daily task moves it one day and keeps its time, and "every Monday" moves to the next Monday. A task typed with "every day at 3pm" shows Today 15:00.
+🐛 **In the demo, completing a repeating task now moves it to its next date correctly.** Ticking a daily task moves it one day and keeps its time, and "every Monday" moves to the next Monday. A task typed with "every day at 3pm" shows Today 15:00.
 
-🆕 **Toasts have a close button and go away sooner.** Confirmations stay 3 seconds, errors 6, and the Undo window stays 8. Closing a toast keeps its Undo available with the undo shortcut.
+🆕 **Messages at the bottom of the screen have a close button and disappear sooner.** Confirmations stay 3 seconds, errors 6, and the Undo window stays 8. Closing a toast keeps its Undo available with the undo shortcut.
 
-🆕 **Screen readers announce toasts.** Confirmations are read politely, refusals from Todoist at once, and the Undo button says what it undoes.
+🆕 **Screen readers now read out the messages at the bottom of the screen.** Confirmations are read politely, refusals from Todoist at once, and the Undo button says what it undoes.
 
-🎨 **Task lists are easier to read.** Tag chips, group counts, board column counts and the small labels in the task panel go from 11 to 12 pixels.
+🎨 **Small text in task lists, groups and the task panel is a little bigger.** Tag chips, group counts, board column counts and the small labels in the task panel go from 11 to 12 pixels.
 
 ## 1.16.0
 
 After each update a short window tells you what changed, the new task window is easier to read, and picking a date looks the same everywhere.
 
-🆕 **See what's new after an update.** When a new version brings something new, a short window lists what changed, once. You can turn it off, and read every past release, in Settings, under About.
+🆕 **A window now tells you what changed after each update.** When a new version brings something new, a short window lists what changed, once. You can turn it off, and read every past release, in Settings, under About.
 
-🆕 **Add a section from a board.** In a project's Board view, the dashed "Add section" column at the end creates a new section, the same one the list would.
+🆕 **Add a section straight from a board with its “Add section” column.** In a project's Board view, the dashed "Add section" column at the end creates a new section, the same one the list would.
 
-🆕 **Choose how wide a board is.** A board now stays as wide as the page header, like a list. Turn on Full width in Display to use the whole screen.
+🆕 **Choose between a board as wide as the page or full width in Display.** A board now stays as wide as the page header, like a list. Turn on Full width in Display to use the whole screen.
 
-🎨 **A clearer new task window.** The title comes first, with the description right under it. Then the date, deadline, project, priority, estimate and tags sit on one line of small buttons, and the empty ones show as "+ Deadline". Subtasks have their own heading with a count, and the buttons stay at the bottom.
+🎨 **The new task window is laid out more clearly: title, description, then one line of buttons.** The title comes first, with the description right under it. Then the date, deadline, project, priority, estimate and tags sit on one line of small buttons, and the empty ones show as "+ Deadline". Subtasks have their own heading with a count, and the buttons stay at the bottom.
 
-🎨 **One date picker everywhere.** A task's date menu, the bar for several selected tasks, the new task window and the task panel all show the same picker: type a date, pick Today, Tomorrow, Next week, This week or Someday, or click a day in the month.
+🎨 **The same date picker now appears everywhere you choose a date.** A task's date menu, the bar for several selected tasks, the new task window and the task panel all show the same picker: type a date, pick Today, Tomorrow, Next week, This week or Someday, or click a day in the month.
 
-🎨 **Recognised words in a title are easier to tell apart.** The highlights behind a date, a project or a tag you type keep the normal space between words, so several in a row no longer blur together.
+🎨 **Dates, projects and tags you type in a title are easier to tell apart.** The highlights behind a date, a project or a tag you type keep the normal space between words, so several in a row no longer blur together.
 
-🎨 **Board cards keep their buttons inside the card.** Hovering a card shows its buttons in its top corner, on the card itself and lined up with the title.
+🎨 **Hovering a board card now shows its buttons inside the card.** Hovering a card shows its buttons in its top corner, on the card itself and lined up with the title.
 
-🎨 **Every menu you can type in has the same search field.** Moving a task, picking tags, a project or a date: the field at the top looks and behaves the same.
+🎨 **Every menu with a search field now has the same one.** Moving a task, picking tags, a project or a date: the field at the top looks and behaves the same.
 
-🎨 **The Display button counts only real settings.** Its number goes up when you filter, group or sort a page differently from its defaults, not when you switch between list and board (or matrix and list).
+🎨 **The number on Display now counts only the filters, grouping and sorting you changed.** Its number goes up when you filter, group or sort a page differently from its defaults, not when you switch between list and board (or matrix and list).
 
-🐛 **Opening a task no longer reads its title again.** A saved title like "Daily review" stays plain text. Only what you type from then on becomes a date, a tag or a priority.
+🐛 **Opening a task no longer turns words in its saved title into a date, tag or priority.** A saved title like "Daily review" stays plain text. Only what you type from then on becomes a date, a tag or a priority.
 
-🐛 **Typing a tag created one tag per letter.** Typing "@week" in the new task window saved "w", "we", "wee" and "week". Now only the tag you end up with is saved.
+🐛 **Typing @week in the new task window no longer creates a tag for each letter.** Typing "@week" in the new task window saved "w", "we", "wee" and "week". Now only the tag you end up with is saved.
 
-🐛 **The review keeps up with the task panel.** A task you complete or delete from the panel leaves the review step straight away. The "No estimate" step now says which tasks it lists, and picks up a task you create in the meantime.
+🐛 **The review now follows changes made in the task panel.** A task you complete or delete from the panel leaves the review step straight away. The "No estimate" step now says which tasks it lists, and picks up a task you create in the meantime.
 
-🐛 **Menus on a short board or list are no longer cut off.** A task's date, move and more menus always open in full, using the whole page.
+🐛 **A task's date, move and more menus on a short board or list are no longer cut off.** A task's date, move and more menus always open in full, using the whole page.
 
 ## 1.15.0
 
 Dates and boards now work from the keyboard, links open, and you can go from one task to the next without closing it.
 
-🆕 **Pick a date without the mouse.** Wherever you choose a date (a task's date button, the bar that shows up when several tasks are selected, the new task window, the task panel), the arrow keys move through the days of the month. Page Up and Page Down change the month, and Enter picks the day.
+🆕 **Pick a date with the arrow keys wherever you choose one.** Wherever you choose a date (a task's date button, the bar that shows up when several tasks are selected, the new task window, the task panel), the arrow keys move through the days of the month. Page Up and Page Down change the month, and Enter picks the day.
 
-🆕 **Boards scroll one page at a time.** In Board view, the columns always fit the screen, so you never see half a column. The arrows above the board move a whole page. Drag a card to the edge of the board and it turns the page for you.
+🆕 **Boards scroll one full page of columns at a time, so no column is cut in half.** In Board view, the columns always fit the screen, so you never see half a column. The arrows above the board move a whole page. Drag a card to the edge of the board and it turns the page for you.
 
-🆕 **Upcoming can be grouped by day, week or month.** Open Display on the Upcoming page and pick the grouping you want, in the list and on the board.
+🆕 **Group Upcoming by day, week or month.** Open Display on the Upcoming page and pick the grouping you want, in the list and on the board.
 
-🆕 **Links in your tasks open.** A link in a task's title or description opens with a click, whether it's written `[label](address)`, as a full `https://` address, or just `site.fr`. It keeps the colour of the text, underlined.
+🆕 **Links in a task's title or description now open with a click.** A link in a task's title or description opens with a click, whether it's written `[label](address)`, as a full `https://` address, or just `site.fr`. It keeps the colour of the text, underlined.
 
-🆕 **Open a finished task from the Logbook.** In Insights, click a finished task in the Logbook (or press Enter) to open it in the task panel. The up and down arrows move through the Logbook too.
+🆕 **Open a finished task from the Logbook in Insights.** In Insights, click a finished task in the Logbook (or press Enter) to open it in the task panel. The up and down arrows move through the Logbook too.
 
-🆕 **Go to the next task from the task panel.** Two small arrows at the top of the task panel (or J / K, ↑ / ↓) open the previous or next task of the list you came from, even after you've ticked off or moved some of them.
+🆕 **Move to the previous or next task without closing the task panel.** Two small arrows at the top of the task panel (or J / K, ↑ / ↓) open the previous or next task of the list you came from, even after you've ticked off or moved some of them.
 
-🆕 **Drag several tasks at once.** Select tasks with ⌘-click, then drag one of them: they move together as a stack with a count, and land in the order you selected them.
+🆕 **Drag several selected tasks at once.** Select tasks with ⌘-click, then drag one of them: they move together as a stack with a count, and land in the order you selected them.
 
-🎨 **Projects with unusual names work in the new task window.** Picking a `#project` from the list always works, even with a dot, an ampersand or an emoji in its name. A long "project / section" is cut short instead of pushing the window sideways.
+🎨 **Projects with a dot, an ampersand or an emoji in their name can now be picked in the new task window.** Picking a `#project` from the list always works, even with a dot, an ampersand or an emoji in its name. A long "project / section" is cut short instead of pushing the window sideways.
 
-🎨 **Selected tasks next to each other look like one block**, like in Things, instead of a stack of separate pills.
+🎨 **Selected tasks next to each other now look like one block.** As in Things, instead of a stack of separate pills.
 
-🐛 **The keyboard highlight and a selected task no longer look the same.** The task the keyboard is on now has an outline, and a selected task has a coloured background, so you can see straight away when you unselect one.
+🐛 **The keyboard highlight and a selected task now look different.** The task the keyboard is on now has an outline, and a selected task has a coloured background, so you can see straight away when you unselect one.
 
 ## 1.14.0
 
@@ -121,77 +169,77 @@ The keyboard on a selection, links and email addresses to copy, menus that
 fit on a board, sign-in on your own server, and automatic tests behind every
 release.
 
-🆕 **The task keys work on a selection.** With the cursor inside a selection,
+🆕 **Task keys such as 1 to 4, ⇧T, T and V now act on a whole selection.** With the cursor inside a selection,
 1–4 set every selected task's priority, ⇧T takes all their dates off, and T
 and V open the bulk bar's Date and Move panels. In those panels ↑ ↓ walk the
 choices, Enter picks and Esc closes, and the cursor comes back to the tasks.
 
-🆕 **⌘↑ and ⌘↓ move a task, as in Things.** The task under the cursor takes
+🆕 **⌘↑ and ⌘↓ move the task under the cursor up or down, as in Things.** The task under the cursor takes
 the place of the one above or below it, the same as dropping it there: at the
 end of a section it goes on into the next one, in My week from Today into
 Anytime this week, passing over the groups a drag cannot drop into (Behind
 schedule, timed tasks). A sorted list switches to your own order, and the
 cursor goes with the task. ⌥⌘↑ and ⌥⌘↓ send it to the top or the bottom.
 
-🆕 **More of Things' keys.** ⌘S opens the date menu and ⇧⌘M the move menu;
+🆕 **More Things shortcuts: ⌘S for the date, ⇧⌘M to move, ^] and ^[ to shift the date.** ⌘S opens the date menu and ⇧⌘M the move menu;
 ^] and ^[ push the date a day later or earlier (with ⇧, a week), on a whole
 selection too, keeping the time and the repeat rule; ⌥↑ and ⌥↓ jump to the
 first or last task, and ⌥⇧↑ / ⌥⇧↓ select up to there; ⌘/ shows or hides the
 sidebar.
 
-🆕 **Shift+↑ and Shift+↓ extend the selection.** From the task you started
+🆕 **Shift+↑ and Shift+↓ extend the selection from the keyboard.** From the task you started
 on to the cursor, growing and shrinking with each step, on top of anything
 already picked with Cmd+click.
 
-🆕 **⌘A selects every task in the list.** Outside a text field, ⌘A (Ctrl+A)
+🆕 **⌘A selects every task on the page.** Outside a text field, ⌘A (Ctrl+A)
 picks every open task on the page in front and brings up the bulk-edit bar,
 instead of selecting the page's text. Inside a field it still selects the
 field's text.
 
-🆕 **Copy link.** Next to "Open in Todoist" in a task's menu: the task's
+🆕 **Copy a task's Todoist link from its menu.** Next to "Open in Todoist" in a task's menu: the task's
 Todoist address, on the clipboard.
 
-🆕 **Copy a project's email address.** In the project menu: anything emailed
+🆕 **Copy a project's email address, to turn emails into tasks in it.** In the project menu: anything emailed
 to that address becomes a task in the project.
 
-🆕 **Sign in with Todoist on your own copy.** A copy hosted elsewhere is built
+🆕 **Sign in with Todoist from a copy of the app that you host yourself.** A copy hosted elsewhere is built
 with `PUBLIC_URL=https://your.domain/ npm run build`, and the file Todoist
 reads to identify the app (`oauth/client.json`) then describes that copy. A
 copy built for another address says so on its sign-in screen instead of ending
 on Todoist's "Invalid redirect URI". See "Self-hosting" in the README.
 
-🆕 **Automatic tests.** Unit tests on the rules (estimates, conflicts, drops,
+🆕 **The app is now checked by automatic tests on every change.** Unit tests on the rules (estimates, conflicts, drops,
 order keys, recurrence, the matrix, synced settings, the sync queue) and
 journeys in a real browser on the demo. GitHub runs the tests and a build on
 every push, and the journeys on every pull request.
 
-🎨 **The shortcuts follow the keyboard, not the mouse.** The shortcuts sheet
+🎨 **Task shortcuts now act only on the task picked with the keyboard, never the one under the mouse.** The shortcuts sheet
 said "the task under the cursor", which reads as the mouse pointer; it now
 says the task picked with the arrow keys. Hovering a task never acts on it,
 so typing a search is always safe.
 
-🎨 **A new priority keeps the selection.** From the keys or from the bar, so
+🎨 **Changing the priority of a selection keeps the tasks selected.** From the keys or from the bar, so
 the next change can follow on the same tasks.
 
-🎨 **The store is split by area.** No change in behaviour: one file per area
+🎨 **The app's code is reorganised by area, with no change in behaviour.** No change in behaviour: one file per area
 instead of one 2,300-line file.
 
-🐛 **A second browser showed the walkthrough again.** Having been through the
+🐛 **Signing in on a second browser no longer shows the first-run walkthrough again.** Having been through the
 first run is now kept with the account's settings, so signing in elsewhere no
 longer asks again.
 
-🐛 **Groups followed the sort.** Grouped by project and sorted by priority,
+🐛 **Grouping by project and sorting by priority no longer puts a project with a P1 ahead of the sidebar's order.** Grouped by project and sorted by priority,
 the project holding a P1 jumped to the top. Projects now keep the sidebar's
 order and sections their project's, and the sort applies inside each group.
 
-🐛 **The cursor was lost when a task moved.** A priority that re-sorted the
+🐛 **The keyboard cursor is no longer lost when a priority change re-sorts the list.** A priority that re-sorted the
 list dropped the keyboard cursor, and the next key opened the search.
 
-🐛 **Row menus were cut off on a short board.** Schedule and Move on the last
+🐛 **A task's menus no longer open past the edge of a short board.** Schedule and Move on the last
 cards of a board opened past its bottom edge (and past its left edge in the
 first column). They now fit inside the board.
 
-🐛 **Toasts covered the bulk-edit bar.** A bulk action's toast now sits above
+🐛 **Messages no longer cover the bar for several selected tasks.** A bulk action's toast now sits above
 the bar and any panel open on it.
 
 ## 1.13.0
@@ -199,7 +247,7 @@ the bar and any panel open on it.
 Sign in with Todoist, settings that follow you without a task in your Inbox,
 a sturdier sync, and undo that really undoes.
 
-🆕 **Continue with Todoist.** Connecting no longer means finding and pasting
+🆕 **Connect with one “Continue with Todoist” button instead of pasting an API token.** Connecting no longer means finding and pasting
 an API token: one button, Todoist's consent page, and back connected. The app
 now appears in Todoist's integrations, where it can be removed. Access renews
 itself every hour without asking again. The token route is still there,
@@ -207,79 +255,77 @@ folded under "Use an API token instead". No server is involved: the app
 identifies itself with a small public file (`oauth/client.json`) and protects
 the round trip with PKCE.
 
-🆕 **Deleting can be undone for real.** A deleted task leaves the screen at
+🆕 **Undoing a deletion now brings back the very same task, for 8 seconds.** A deleted task leaves the screen at
 once, but the deletion is only sent when its toast goes, eight seconds later.
 Undo inside that window gives back the very same task — its link, comments,
 reminders and assignee. Undoing later (⌘Z reaches further back) brings back a
 copy, now with its comments, duration and assignee, and says it is a copy.
 
-🆕 **A selection moves and completes as one.** Dragging one task of a
+🆕 **Dragging, completing or undoing a selection now acts on all of it at once.** Dragging one task of a
 selection onto a project, section, day or tag carries the whole selection.
 `E` on a selection completes it in one request, and a single ⌘Z reopens it
 all.
 
-🎨 **Settings live in a comment on your Inbox, not in a task.** They still
+🎨 **Your settings are now kept in a comment on your Inbox, not in a task.** They still
 follow your account to every browser — now including the accent, the theme
 and the density, and each project's list or board, grouping, sort, subtasks
 and completed tasks — but no longer count in the Inbox, show in search or get
 in the way of an empty Inbox. The old settings task is moved over and removed
 automatically, and duplicate comments are cleaned up.
 
-🎨 **Order follows Todoist's new `order_key`.** Tasks, sections, projects and
+🎨 **Tasks, sections, projects and tags now keep the order set in Todoist's own apps.** Tasks, sections, projects and
 tags sort by the key Todoist now writes, so an order set in Todoist's own apps
 shows the same here. Moving a task, a section or placing a new project writes
 one key instead of renumbering every neighbour.
 
-🎨 **Insights in a calmer palette.** Charts use a neutral data colour, and
+🎨 **Insights charts use calmer colours.** Charts use a neutral data colour, and
 only the best day and hour take the accent, so a good week no longer looks
 like an alert.
 
-🎨 **One name for the token** on the connect screen: "API token" /
-"jeton d'API", as Todoist calls it. No "Add task" line under Behind schedule,
-where a new task could never stay.
+🎨 **The connect screen says “API token”, as Todoist does, and Behind schedule has no “Add task” line.** The line was removed because a new task could never stay there.
 
-🎨 **Faster Insights.** Completed tasks are fetched three months at a time
+🎨 **Insights loads a year of history in fewer requests.** Completed tasks are fetched three months at a time
 instead of six weeks: a year takes five requests instead of nine.
 
-🎨 **A Content-Security-Policy.** The site now tells the browser to run only
+🎨 **The app now only runs its own scripts and only talks to Todoist.** The site now tells the browser to run only
 its own scripts and to talk only to Todoist, plus the usual hardening headers.
 The theme is painted before the first frame by a small file rather than an
 inline script. (Needs the new `.htaccess`.)
 
-🐛 **Long pages scroll to their end.** The app's layout grew to the height of
+🐛 **The bottom of long pages and of the sidebar is no longer cut off.** The app's layout grew to the height of
 the sidebar, and the bottom of every long page — and of the sidebar — was cut
 off, only showing during the trackpad's bounce.
 
-🐛 **Nothing lost offline.** Changes past the hundredth in the offline queue
+🐛 **Changes made offline are no longer lost or duplicated.** Changes past the hundredth in the offline queue
 were silently dropped; everything is now sent, in order. Tasks, projects and
 sections created offline no longer appear twice after reconnecting, and
 subtasks follow their new parent. A batch Todoist partly refuses keeps what it
 accepted and says how much was saved.
 
-🐛 **Sections can be created again.** Todoist started refusing a section with
+🐛 **Adding a section works again.** Todoist started refusing a section with
 an empty name; a new one is now named "Untitled section", selected for typing
 over.
 
-🐛 **Undo that goes back where things were.** Undoing a bulk move puts tasks
+🐛 **Undo now puts tasks back in their section and under their parent.** Undoing a bulk move puts tasks
 back in their section and under their parent. A quick ⌘Z after ticking a task
 undoes that task, not whatever came before.
 
-🐛 **No full reload after a recurring task.** Ticking or skipping a recurring
+🐛 **Completing or skipping a repeating task no longer reloads your whole account.** Ticking or skipping a recurring
 task used to download the whole account again; the answer to the tick already
 carries the next date.
 
-🐛 **Sync can't get stuck.** A request that never answers is given up after 20
+🐛 **Syncing can no longer stay stuck on “syncing”.** A request that never answers is given up after 20
 seconds (a minute for the first full read) and treated as being offline,
 instead of leaving the app on "syncing" until a reload.
 
-🐛 **Phone rows are clean.** The swipe buttons no longer peek out along the
+🐛 **Swipe buttons no longer show along the edge of rows on a phone.** The swipe buttons no longer peek out along the
 right of every row in the coloured groups.
 
 ## 1.12.1
 
 A small follow-up to simplify where the cross-device settings marker lives.
 
-🎨 **The settings task now lives in Inbox.** Enhanced no longer creates a
+🎨 **Settings are now stored in your Inbox rather than in a separate project.** Enhanced no longer creates a
 dedicated project for `* Enhanced for Todoist settings`. If the marker already
 exists in another project, the next settings sync moves it to Inbox; an old
 project left empty is not deleted automatically.
@@ -289,42 +335,42 @@ project left empty is not deleted automatically.
 A safer recurring-task engine, cross-device settings, complete onboarding and
 the interaction and layout fixes validated across issues 48–56.
 
-🆕 **Settings follow the account across devices.** Enhanced reads its
+🆕 **Your settings now follow your account to every device.** Enhanced reads its
 preferences from a dedicated Todoist project when one exists, creates it when
 needed, and updates the formatted settings task after every change without
 putting it in Inbox or triggering Inbox automations.
 
-🆕 **Bulk editing that understands recurrence.** Mixed selections can advance
+🆕 **Editing several tasks at once now handles repeating tasks.** Mixed selections can advance
 each recurring task to its own next occurrence while leaving one-off tasks
 alone, with the date shortcuts kept visible before the full date picker.
 
-🆕 **A complete first-run tour.** The walkthrough always uses a safe demo
+🆕 **The first-run tour now shows every feature, even on an empty account.** The walkthrough always uses a safe demo
 snapshot, so folders, project icons, quick tasks, subtasks, estimates and the
 review are all shown even when the connected account does not contain them.
 
-🎨 **A simpler choice for Today and My Week.** Choose either one combined My
+🎨 **Choose one combined My week page, or separate Today and My week pages.** Choose either one combined My
 Week page or separate Today + My Week pages. The obsolete duplicated-today
 variant migrates automatically.
 
-🎨 **Settings and onboarding refinement.** The long settings page scrolls to
+🎨 **Settings and the first-run screen are tidier.** The long settings page scrolls to
 its end, the account karma reads as progress, and the lighter coffee prompt
 lives only in Settings with the maintainer's photo, a borderless card, clearer
 copy and a visible close button.
 
-🎨 **Consistent page measures.** List headers keep the same width across
+🎨 **List pages now have the same width everywhere.** List headers keep the same width across
 projects, tags, views and the Eisenhower Matrix; boards and matrices alone may
 use the wider content area.
 
-🐛 **Recurring tasks advance instead of becoming stuck completed.** Completing
+🐛 **Completing or skipping a repeating task now moves it to its next date.** Completing
 or skipping now uses Todoist's recurrence-aware close operation and lets
 Todoist calculate the next date, eliminating tasks that bounced from tomorrow
 back to today or yesterday, duplicated, or remained checked and unclickable.
 
-🐛 **Keyboard bulk deletion works after modified clicks.** Cmd/Ctrl-click keeps
+🐛 **⌘Backspace now deletes tasks selected with ⌘-click.** Cmd/Ctrl-click keeps
 the selected row focused, restoring Cmd/Ctrl+Backspace without selecting page
 text.
 
-🐛 **Keyboard completion respects a selection.** Pressing `E` with several
+🐛 **E now completes every selected task, not only the focused one.** Pressing `E` with several
 tasks selected completes every selected task instead of only the focused row.
 
 ## 1.11.0
@@ -333,43 +379,43 @@ A searchable icon for every project, a workspace filter wherever more than
 one project is in view, and a handful of smaller fixes from testing on
 localhost.
 
-🆕 **Lucide icons throughout.** The hand-drawn glyph sprite is replaced by
+🆕 **The app has a new, consistent set of icons.** The hand-drawn glyph sprite is replaced by
 the Lucide icon set (MIT, lucide.dev) behind the same `Icon` component —
 nothing that used it had to change.
 
-🆕 **A picker for a project's own icon.** Choose from close to 300
+🆕 **Give each project its own icon, from close to 300.** Choose from close to 300
 searchable icons instead of the default "#" marker, from either the create
 or the edit sheet, with the keyboard as well as the mouse. The choice is
 saved as a hidden marker on the end of the project's own description, so it
 is real, synced Todoist data rather than something only this browser
 remembers.
 
-🆕 **A workspace filter, wherever more than one project is in view.**
+🆕 **Narrow any page that mixes projects to “My projects” or one workspace.**
 Today, Upcoming, Someday, Inbox, Tags, This Week and the Eisenhower Matrix
 can each be narrowed to "My projects" or to one added workspace. A single
 project's own page never offers it — every task there already shares that
 project's one workspace.
 
-🆕 **Show a project's completed tasks.** A Display toggle folds them back
+🆕 **Show a project's completed tasks from Display.** A Display toggle folds them back
 into whichever grouping is already active — a section, a priority column —
 sunk to the bottom of it, rather than pulled into a list of their own.
 
-🆕 **Skip a recurring task's next occurrence from its own panel.** Was only
+🆕 **Skip a repeating task's next occurrence from the task panel.** Was only
 reachable from the row before; the task detail view's own date field offers
 it too now.
 
-🎨 **A subtask, edited in place.** Click a committed subtask in the composer
+🎨 **Fix a subtask's text in the new task window by clicking it.** Click a committed subtask in the composer
 to fix a typo, instead of deleting it and retyping the whole thing.
 
-🎨 **Completing a task from its own open panel shows it.** The checkbox
+🎨 **Completing a task in its open panel now ticks it straight away.** The checkbox
 fills and the title strikes through immediately, the same as every list row
 already did.
 
-🎨 **Sort by date created, in either direction.** Newest-first and
+🎨 **Sort by date created, newest or oldest first.** Newest-first and
 oldest-first are now two separate choices, the way the estimate sort's
 shortest- and longest-first already were.
 
-🐛 **A row's own date field stops repeating "Today."** Next to the Today /
+🐛 **A row's date field no longer repeats “Today” beside the Today shortcut.** Next to the Today /
 Tomorrow / Next week shortcuts it now always reads as a plain "Choose a
 date" instead of echoing the same relative name a second time.
 
@@ -378,24 +424,24 @@ date" instead of echoing the same relative name a second time.
 A calmer Insights dashboard, faster subtask editing, and more reliable nested
 project navigation.
 
-🆕 **Edit or delete subtasks in task detail.** Rename a subtask inline, cancel
+🆕 **Rename or delete a subtask from its parent's task panel.** Rename a subtask inline, cancel
 with Escape, or delete it with confirmation without leaving its parent task.
 
-🎨 **Insights put the comparison first.** Completed tasks, tasks per day,
+🎨 **Insights now start with a summary compared to the previous period.** Completed tasks, tasks per day,
 completed estimated time, and focus score share a four-card summary with
 previous-period changes. Activity charts show only the selected period and
 identify the busiest day and hour. Project and tag breakdowns sit side by side
 with matching donut spacing; the heatmap appears from a quarter onward.
 
-🎨 **Empty parent projects read like folders.** A project with children but no
+🎨 **A project that only holds other projects now looks like a folder.** A project with children but no
 tasks of its own uses the same folder marker and right-side disclosure as a
 Todoist folder, while its project page remains accessible.
 
-🐛 **Uncompletable tasks stay uncompletable.** The Todoist `* ` marker remains
+🐛 **Tasks starting with “* ” can no longer be completed.** The Todoist `* ` marker remains
 in stored content but no longer appears in list titles; completion is also
 guarded at the action level, not just by hiding the checkbox.
 
-🐛 **Nested projects can move to first place in either direction.** Dropping a
+🐛 **A nested project can now be dragged to the first place under its parent.** Dropping a
 child on the seam above its first sibling now reorders within that parent,
 including when the pointer lands on the parent's row.
 
@@ -404,27 +450,27 @@ including when the pointer lands on the parent's row.
 A configurable decision view, clearer Insights, and more dependable navigation
 and ordering. Developed locally and reviewed in demo mode before release.
 
-🆕 **Eisenhower Matrix.** Enable the optional sidebar view in Settings, then
+🆕 **A new optional Eisenhower Matrix view sorts tasks by urgency and importance.** Enable the optional sidebar view in Settings, then
 choose List or Matrix in Display. The Display menu independently controls which
 tasks are shown, which date or week buckets count as urgent, and which Todoist
 priorities count as important. By default, overdue and today are urgent, P1/P2
 are important, anytime-this-week remains visible but not urgent, and future
 dates and the Someday backlog are hidden. Classification never edits a task.
 
-🆕 **Sections in global search.** An optional setting includes accent-insensitive
+🆕 **The search can now find sections, if you turn it on.** An optional setting includes accent-insensitive
 section matches with their parent project. Choosing one opens and highlights
 that section; the route survives a reload.
 
-🎨 **Insights are easier to read.** The dashboard presents completed tasks,
+🎨 **Insights are laid out more clearly.** The dashboard presents completed tasks,
 average tasks per day, and completed estimated time without repeating the same
 headline. It adds a day/month trend choice where useful, time-of-day, project,
 priority and focus, top tags, and a full-year activity heatmap with a legend.
 
-🐛 **Shift-click selects a visible range of tasks.** Command-click still
+🐛 **Shift-click now selects a range of tasks.** Command-click still
 toggles individual tasks, while Command-Shift-click adds a range to the
 existing selection.
 
-🐛 **Sidebar project and section ordering is precise.** Project rows use
+🐛 **Reordering and nesting projects in the sidebar is more precise.** Project rows use
 before/after insertion, rightward nesting and leftward outdenting. Reordering
 stays within one sibling list and workspace, with a visible insertion line.
 Section drops now read their insertion slots correctly.
@@ -435,31 +481,31 @@ A corrective pass over the task and bulk-edit pickers introduced in 1.8.0,
 with consistent project, section, date and tag behaviour everywhere they
 appear.
 
-🆕 **Bulk move includes sections.** Projects and their sections now share the
+🆕 **Moving several tasks at once can now target a section.** Projects and their sections now share the
 same searchable destination list used when moving a single task. A section can
 be found by either its own name or its project's name, and moving several tasks
 there is one change with one undo.
 
-🎨 **Bulk destination lists stay compact without browser scrollbars.** Six
+🎨 **The destination list for several tasks stays compact.** Six
 rows are visible, further results remain reachable with a wheel or trackpad,
 and typing filters the list. The panel has a stable width, hides its vertical
 scrollbar and cannot drift sideways; long names are truncated rather than
 creating horizontal scrolling.
 
-🎨 **The Tags page has one clear creation control.** The duplicate Add tag
+🎨 **The Tags page has a single “Add tag” control.** The duplicate Add tag
 button in the page header is gone, while the inline name field remains where
 the new tag will appear. Bulk tag selection also drops its unnecessary helper
 sentence.
 
-🐛 **Project selection stays open in a task.** Scrolling the selected option
+🐛 **The project picker in a task no longer closes by itself.** Scrolling the selected option
 into view was mistaken for a page scroll and immediately dismissed the
 project picker. The picker now remains available for searching and choosing.
 
-🐛 **Bulk dates take the keyboard on the first click.** Opening Date now opens
+🐛 **Dates for several tasks accept typing as soon as you open them.** Opening Date now opens
 and focuses the natural-language date field immediately, so typing no longer
 falls through to the app-wide search.
 
-🐛 **Tags can be reordered all the way to the top.** A dedicated first
+🐛 **A tag can now be dragged to the very top of the Tags list.** A dedicated first
 insertion point accepts a dragged tag, and every destination displays the same
 accent line used for project reordering.
 
@@ -468,23 +514,23 @@ accent line used for project reordering.
 The controls now answer the keyboard wherever a value is chosen, and boards
 show the grouping their Display menu promises.
 
-🆕 **Type into dates, projects and tags.** Every date calendar starts with the
+🆕 **Type “tomorrow” or “12 April” in any date calendar, and a name to find a project or tag.** Every date calendar starts with the
 same natural-language field used on a task row, so `tomorrow`, `next Sunday`
 and `12 April` work in the composer, task panel, bulk bar and Insights. Long
 project and section lists filter as you type. Tag pickers do the same, with
 Enter toggling the first match without closing a multi-select list.
 
-🆕 **Sort tasks by the order of the Tags list.** A task with several tags uses
+🆕 **Sort tasks by the order of your Tags list.** A task with several tags uses
 the highest one in that list as its sort key, internal estimate labels do not
 count, and untagged work stays at the end. Grouping is deliberately different:
 a task with two tags remains visible under both of them.
 
-🎨 **A project board honours its grouping.** The ordinary board still uses
+🎨 **A project board now follows the grouping you pick.** The ordinary board still uses
 sections. Choosing scheduled, priority, tag, estimate or day now makes those
 values the columns instead, and adding in an unambiguous column pre-fills its
 date, priority or tag.
 
-🐛 **Equal priorities have a stable, meaningful order.** Inside one project
+🐛 **Tasks with the same priority now keep a stable order.** Inside one project
 they retain its hand-made task order. Across projects they use the view's
 global day order, then a stable creation/id fallback, rather than comparing
 unrelated per-project positions.
@@ -493,47 +539,46 @@ unrelated per-project positions.
 
 A pass over what 1.7.0 got wrong, and the small things it made obvious.
 
-🆕 **Drag a project or a tag into Favourites.** Drop either on the section and
+🆕 **Drag a project or a tag into Favourites to add it.** Drop either on the section and
 it becomes one. The sidebar teaches dragging all day — a project is reordered
 by it and nested by it — so dragging one into the section it plainly belongs
 in was the first thing to try and the one thing that did nothing. A project
 and a tag are also carried under the pointer now, the way a task always was.
 
-🆕 **Add a task from a column that knows something about it.** A project
+🆕 **Add a task directly from a column, such as a priority column.** A project
 grouped by priority had no way to add a task at all, on the one page where
 both halves of the answer are known. A column offers the line when its own
 heading fixes something the composer can be opened with, and fills in exactly
 that: a P2 column in a project fills the project and the priority, a P2 column
 in My week fills the priority and nothing else.
 
-🎨 **The row under the keyboard cursor and a row you have picked look the
-same.** They were a grey and an accent tint — two ideas rather than two ways
+🎨 **The keyboard cursor and a picked row now share one look.** They were a grey and an accent tint — two ideas rather than two ways
 of saying one. There is one mark for "this row" now, mixed from whichever
 accent is set.
 
-🎨 **On a phone, Display and Insights are in the same place on every page.**
+🎨 **On a phone, Display and Insights now stay in the same place on every page.**
 They used to sit beside the title when the title was short enough to allow it
 and wrap to their own line when it was not, so their position depended on
 which page you were on.
 
-🐛 **The cursor no longer turns white under the mouse pointer.** Hover and the
+🐛 **The keyboard highlight no longer disappears when the mouse is over it.** Hover and the
 cursor were written in different files at the same weight, so the one you saw
 depended on the order the stylesheets happened to load in.
 
-🐛 **A delete can be confirmed from the keyboard.** The confirming button asked
+🐛 **A deletion can now be confirmed with Enter or ⌘Enter.** The confirming button asked
 for the focus and did not get it, so Enter pressed Cancel — every time, with
 no way through the dialog at all. Cmd+Enter now confirms wherever the focus
 is, and Cmd+Backspace over a selection deletes the selection rather than the
 one row under the cursor.
 
-🐛 **"Add task" in Anytime this week makes a task that is in the week.** It
+🐛 **“Add task” under Anytime this week now creates a task for the week.** It
 opened an empty composer, so the task went to Someday — out of the section it
 was added from. Quick had the same gap and forgot the tag it is defined by.
 
-🐛 **The Display menu fits on a phone.** 320px hung from the right edge of its
+🐛 **The Display menu now fits on a phone screen.** 320px hung from the right edge of its
 button is 320px going left, and half of it was off the screen.
 
-🐛 **A destination no longer offers to take something it cannot.** A tag
+🐛 **Dragging a tag onto a project no longer pretends to work.** A tag
 carried over a project row lit up as though it would file itself there, and
 there is no such thing as a tag on a project.
 
@@ -543,7 +588,7 @@ Every list opens in the order that answers "what now", the keyboard reaches
 everything the mouse can, and a phone gets the two gestures it has instead of
 a pointer.
 
-🆕 **Move, open and delete a task without the mouse.** Arrows — or J and K —
+🆕 **Move through, open, complete and delete tasks with the keyboard.** Arrows — or J and K —
 walk the tasks of whatever page is open, Enter opens one, Escape gives the
 cursor back. On the task under the cursor: E finishes it, T schedules it and
 Shift+T takes the date off, V moves it, X adds it to the selection, 1 to 4 set
@@ -552,96 +597,94 @@ first, because deleting is the one thing that should never be one keystroke
 away from done. The keys are Todoist's own, from Todoist's published list;
 where Todoist has no equivalent, nothing was invented.
 
-🆕 **Typing goes to the search.** Start typing on a page with no task under
+🆕 **Start typing on a page and the search opens with your letter.** Start typing on a page with no task under
 the cursor and the search takes it, with the first letter already in the field.
 The search already reaches projects, sections, tags and views, which makes it
 the way to a project without a mouse. Letters are commands when the cursor is
 on a task and text when it is not — one sentence covering every key.
 
-🆕 **G, then where to.** G then W, T, U, S, I, R, L, A, or a comma for
+🆕 **Go to a page with G then a letter, such as G then W for My week.** G then W, T, U, S, I, R, L, A, or a comma for
 Settings. A prefix rather than a letter each, so the alphabet stays free for
 typing. The sidebar says which key gets to a row once the pointer has rested on
 it, and `?` shows the whole list.
 
-🆕 **An opened task answers the keyboard.** P opens the project, T the start
+🆕 **Edit an open task's properties with single keys: P, T, D, E, Y, L.** P opens the project, T the start
 date, D the deadline, E the estimate, Y the priority, L the tags — each letter
 shown, faintly, beside the property it opens. Tab stays inside the panel, the
 overflow menu takes arrow keys, and Escape closes the innermost thing that is
 open rather than the outermost.
 
-🆕 **Swipe a task aside on a phone.** The row slides and shows what hovering
+🆕 **Swipe a task aside on a phone to see its actions.** The row slides and shows what hovering
 would have shown on a desktop: estimate, schedule, move, and the rest. Holding
 a row opens the same actions as a sheet with their names on. A phone has no
 pointer to reveal anything with, and the answer until now had been to take the
 controls away.
 
-🆕 **An estimate is a row of durations on a phone.** Five minutes to two
+🆕 **Pick an estimate from a row of durations on a phone.** Five minutes to two
 hours, with the field underneath for anything else — typing "45" on a phone
 means opening a keyboard over half the screen to press two keys.
 
-🎨 **A view opens sorted by priority.** Manual order is whatever order things
+🎨 **Pages now open sorted by priority.** Manual order is whatever order things
 were added in, which puts a p1 below three p4s on a page opened to decide what
 to do next. Projects open grouped by their own sections, a backlog and a tag
 page by project. Dropping a task into a place is what makes a view manual
 again — and the order written down is the order that was on the screen, so the
 page the sort leaves behind is the page you were looking at.
 
-🎨 **The undo toast says what the drop did.** "Moved to Thursday", "Moved to
+🎨 **The undo message now says exactly what a drop did.** "Moved to Thursday", "Moved to
 #Website", "Became a subtask of Prepare the kick-off meeting". Every drop used
 to read the same, which is no use at all when a drop landing a few pixels off
 does something different from what was meant.
 
-🎨 **Insights picks its range with the app's own calendar.** The one control
+🎨 **Insights now uses the app's own calendar to pick a range.** The one control
 the rest of the app refuses to use is gone from the last place it was hiding.
 Days outside the range are drawn and greyed rather than hidden.
 
-🎨 **Someday is in the phone's navigation bar.** Browse was there and in the
+🎨 **Someday is now in the phone's navigation bar.** Browse was there and in the
 bar at the top of every page; it stays at the top, and the slot it gives up
 goes to a destination that was two taps away behind it.
 
-🎨 **The first run asks one question on a phone.** Light or dark. Three grids
+🎨 **On a phone, the first-run screen now asks only light or dark.** Light or dark. Three grids
 of cards at 375px is a page and a half of scrolling before anyone has seen a
 task, and the other two choices are a pleasure to find later in Settings.
 
-🐛 **Row menus open upwards when there is no room below them.** The foot of a
+🐛 **A task's menus now open upwards when there is no room below.** The foot of a
 list is where the work nobody has dealt with sits, which is exactly the work
 you want to reschedule.
 
-🐛 **A task ticked off in the daily review leaves the way it does everywhere
-else.** It was being kept and marked instead of going, which made the review
+🐛 **A task completed in the daily review now leaves the list like anywhere else.** It was being kept and marked instead of going, which made the review
 the one place where finishing a task looked like something else.
 
-🐛 **Scrolling the sidebar with a finger no longer carries a project off.** A
+🐛 **Scrolling the sidebar with a finger no longer drags a project away.** A
 drag starts on distance with a mouse and on time with a finger: move before the
 press is held and it was a scroll.
 
-🐛 **Connecting no longer leaves the app zoomed in on iOS.** Safari zooms the
+🐛 **Connecting no longer leaves the app zoomed in on an iPhone.** Safari zooms the
 page when a field smaller than 16px takes the caret, and does not zoom back.
 
-🐛 **Adding a task with Cmd+Enter created it twice.** The name field answered
+🐛 **⌘Enter in the new task window no longer creates the task twice.** The name field answered
 the keystroke and so did the sheet.
 
-🐛 **Escape in a description or an estimate saves and leaves the field**,
-rather than discarding the edit and closing the task behind it.
+🐛 **Escape in a description or an estimate now saves the edit and leaves the field.** It no longer discards the edit and closes the task behind it.
 
 ## 1.6.0
 
 Dragging a task says three things instead of one, a list can be put in the
 order you want it in, and where a task lives is asked once.
 
-🆕 **A task can be put inside another one.** Drag a row a little to the
+🆕 **Drag a task a little to the right over another to make it a subtask.** Drag a row a little to the
 right over another and an indented line says it will land inside it — the same
 line, in the same place, that the sidebar draws when a project is about to go
 inside another. Todoist keeps four levels of subtasks, so a row that would push
 a task past that simply does not take the drop. Board cards are left alone:
 they get dragged sideways all day and a drift to the right there means nothing.
 
-🆕 **And taken back out.** Drag a subtask out to the left and it becomes
+🆕 **Drag a subtask out to the left to make it a task of its own again.** Drag a subtask out to the left and it becomes
 a task of its own, where it already lives. The row's menu offers the same thing
 in words, because a gesture nobody has been told about is not a way out of
 anything.
 
-🆕 **A list can be put in the order you want it in.** Drop a task
+🆕 **Drop a task onto a row to put it exactly there.** Drop a task
 straight onto a row and it takes that row's place. In a project and in the
 Inbox that is Todoist's own numbering inside a project. In My week, Upcoming,
 a tag page and Un jour — lists drawn from every project at once, where that
@@ -651,7 +694,7 @@ Todoist, not in a corner of this app that only this browser can see. A task
 dragged into a list from another group gets both things at once: the day, or
 the tag, and the place in it.
 
-🆕 **"Add task" stands where a task would go.** At the end of every
+🆕 **“Add task” now sits where the new task will appear.** At the end of every
 section, at the top of a project above its first section, at the foot of every
 board column, and on the Inbox, Un jour and tag pages. It used to appear only
 under the pointer, at the same moment as the "add section" line below it, so
@@ -659,38 +702,37 @@ the two traded places as you moved. A column offers it when the column is a
 place: a project column adds to that project, a tag column adds with that tag.
 On a tag page it opens with the tag already on.
 
-🆕 **A project and its sections are one field.** Creating a task asked
+🆕 **Choose a project and its section in one list when creating a task.** Creating a task asked
 for a project and then grew a second field for a section belonging to it — two
 decisions for one question. One list now, sections indented under the project
 they are in, exactly as the row's move menu has always shown them. The task
 panel has the same field, where the section could not be set at all.
 
-🎨 **A board takes the whole page.** It used to stop at the width a
+🎨 **A board now uses the whole width of the page.** It used to stop at the width a
 paragraph is read in and scroll sideways with empty space on both sides. The
 columns take their share of it too, between 272 and 420 pixels, so three
 sections fill a laptop instead of huddling on the left. What is read above the
 board — the title, the figures, the controls — keeps the measure and the
 position it has on every other page.
 
-🎨 **The preview under the pointer is a card.** It had no style of its
+🎨 **The preview under the pointer while dragging is now a card.** It had no style of its
 own at all: sixteen-pixel text as wide as the page, floating on nothing.
 
-🎨 **The drag handle lines up with the checkbox** rather than with the
-middle of the row, so a task with a description no longer holds its handle
+🎨 **The drag handle now lines up with the checkbox.** A task with a description no longer holds its handle
 somewhere below its own title.
 
-🐛 **The task panel really moves a task.** Its project picker wrote
+🐛 **Changing a task's project in the task panel now really moves it.** Its project picker wrote
 `project_id` through `item_update`, which takes neither a project nor a section
 — only `item_move` does. The task moved on screen and stayed where it was on
 Todoist until the next sync put it back. A move now settles what it does not
 carry: a task sent to a project leaves the section it was in, a task sent to a
 section joins that section's project.
 
-🐛 **The sort on the Inbox, Un jour and a tag page does something.**
+🐛 **Sorting now works on the Inbox, Someday and tag pages.**
 Those pages are drawn without the part of the app that sorts, so the control in
 their Display menu had never once changed the order of anything.
 
-🐛 **The count on Display can be read in the dark theme.** It was white
+🐛 **The count on Display and the Undo button can now be read in dark mode.** It was white
 on `--text`, which is nearly white there. So was the toast, undo button
 included — the one thing in the app you have to be able to read in a hurry.
 
@@ -699,7 +741,7 @@ included — the one thing in the app you have to be able to read in a hurry.
 Reading a task's name: a guess you can turn down, an hour you can name, and a
 title that does all of it too.
 
-🆕 **A reading can be refused, one occurrence at a time.** "Weekly review
+🆕 **Refuse a repeat rule the app guessed in a task's name, with one click.** "Weekly review
 tous les lundi" had its first word read as a repeat rule — a fair guess and
 the wrong one, and until now the only way to say so was to rename the task
 until the parser stopped seeing it. Clicking a mark, or pressing Backspace
@@ -708,51 +750,50 @@ of the field it had filled; clicking them again brings the reading back. It
 refuses that one occurrence and no other, so "Weekly review weekly" can keep
 its title and still repeat.
 
-🆕 **A name can say the section as well as the project.** `#Project/Section`
+🆕 **Type #Project/Section in a name to set both.** `#Project/Section`
 fills both, and typing `/` after a project turns the list into that project's
 sections — all of them, whether or not their names have anything to do with
 what was typed, because naming the project is asking to be shown where inside
 it the task could go.
 
-🆕 **A time of day, in words or in figures.** "demain 12:14" is tomorrow at
+🆕 **Type a time as “tomorrow 12:14”, “demain matin” or “ce soir”.** "demain 12:14" is tomorrow at
 12:14; "demain matin" is nine, "demain soir" is seven, and "ce soir" is today
 at seven. The hours are Todoist's own, so the same words typed here and there
 land on the same minute.
 
-🆕 **A task's title reads what the composer reads.** Editing it recognises a
+🆕 **Editing a task's title recognises dates, projects, tags and estimates as you type.** Editing it recognises a
 date, a repeat, a project, a section, a tag, a priority and an estimate, marks
 them as you type, and writes them to their fields when the title is saved —
 with Enter, or with the Save beside it. Escape puts the title back.
 
-🆕 **Subtasks can be put in order**, by dragging them past each other in the
-task panel.
+🆕 **Put subtasks in order by dragging them past each other in the task panel.**
 
-🎨 **The marks are drawn in the colour of what they name.** A project's is
+🎨 **Recognised words in a title take the colour of what they name.** A project's is
 the project's colour, a tag's is the tag's, a priority's runs from P1 red to P4
 grey. A date and a repeat wear the accent, because those two are guesses about
 prose rather than something written on purpose — and they are the ones usually
 worth refusing.
 
-🎨 **The line above a task is a trail rather than a caption.** A subtask used
+🎨 **The line above a task now lets you click back up through its parents.** A subtask used
 to be a dead end: the panel named its project and said nothing about the task
 it belongs to, so closing was the only way back. Every ancestor is a link now,
 the project included.
 
-🎨 **A second project replaces the first.** A name carries one project, one
+🎨 **Typing a second project, priority or date in a name replaces the first.** A name carries one project, one
 priority, one day: two of any of them is somebody changing their mind, so the
 last one typed is the one that counts, and refusing it hands the reading back
 to the one before. Tags are the exception — a task can carry several, so every
 one of them is marked.
 
-🐛 **A new subtask is drawn where it will end up.** It was created at the
+🐛 **A new subtask no longer jumps to the bottom after it is created.** It was created at the
 top of its parent's list and jumped to the bottom when the sync answered.
 
-🐛 **A drop lands where it was aimed.** Four different things are dragged in
+🐛 **A dropped task no longer lands somewhere other than where you aimed.** Four different things are dragged in
 this app and they all shared one context, so a region of the page behind the
 task panel could win a drop meant for a row inside it. Each drag is now only
 offered what it could possibly mean.
 
-🐛 **The description keeps one height.** It was a fixed box that scrolled
+🐛 **A long description no longer shifts the panel when you click away.** It was a fixed box that scrolled
 while the rendered text below it was as tall as it needed to be, so clicking
 away from a long description opened the panel under the pointer.
 
@@ -761,7 +802,7 @@ away from a long description opened the panel under the pointer.
 Sending a task where it belongs: a section by name, a project by drag, and the
 project's own tasks where you left them.
 
-🆕 **A task can be sent to a section, and found by typing.** The move menu
+🆕 **Move a task to a project's section from the move menu, by typing its name.** The move menu
 opened on a list of projects and nothing else, so a task that belonged in
 "Site vitrine / In review" took a move and then a drag down the page. Sections
 are destinations now, and the menu opens with the caret in a field: type any
@@ -769,20 +810,20 @@ part of the section's name or its project's, press Enter, and the first match
 takes it. Choosing the project itself means the project with no section, which
 is how a task comes back out of one.
 
-🎨 **A project's own tasks come first, with no heading.** Tasks in no
+🎨 **A project's own tasks now come first, without a “No section” heading.** Tasks in no
 section were collected at the foot of the page under "No section" — a
 container nobody made, holding the loose, recent work where nobody looks. They
 lead the page now, above the sections and unlabelled, which is how the board
 has always shown them.
 
-🐛 **A task dropped on a project in the sidebar lands there.** A sidebar
+🐛 **A task dropped on a project in the sidebar now lands in that project.** A sidebar
 row is two things at once, somewhere to file a task and a position in a list,
 and both readings stayed open during every drag: a task let go over a project
 hit whichever one the collision happened to return first, drew the bar that
 belongs to reordering, and went nowhere. Each reading now stands down for the
 drag it has no answer for, so a project still reorders and a task still lands.
 
-🐛 **Undoing a move from the row menu puts the task back.** The undo was
+🐛 **Undoing a move from a task's menu now puts the task back.** The undo was
 sent as an update, which carries neither a project nor a section, so it put the
 task back on screen and left it where it had been sent on the server. It is
 sent as a move now. The same menu also sent a section and a project together
@@ -793,29 +834,29 @@ to an API that takes exactly one destination.
 Editing a selection by more than its date, a caret that stays where it was
 put, and one quiet line about the coffee.
 
-🆕 **A selection can be given more than a date.** The bar at the foot of the
+🆕 **Change more than the date of several selected tasks at once.** The bar at the foot of the
 window offered today, this week, someday and a date, which meant that taking
 one tag off fifteen tasks was fifteen tasks opened one at a time. It carries
 one button per property now — Date, Move, Tags, Priority — each with its icon
 and its name, each opening its panel above the bar rather than below it, where
 the foot of the window is. Every change is still one request and one undo.
 
-🆕 **Tags in bulk, taken off as readily as put on.** A tag carried by some of
+🆕 **Add or remove a tag on several tasks at once.** A tag carried by some of
 the selection shows as a half-tick rather than as "no": ticking it puts the
 tag on the ones that are missing it, and clearing it takes the tag off all of
 them. The selection survives a tag change, because dropping two tags is one
 job; a move or a priority ends it.
 
-🆕 **Escape gives the selection back.** A dialog and an open menu both stop
+🆕 **Escape now clears the selection.** A dialog and an open menu both stop
 the key where they are, so it reaches the selection only when the selection is
 the outermost thing left to dismiss.
 
-🆕 **A line about the coffee, at the end of two things.** Faint, small, one
+🆕 **A discreet line offering a coffee appears after a review and in Insights.** Faint, small, one
 sentence and an offer, at the foot of a finished review and at the foot of
 Insights. It counts nothing, no milestone triggers it, and it does not appear
 more often the longer the app is used.
 
-🐛 **A dialog stops taking the caret back.** Every caller passes a fresh
+🐛 **A dialog no longer pulls the cursor back to its first field.** Every caller passes a fresh
 callback to the dialog shell on every render, and that callback sat in the
 effect's dependency list — so any render of the page behind a dialog tore the
 effect down and set it up again, handing focus back and then moving it to the
@@ -823,14 +864,14 @@ top of the sheet. One sync poll was enough. Typing a description, the caret
 left mid-word; filling in Things to settle, it landed back in the first
 estimate and the rest of the number went there.
 
-🐛 **A sync no longer overwrites what is being typed.** The title, the
+🐛 **A sync no longer overwrites what you are typing.** The title, the
 description and the estimate all re-seed themselves from the task. They now
 refuse to do it while they hold the caret, so an update arriving mid-sentence
 cannot replace a draft with the stored text.
 
 ## 1.2.1
 
-🐛 **The app icon, actually.** 1.2.0 drew the icons correctly and put them in
+🐛 **The app icon is now shown correctly.** 1.2.0 drew the icons correctly and put them in
 `icons/`, and that folder has now been dropped by an upload twice — the second
 time leaving a directory on the server that Apache could no longer read into,
 so re-uploading could not repair it. Every icon still answered 404, so browsers
@@ -844,14 +885,14 @@ folder from the server; nothing points at it any more.
 Dark mode, a colour of your own, and recurring dates the app can finally
 read as well as show.
 
-🆕 **A dark theme.** Appearance sits under General and offers Automatic,
+🆕 **A dark theme, set to follow your device by default.** Appearance sits under General and offers Automatic,
 Light and Dark. It follows the device by default and switches along with it
 mid-session, and the choice is remembered so the page never opens in the
 wrong theme. Todoist's own project and tag colours are lightened on a dark
 page rather than left at the 2:1 several of them fall to, so a board stays
 recognisable in both.
 
-🆕 **A colour of your own.** Nine accents — red, orange, amber, green, teal,
+🆕 **Choose the app's accent colour from nine, or pick your own.** Nine accents — red, orange, amber, green, teal,
 blue, indigo, purple, pink — and a tenth you pick yourself, shown as ten
 small windows onto the app rather than ten colour names. A theme is nine
 tokens rather than one hue, so a custom colour is put through the same
@@ -860,7 +901,7 @@ clears the page, the wash and the badge. A custom colour cannot come out
 illegible. Overdue and priority one stay red under every accent, because
 they are states rather than the brand.
 
-🆕 **Recurring dates, read and written.** Typing "appeler Marc every monday"
+🆕 **Type a repeat like “every monday” in a task's name or in the task panel.** Typing "appeler Marc every monday"
 made a task called "appeler Marc every monday" with no date at all. The
 composer marks a repeat rule now, the task panel's Récurrence line is a
 field instead of a value you could see and not change, and the schedule
@@ -868,7 +909,7 @@ menu's date field reads one too. The grammar follows the list Todoist
 publishes, in both languages, and refuses what it cannot vouch for rather
 than guessing.
 
-🆕 **A first run, once.** Connecting an account for the first time — or
+🆕 **A first-run screen asks about theme, colour and density once.** Connecting an account for the first time — or
 opening the demo — asks three questions on one page: light or dark, which
 colour, how much room a task gets. Each answer applies to the page behind
 the dialog as you make it. It is then followed by a short tour that lights
@@ -876,175 +917,164 @@ up four things in the app itself rather than describing them. It is
 remembered per Todoist account rather than per browser, so disconnecting and
 reconnecting does not ask again, and Settings has a "Run it again".
 
-🆕 **Someday, from the daily review's week step.** It offered Today and This
+🆕 **The daily review's week step can now send a task to Someday.** It offered Today and This
 week, so the one thing you sometimes want to say — this is not happening
 this week — had nowhere to go.
 
-🎨 **Appearance and the week are shown rather than named**, the way density
-already was, and the settings that open into a panel of cards no longer sit
+🎨 **Appearance and the week layout are now picked from pictures, as density already was.** The settings that open into a panel of cards no longer sit
 flush against the next setting's label.
 
-🐛 **A plain date no longer ends a recurring series.** `due.string` is what
+🐛 **Giving a repeating task a plain date no longer ends its series.** `due.string` is what
 Todoist treats as the truth, and four paths were writing a date into it
 while leaving the task marked as repeating — including drag and drop, and
 "Tout passer à aujourd'hui". They all put the rule back unchanged now and
 move only the date. The time of day survives the schedule menu too.
 
-🐛 **The app icon.** The 192 and 512 had their corners cut to transparency
+🐛 **The app icon is no longer cropped.** The 192 and 512 had their corners cut to transparency
 with rounding already baked in, while being declared as icons shown whole —
 so every surface that applies its own shape rounded them twice and left the
 app's own corners inside the system's as a visible ring. All five are
 full-bleed opaque squares now, drawn by `npm run icons`, and the maskable
 pair is drawn small enough to clear an adaptive mask properly.
 
-🐛 **The manifest has a media type**, via an `.htaccess` that ships with the
-build. It was being served with no `Content-Type` header at all.
+🐛 **Installing the app on a phone or desktop now finds its manifest.** It is served with the right media type through an `.htaccess` that ships with the build; it had no `Content-Type` header at all.
 
 ## 1.1.1
 
 Everything reported after 1.1 went out, in three rounds of it.
 
-🆕 **Today can have a page of its own.** My week still holds the whole week
+🆕 **Show Today as a page of its own, next to My week.** My week still holds the whole week
 by default, because deciding what today is means seeing what the week still
 owes; a setting separates the two for anyone who would rather keep a page for
 the day, with today left out of the week or still inside it.
 
-🆕 **The tag that means "anytime this week" can be renamed.** Boards that
+🆕 **Rename the tag that means “anytime this week”.** Boards that
 already say `this_week` no longer have to be relabelled to be read here.
 
-🆕 **Undo, on the keyboard.** Cmd+Z (Ctrl+Z) reverses the last change — a
+🆕 **Undo with ⌘Z, long after the message has gone.** Cmd+Z (Ctrl+Z) reverses the last change — a
 move, a completion, a deletion, a drop — not only while its toast is on
 screen. A deleted task and its subtasks are written back; they return under
 new ids, which is the one thing Todoist gives no way to preserve.
 
-🆕 **Several tasks at once.** Cmd+click (Ctrl+click) picks rows out, and a
+🆕 **Select several tasks with ⌘-click and act on all of them.** Cmd+click (Ctrl+click) picks rows out, and a
 bar at the foot of the window sends the lot to today, to this week, to
 Someday or to a date, or deletes them — one request, one undo.
 
-🆕 **Projects nest in the sidebar.** Drag one to the right to put it inside
+🆕 **Drag a project into another in the sidebar to nest it.** Drag one to the right to put it inside
 the row under the pointer, or onto a folder, where no sideways gesture is
 needed because holding projects is the whole of what a folder is. The project
 menu moves one back out.
 
-🆕 **A task's date can be typed.** Its schedule menu opens on a field with
+🆕 **Type a task's date in its schedule menu.** Its schedule menu opens on a field with
 the caret already in it, and what you type narrows a short list underneath:
 "to" offers today and tomorrow, "tom" only one of them, and a bare "15"
 offers the next three fifteenths with the weekday each falls on. A calendar
 sits under the three shortcuts for the dates easier to point at than to name.
 
-🆕 **The composer reads an estimate out of a name**, written in brackets:
-"Call Anne (25)".
+🆕 **Type an estimate in brackets in a task's name.** "Call Anne (25)" sets 25 minutes.
 
-🆕 **A date format setting** — 12 sept. 2026, sept. 12, 2026, 2026 sept. 12,
-or all numbers. Today and tomorrow are always named rather than dated,
+🆕 **Choose how dates are written in Settings:** 12 sept. 2026, sept. 12, 2026, 2026 sept. 12, or all numbers. Today and tomorrow are always named rather than dated,
 wherever a date is shown.
 
-🆕 **The weekly review reads a week you choose.** It read the week in
+🆕 **Choose which week the weekly review looks at.** It read the week in
 progress and nothing else, which only works for somebody doing it on a Sunday
 night; done on a Monday it read a week two hours old. It opens on the week
 that has just ended while the new one is young, and arrows reach the ones
 before.
 
-🆕 **The weekly review closes the week and then opens the next one**: what
+🆕 **The weekly review closes the week, then opens the next one.** It covers what
 you finished, what it came to, what is late, which projects went quiet — then
 mail, inbox, Someday, this week's commitments, estimates, and what the week
 weighs. It used to end on Someday, the longest and least engaging list in the
 app, placed exactly where people stop, and then claim the next week was ready
 when nothing had set it up.
 
-🆕 **Both passes end on the load**, the idea the whole product is built on
-and the one thing the ritual meant to steer it never mentioned: the day's
+🆕 **Both reviews end on your load.** It is the idea the whole product is built on and the one thing the ritual never mentioned: the day's
 hours or the week's, against the hours you said you have, with each task
 offering a way out on the spot.
 
-🆕 **A mail step in both passes**, immediately before the inbox, because a
+🆕 **Both reviews have a mail step before the Inbox.** It comes first because a
 good part of what is sitting in the inbox arrived as an email and filing the
 inbox first files half of it. It claims nothing it cannot know — this app
 cannot see your mail — and carries links to where the mail actually is.
 
-🆕 **The last step of the daily pass has somewhere to send things.** It
+🆕 **The daily review's last step can now move tasks.** It
 offered no action at all, so a day that was already full ended the review on
 a problem with nowhere to put it.
 
-🆕 **How long a project may go quiet is a setting.** Fourteen days is a fair
+🆕 **Choose how long a project may go quiet before the review mentions it.** Fourteen days is a fair
 default and a poor constant: on a fast board it is permanent noise, on a slow
 one the warning never comes.
 
-🎨 **Things to settle says what it holds.** It was an icon with a dot on it,
+🎨 **“Things to settle” now stands out when it holds something.** It was an icon with a dot on it,
 equally quiet whether it held nothing or fourteen contradictions. When there
 is something in it, it takes a line and the wash the Behind schedule section
 uses — read at rest, without competing with Add task.
 
-🎨 **A task ticked off leans out rather than vanishing** under the pointer,
-which had made a mis-click indistinguishable from a correct one. The tick
+🎨 **A completed task now fades out instead of vanishing under the pointer.** Vanishing at once had made a mis-click indistinguishable from a correct one. The tick
 lands, the text greys, and the row leaves a beat later.
 
-🎨 **The words the composer marks in a name have air around them**, taken as
+🎨 **Words recognised in a task's name now have room around them.** It is taken as
 padding and given back as a negative margin so the marks line up with the
 text in front of them and the ordinary spaces of the sentence keep their
 ordinary width.
 
-🎨 **The buttons that appear over a board card have an edge.** They were a
+🎨 **The buttons over a board card now have an edge, so they can be seen.** They were a
 white panel on a white card, which is nothing at all.
 
-🎨 **A picked-out row is a grey panel** wider than the row, so the checkbox
+🎨 **A selected row is now a grey panel wider than the row,** so the checkbox
 sits inside it rather than on its edge, and nothing on the row moves when it
 is picked.
 
-🎨 **The line that says a project will be nested** is the width and the
-indentation the nested row itself will have.
+🎨 **The line that shows a project will be nested now matches the nested row.** It has the width and the indentation the row itself will have.
 
-🎨 **The review's rail says where you are, and nothing else.** It used to
+🎨 **The review's progress rail now only shows where you are.** It used to
 colour each step by how much was in it, so the rail changed meaning as you
 answered it and a count of finished tasks sat in the same circle as a count
 of things still to settle — Someday showed a ticked pill reading "142".
 Behind you, where you are, still to come: three states, one colour. Steps
 that hand you something to read carry a mark rather than a tally.
 
-🎨 **The review's cadence control stopped moving.** Switching between daily
+🎨 **The daily/weekly switch in the review no longer jumps around.** Switching between daily
 and weekly changed the head's layout and took the button you had just pressed
 somewhere else; the week pager now sits beside it on the same line.
 
-🐛 **What the composer read out of a name never reached the fields below
-it.** Typing "Friday #Work p1" marked those words and left the date, project
+🐛 **Dates, projects and priorities typed in a name now reach the fields below it.** Typing "Friday #Work p1" marked those words and left the date, project
 and priority pickers showing something else, so the dialog could hold two
 different tasks at once and only one of them was going to be created. The
 name and the fields are now one reading, made once.
 
-🐛 **Search only found tasks once you typed.** The list of places it offered
+🐛 **Search now finds pages such as Settings as soon as you type.** The list of places it offered
 on opening was thrown away at the first keystroke, so typing "settings" — the
 fastest way anybody would try to reach settings — found tasks with the word
 in them and nothing else. Destinations are searched too, accents set aside,
 and come first.
 
-🐛 **"Show subtasks" did nothing.** The switch was drawn, stored and read by
+🐛 **The “Show subtasks” switch now works.** The switch was drawn, stored and read by
 nobody.
 
-🐛 **Adding to the home screen on an iPhone gave a red tile with an E on
-it.** iOS does not read the web manifest; it needs its own icon, and now has
+🐛 **Adding the app to an iPhone home screen now shows its real icon.** iOS does not read the web manifest; it needs its own icon, and now has
 one. The manifest also declares an identity and a full set of maskable icons,
 which is what a desktop browser wants before it offers to install anything.
 
-🐛 **The "no estimate" tab of Things to settle could only be read.** It now
+🐛 **Things to settle can now fill in missing estimates.** It now
 holds the same batch editor the page header opens, instead of a weaker copy
 of it.
 
-🐛 **The review's estimates step emptied itself under your hands.** It wrote
+🐛 **Filling in estimates in the review no longer moves rows under your cursor.** It wrote
 one request per task, so the row you were typing in left the list the moment
 you pressed Enter and the next jumped under the cursor. It holds its answers
 now: the list stays still, the total gathers at the foot, one request at the
 end.
 
-🐛 **"Slipped" and "Behind schedule" were the same question** asked twice
-under two names. There is one now.
+🐛 **The review no longer asks about “Slipped” and “Behind schedule” separately.** They were the same question asked twice under two names. There is one now.
 
-🐛 **Giving a task a date from a row or a column left the week tag on it**,
-where dropping it on Today had always taken it off — the two together are the
+🐛 **Giving a task a date from a row or a column now removes its week tag.** Dropping it on Today had always taken it off — the two together are the
 contradiction the app reports rather than resolves.
 
 ## 1.1.0
 
-🆕 **Daily and weekly review.** One question at a time, in an order, with an
+🆕 **A daily and weekly review, one question at a time.** One question at a time, in an order, with an
 end. The daily pass asks what is late, what is sitting in the Inbox with no
 project, what you committed to this week without naming a day, what has no
 estimate, and what today holds. The weekly pass asks what you finished, what
@@ -1053,21 +1083,17 @@ estimate, which projects have gone quiet, and what is parked in Someday.
 Every answer is a change Todoist already understands, made through the same
 rules a drag makes. The review stores nothing of its own.
 
-🆕 **Project actions**, the ones Todoist gives them, from the sidebar row and
-from the project's own page: add a project above or below, edit, favourite,
+🆕 **Project actions are available from the sidebar and from the project's own page.** They are Todoist's own: add a project above or below, edit, favourite,
 duplicate, archive, delete. A project also renames from its own title.
 
-🆕 **Projects reorder by dragging** them in the sidebar, within their own
-list of siblings.
+🆕 **Drag projects in the sidebar to reorder them.** They move within their own list of siblings.
 
-🆕 **Tags can be created** — from the Tags page, or by typing a name after
-`@` that does not exist yet.
+🆕 **Create tags from the Tags page, or by typing a new name after `@`.**
 
-🆕 **A density setting**, chosen by looking at two pictures rather than by
-reading two adjectives. Compact closes the space around a row without taking
+🆕 **Choose how roomy lists are with a density setting.** You pick it by looking at two pictures rather than by reading two adjectives. Compact closes the space around a row without taking
 anything out of it: the same type, the same fields, a shorter page.
 
-🆕 **Browse**, a fifth destination on the phone, holding everything a phone
+🆕 **Browse, a fifth destination on the phone, opens everything else.** It holds everything a phone
 has no room for: the profile and its menu, search, tags, favourites,
 projects. It is the sidebar rendered as a page, not a second list kept in
 step by hand.
@@ -1090,28 +1116,27 @@ after another.
 🎨 Sending a task to a destination is one method in one place, rather than
 the same fifteen lines written out wherever it was needed.
 
-🐛 **Every toast in the product was invisible.** A leftover rule held them at
+🐛 **Messages and Undo buttons now actually appear on screen.** A leftover rule held them at
 zero opacity waiting for a class nothing ever added, so no error and no undo
 had ever reached anyone. This is why a refused change looked like a change
 that never registered the click.
 
-🐛 **Adding a task from the composer could create nothing at all.** Leaving
+🐛 **Adding a task from the new task window no longer fails silently.** Leaving
 the project picker alone sent an empty project id, which Todoist refuses. The
 Inbox was listed twice: once as that empty value, and once as the real
 project it already is.
 
-🐛 **A refusal is now reported rather than swallowed**, and the refused
+🐛 **A change Todoist refuses is now reported to you.** The refused
 command is dropped instead of going out again on every sync for ever — where
 it also took everything queued behind it down with it.
 
-🐛 **A 403 is no longer read as a bad token.** Todoist also answers 403 when
+🐛 **A refusal for plan limits no longer signs you out.** Todoist also answers 403 when
 a command is against the rules of a plan, and reading that as an auth failure
 hid the real reason and signed people out over it.
 
-🐛 **A project nested under another project was never drawn** in the sidebar.
-Only folders disclosed their children.
+🐛 **Projects nested under another project now show in the sidebar.** Only folders disclosed their children.
 
-🐛 **A description with two links showed raw HTML.** The inline renderer ran
+🐛 **A description with two links no longer shows raw HTML.** The inline renderer ran
 emphasis over a string that already carried generated anchors, so the
 underscore in one `target="_blank"` paired with the next and tore both tags
 in half.

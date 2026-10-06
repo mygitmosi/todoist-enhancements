@@ -26,4 +26,4 @@ try {
       document.documentElement.style.setProperty('--' + token, set[token]);
     }
   }
-} catch (e) {}
+} catch { /* Storage may be unavailable; keep the default theme. */ }

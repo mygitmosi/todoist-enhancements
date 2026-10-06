@@ -1,9 +1,10 @@
 import type { Locale } from '@/i18n';
-import type { ViewId } from '@/domain/types';
+import type { EstimateStorage, ViewId } from '@/domain/types';
 import { DEFAULT_WEEK_LABEL, defaultViewPrefs, type ViewPrefs } from '@/domain/types';
 import { defaultConflictSettings, type ConflictSettings } from '@/domain/conflicts';
 import { defaultCapacity, type DailyCapacity } from '@/domain/load';
 import { DATE_FORMATS, type DateFormat } from '@/domain/dates';
+import { DEFAULT_DUST_MONTHS, isDustMonths, type DustMonths } from '@/domain/views';
 
 /**
  * The Todoist task that held the settings up to 1.12.
@@ -118,7 +119,7 @@ export function mergeSynced(
   locale: Locale,
 ): Preferences {
   const { views: remoteViews, savedAt: _stamp, ...settings } = remote;
-  const hydrated = hydratePreferences({ ...local, ...settings, views: undefined }, locale);
+  const hydrated = hydratePreferences({ ...local, ...settings, views: undefined, estimateStorage: settings.estimateStorage ?? null }, locale);
   const views = { ...local.views };
   for (const [key, shared] of Object.entries(remoteViews ?? {})) {
     if (!key.startsWith('project:') || !shared) continue;
@@ -235,6 +236,8 @@ export const isWeekLayout = (value: unknown): value is WeekLayout =>
 /** Everything the user can tune. Stored on the device, never on a server. */
 export interface Preferences {
   locale: Locale;
+  /** Null means this account has not yet chosen; reads and writes default to tags. */
+  estimateStorage: EstimateStorage | null;
   /** Where the app opens when no destination is in the address bar. */
   homepage: HomeView;
   /**
@@ -250,6 +253,10 @@ export interface Preferences {
   dailyCapacity: DailyCapacity;
   weeklyCapacityOverride: number | null;
   showQuickGroup: boolean;
+  /** The Gathering dust group at the top of Someday (#161). */
+  showDustGroup: boolean;
+  /** How many months a task sits in Someday before it is said to gather dust. */
+  dustAfterMonths: DustMonths;
   conflicts: ConflictSettings;
   sidebarCollapsed: boolean;
   /** How much room a list gives each task. */
@@ -320,6 +327,7 @@ export interface Preferences {
 
 export const defaultPreferences = (locale: Locale): Preferences => ({
   locale,
+  estimateStorage: null,
   homepage: 'week',
   naturalDates: true,
   hour12: false,
@@ -327,6 +335,8 @@ export const defaultPreferences = (locale: Locale): Preferences => ({
   dailyCapacity: defaultCapacity(),
   weeklyCapacityOverride: null,
   showQuickGroup: true,
+  showDustGroup: true,
+  dustAfterMonths: DEFAULT_DUST_MONTHS,
   conflicts: defaultConflictSettings(),
   sidebarCollapsed: false,
   density: 'comfortable',
@@ -372,6 +382,7 @@ export function hydratePreferences(stored: unknown, locale: Locale): Preferences
   return {
     ...base,
     ...s,
+    estimateStorage: s.estimateStorage === 'tag' || s.estimateStorage === 'duration' ? s.estimateStorage : null,
     dailyCapacity: Array.isArray(s.dailyCapacity) && s.dailyCapacity.length === 7
       ? (s.dailyCapacity as DailyCapacity)
       : base.dailyCapacity,
@@ -408,6 +419,9 @@ export function hydratePreferences(stored: unknown, locale: Locale): Preferences
     eisenhowerShowFuture: s.eisenhowerShowFuture === true,
     eisenhowerIncludeSomeday: s.eisenhowerIncludeSomeday === true,
     eisenhowerWorkspace: typeof s.eisenhowerWorkspace === 'string' ? s.eisenhowerWorkspace : null,
+    showDustGroup: s.showDustGroup !== false,
+    // Only the delays the Settings offers: anything else reads as the default.
+    dustAfterMonths: isDustMonths(s.dustAfterMonths) ? s.dustAfterMonths : base.dustAfterMonths,
     onboarded: s.onboarded === true,
     whatsNew: s.whatsNew !== false,
     seenVersion: typeof s.seenVersion === 'string' && /^\d+\.\d+\.\d+$/.test(s.seenVersion)

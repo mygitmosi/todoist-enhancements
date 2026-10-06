@@ -1,0 +1,40 @@
+import { describe, expect, it } from 'vitest';
+import { nextOccurrence } from './nextOccurrence';
+import { item } from '@/test/items';
+
+// Wednesday 7 October 2026, mid-morning.
+const now = new Date(2026, 9, 7, 10, 0);
+const recurring = (string: string, date: string) =>
+  item({ due: { date, string, lang: 'en', timezone: null, is_recurring: true } });
+const day = (date: Date | null) => date && `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+
+describe('where "skip to next occurrence" lands (#153)', () => {
+  it('reads the plain rules from the due date', () => {
+    expect(day(nextOccurrence(recurring('every day', '2026-10-07'), now))).toBe('2026-10-8');
+    expect(day(nextOccurrence(recurring('every 3 days', '2026-10-07'), now))).toBe('2026-10-10');
+    expect(day(nextOccurrence(recurring('every week', '2026-10-09'), now))).toBe('2026-10-16');
+    expect(day(nextOccurrence(recurring('every 2 weeks', '2026-10-09'), now))).toBe('2026-10-23');
+    expect(day(nextOccurrence(recurring('every Monday', '2026-10-12'), now))).toBe('2026-10-19');
+    expect(day(nextOccurrence(recurring('every mon, wed, fri', '2026-10-07T18:00:00'), now))).toBe('2026-10-9');
+    expect(day(nextOccurrence(recurring('every weekday', '2026-10-09'), now))).toBe('2026-10-12');
+    expect(day(nextOccurrence(recurring('tous les lundis', '2026-10-12'), now))).toBe('2026-10-19');
+  });
+
+  it('does not let a time of day change the date', () => {
+    expect(day(nextOccurrence(recurring('every day at 9am', '2026-10-07T18:00:00'), now))).toBe('2026-10-8');
+  });
+
+  it('counts every! from today', () => {
+    expect(day(nextOccurrence(recurring('every! 3 days', '2026-10-07'), now))).toBe('2026-10-10');
+    expect(nextOccurrence(recurring('every! monday', '2026-10-12'), now)).toBeNull();
+  });
+
+  it('says nothing for a late task, a rule it does not read, or a task that does not repeat', () => {
+    expect(nextOccurrence(recurring('every day', '2026-10-01'), now)).toBeNull();
+    expect(nextOccurrence(recurring('every day at 8:00', '2026-10-07T08:00:00'), now)).toBeNull();
+    expect(nextOccurrence(recurring('every last friday', '2026-10-30'), now)).toBeNull();
+    expect(nextOccurrence(recurring('every month', '2026-10-30'), now)).toBeNull();
+    expect(nextOccurrence(recurring('every day until Dec 1', '2026-10-07'), now)).toBeNull();
+    expect(nextOccurrence(item({ due: null }), now)).toBeNull();
+  });
+});

@@ -6,7 +6,7 @@ import {
 import { estimateOf, effectiveEstimate } from '@/domain/estimates';
 import { dueDate } from '@/domain/dates';
 import { startOfMonth, startOfWeek } from 'date-fns';
-import { hasLabel, isOpen } from '@/domain/views';
+import { hasLabel, isOpen, splitQuick } from '@/domain/views';
 import type { RowOrder } from '@/domain/dnd';
 import { PREFERENCES_TASK_CONTENT } from './prefs';
 import { byChildOrder, byLabelOrder, bySectionOrder } from '@/domain/orderKey';
@@ -217,6 +217,28 @@ export function sortItems(
   return copy.sort((a, b) => (
     a.checked !== b.checked ? (a.checked ? 1 : -1) : compare(a, b)
   ));
+}
+
+/**
+ * The page's tasks with the quick ones taken out (#154), sorted the way the
+ * page's Display sort asks.
+ *
+ * Display filters have already run: a task a filter hides is not in `items`,
+ * so it is not in the group either. Off, nothing is taken, which is what the
+ * Settings switch means: no Quick group anywhere.
+ */
+export function pullQuick(
+  items: Item[],
+  enabled: boolean,
+  sort: SortKey,
+  childrenOf: (id: string) => Item[],
+  order: RowOrder,
+  snapshot: Snapshot,
+  now = new Date(),
+): { quick: Item[]; rest: Item[] } {
+  if (!enabled) return { quick: [], rest: items };
+  const { quick, rest } = splitQuick(items, now);
+  return { quick: sortItems(quick, sort, childrenOf, order, snapshot), rest };
 }
 
 export interface Group {

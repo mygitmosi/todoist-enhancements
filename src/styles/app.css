@@ -44,6 +44,12 @@
   --late-badge:#f4c7c2;
   --late-tint:#fdf8f6;
 
+  /* Gathering dust — a warm amber, apart from the late red and the quick blue. */
+  --dust:#b9770e;
+  --dust-dark:#8f5a0a;
+  --dust-wash:#fcf6ea;
+  --dust-badge:#f0dcb2;
+
   --p1:#d1453b; --p2:#eb8909; --p3:#246fe0; --p4:#808080;
   --ok:#2f7d32; --ok-soft:#d7e7d7;
   --warn:#8f5a0a; --warn-soft:#fdf5e9; --warn-border:#eedfc6;
@@ -175,6 +181,11 @@
   --late-wash-deep:#34211f;
   --late-badge:#5c302c;
   --late-tint:#271f1e;
+
+  --dust:#d9a04a;
+  --dust-dark:#e8b668;
+  --dust-wash:#2a2418;
+  --dust-badge:#4f3d1c;
 
   --p1:#e8625a; --p2:#f09a2a; --p3:#5592f0; --p4:#8c8c8c;
   --ok:#3f9143; --ok-soft:#1f3321;
@@ -728,6 +739,12 @@ ul{margin:0;padding:0;list-style:none}
   color:var(--muted);background:var(--subtle);font-size:var(--fs-12);font-weight:600;font-variant-numeric:tabular-nums}
 .gtime{color:var(--muted);font-size:var(--fs-13);font-weight:500;white-space:nowrap;font-variant-numeric:tabular-nums}
 .gtime::before{content:"·";margin-right:5px;color:var(--border-strong)}
+/* What the title adds, said quietly: "· over 3 months" after Gathering dust. */
+.gsub{color:var(--muted);font-size:var(--fs-13);font-weight:500;min-width:0}
+/* On a narrow screen the title and what it adds do not fit on one line; the
+   addition goes under the title rather than behind the count. */
+.group.accent-dust .gtoggle{flex-wrap:wrap;row-gap:0}
+.gsub::before{content:"·";margin-right:5px;color:var(--border-strong)}
 .gactions,.gflag{margin-left:auto}
 .gactions{display:flex;align-items:center;gap:6px;flex:0 0 auto}
 .gflag ~ .gcount{margin-left:10px}
@@ -753,7 +770,13 @@ ul{margin:0;padding:0;list-style:none}
 .check.p1{border-color:var(--p1);background:rgba(209,69,59,.07)}
 .check.p2{border-color:var(--p2);background:rgba(181,101,0,.07)}
 .check.p4{border-color:var(--check-quiet);background:transparent}
-.task.done .check,.tcard.done .check{color:#fff;border-color:var(--ok);background:var(--ok)}
+/* A ticked box keeps its priority's colour, filled in, rather than turning
+   green for everything: P4 is the quiet grey. */
+.timerow.done .check,.task.done .check,.tcard.done .check,.detail-headline.done .check,.subtaskrow.done .check,.reviewrow.done .check{
+  color:#fff;border-color:var(--p4);background:var(--p4)}
+.timerow.done .check.p1,.task.done .check.p1,.tcard.done .check.p1,.detail-headline.done .check.p1,.subtaskrow.done .check.p1,.reviewrow.done .check.p1{border-color:var(--p1);background:var(--p1)}
+.timerow.done .check.p2,.task.done .check.p2,.tcard.done .check.p2,.detail-headline.done .check.p2,.subtaskrow.done .check.p2,.reviewrow.done .check.p2{border-color:var(--p2);background:var(--p2)}
+.timerow.done .check.p3,.task.done .check.p3,.tcard.done .check.p3,.detail-headline.done .check.p3,.subtaskrow.done .check.p3,.reviewrow.done .check.p3{border-color:var(--p3);background:var(--p3)}
 /* A "* " task: Todoist itself gives it no checkbox, since a click on one
    would have nothing to do. The slot stays, empty, so the row still lines
    up with every completable one around it. */
@@ -786,6 +809,9 @@ ul{margin:0;padding:0;list-style:none}
 /* project reference: ONE treatment everywhere (v1 had 3: coloured inline,
    plain grey inline, and a right-hand grey column) */
 .proj{display:inline-flex;align-items:center;gap:3px;font-weight:600}
+/* The section a task sits in, named where a group gathers tasks from several. */
+.sect{display:inline-flex;align-items:center;gap:3px;font-weight:600;color:var(--muted)}
+.sect .ic{color:var(--faint)}
 .proj.green{color:var(--tag-green)}.proj.orange{color:var(--tag-orange)}.proj.purple{color:var(--tag-purple)}
 .proj.red{color:var(--tag-red)}.proj.blue{color:var(--tag-blue)}.proj.gray{color:var(--muted)}
 
@@ -829,6 +855,9 @@ ul{margin:0;padding:0;list-style:none}
 .chead-title{display:flex;align-items:baseline;gap:7px;min-width:0}
 .chead-title small{margin-top:0;white-space:nowrap}
 .col.today .chead small{color:var(--accent)}
+/* Quick is blue wherever it is drawn: a callout in a list, a column on a board. */
+.col.accent-quick{background:var(--wash-quick-deep);border-color:transparent}
+.col.accent-quick .chead strong{color:var(--p3)}
 .cdesc{margin-top:3px;max-width:24ch;color:var(--faint);font-size:var(--fs-11);line-height:1.4}
 .cdesc.empty{font-style:italic}
 .capacity{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border);

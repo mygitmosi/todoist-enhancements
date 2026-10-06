@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  defaultPreferences, mergeSynced, readSettingsComment, SETTINGS_COMMENT_MARKER,
+  defaultPreferences, hydratePreferences, mergeSynced, readSettingsComment, SETTINGS_COMMENT_MARKER,
   settingsCommentContent, settingsCommentMatches, syncedPreferences, type Preferences,
 } from './prefs';
 import { defaultViewPrefs } from '@/domain/types';
@@ -79,5 +79,53 @@ describe('mergeSynced', () => {
     expect(merged.views['project:site'].filters.showSubtasks).toBe(false);
     expect(merged.views['project:site'].filters.showCompleted).toBe(true);
     expect(merged.views.week).toEqual(local.views.week);
+  });
+});
+
+describe('the Gathering dust settings (#161)', () => {
+  it('start on, at three months', () => {
+    expect(defaultPreferences('en')).toMatchObject({ showDustGroup: true, dustAfterMonths: 3 });
+  });
+
+  it('travel with the account', () => {
+    const synced = syncedPreferences(prefs({ showDustGroup: false, dustAfterMonths: 6 }));
+    expect(synced).toMatchObject({ showDustGroup: false, dustAfterMonths: 6 });
+    const merged = mergeSynced(prefs(), synced, 'en');
+    expect(merged).toMatchObject({ showDustGroup: false, dustAfterMonths: 6 });
+  });
+
+  it.each([1, 2, 3, 6, 12])('accept %i months', (months) => {
+    expect(hydratePreferences({ dustAfterMonths: months }, 'en').dustAfterMonths).toBe(months);
+  });
+
+  it.each([0, 4, 24, -3, 2.5, '3', null, 'soon'])('reject %j and read the default', (value) => {
+    expect(hydratePreferences({ dustAfterMonths: value }, 'en').dustAfterMonths).toBe(3);
+  });
+
+  it('read an older settings comment, which has neither, as the defaults', () => {
+    const content = settingsCommentContent(prefs());
+    const stored = JSON.parse(content.slice(SETTINGS_COMMENT_MARKER.length).trim());
+    delete stored.showDustGroup;
+    delete stored.dustAfterMonths;
+    const merged = mergeSynced(prefs(), stored, 'en');
+    expect(merged).toMatchObject({ showDustGroup: true, dustAfterMonths: 3 });
+  });
+
+  it('turn the group off only when told to', () => {
+    expect(hydratePreferences({ showDustGroup: false }, 'en').showDustGroup).toBe(false);
+    expect(hydratePreferences({ showDustGroup: 'no' }, 'en').showDustGroup).toBe(true);
+  });
+});
+
+describe('estimate storage preference', () => {
+  it('defaults to not asked, rejects unknown values and syncs a confirmed choice', () => {
+    expect(defaultPreferences('en').estimateStorage).toBeNull();
+    expect(hydratePreferences({ estimateStorage: 'unknown' }, 'en').estimateStorage).toBeNull();
+    expect(syncedPreferences(prefs({ estimateStorage: 'duration' })).estimateStorage).toBe('duration');
+    expect(mergeSynced(prefs(), syncedPreferences(prefs({ estimateStorage: 'tag' })), 'en').estimateStorage).toBe('tag');
+  });
+  it('does not mark old synced settings as a confirmed choice', () => {
+    const { estimateStorage: _unused, ...legacy } = syncedPreferences(prefs());
+    expect(mergeSynced(prefs({ estimateStorage: 'duration' }), legacy, 'en').estimateStorage).toBeNull();
   });
 });

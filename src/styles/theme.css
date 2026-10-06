@@ -243,7 +243,6 @@
 /* The checkbox occupies a fixed gutter; everything else shares one left edge. */
 .detail-headline{display:grid;grid-template-columns:22px minmax(0,1fr);gap:12px;align-items:start}
 .detail-headline .check{margin-top:5px;width:20px;height:20px}
-.detail-headline.done .check{color:#fff;border-color:var(--ok);background:var(--ok)}
 .detail-headline.done .titlefield{text-decoration:line-through;color:var(--faint)}
 .detail-content{min-width:0}
 
@@ -334,6 +333,12 @@
 }
 .subtasktitle{text-align:left;font-size:var(--fs-14);color:var(--text);padding:4px 0}
 .subtasktitle:hover{color:var(--accent-dark)}
+.subtaskrow.done .subtasktitle span{text-decoration:line-through;color:var(--faint)}
+/* Subtask progress (#156): the ring sits in the icon's box beside "1/3".
+   Muted while in progress, the success colour once every subtask is done. */
+.subprog{display:inline-flex;align-items:center;gap:4px}
+.progressring{color:var(--muted)}
+.progressring.complete{color:var(--ok)}
 
 .addline{
   display:flex;align-items:center;gap:8px;margin-top:var(--s2);
@@ -476,6 +481,8 @@
 .group.accent-late .gheadblock{border-bottom-color:var(--late)}
 .group.accent-quick .gname{color:var(--p3)}
 .group.accent-quick .gheadblock{border-bottom-color:var(--p3)}
+.group.accent-dust .gname{color:var(--dust-dark)}
+.group.accent-dust .gheadblock{border-bottom-color:var(--dust)}
 
 /* A heavier tick reads better at this size. */
 .check .ic{stroke-width:2.6}
@@ -814,7 +821,8 @@
 
 /* ---------- Behind schedule and Quick read as callouts ---------- */
 .group.accent-late,
-.group.accent-quick{
+.group.accent-quick,
+.group.accent-dust{
   padding:var(--s4) 20px;
   /* The bleed covers the padding, so the text inside lands on exactly the
      same left edge as an unframed section. */
@@ -824,13 +832,17 @@
 }
 .group.accent-late{background:var(--late-wash)}
 .group.accent-quick{background:var(--wash-quick-deep)}
+.group.accent-dust{background:var(--dust-wash)}
 /* A count sitting on a wash needs its own chip, or it disappears. */
 .group.accent-late .gcount{color:var(--late-dark);background:var(--late-badge)}
+.group.accent-dust .gcount{color:var(--dust-dark);background:var(--dust-badge)}
 /* Inside a callout the heading no longer needs its own rule to stand out. */
 .group.accent-late .gheadblock,
-.group.accent-quick .gheadblock{border-bottom-color:transparent}
+.group.accent-quick .gheadblock,
+.group.accent-dust .gheadblock{border-bottom-color:transparent}
 .group.accent-late .task,
-.group.accent-quick .task{border-bottom-color:var(--row-line-on-wash)}
+.group.accent-quick .task,
+.group.accent-dust .task{border-bottom-color:var(--row-line-on-wash)}
 
 /* ---------- The repeat rule, in the task panel ----------
    A field rather than a line of text: the rule is the thing being edited, and
@@ -974,7 +986,8 @@
    Declared here, after the rule it overrides. */
 @media (max-width:700px){
   .group.accent-late,
-  .group.accent-quick{margin-inline:0}
+  .group.accent-quick,
+  .group.accent-dust{margin-inline:0}
 }
 
 /* ---------- In-app confirmation ---------- */
@@ -1469,6 +1482,24 @@
   color:transparent;pointer-events:none;user-select:none;
 }
 .namefield .composer-name{position:relative;z-index:1;width:100%;background:transparent}
+
+/* A subtask's field (#163): the same mirror, at the size of the line it sits
+   in. The mirror and the input share every metric or the mark slides off its
+   word, so the two are set together. */
+.namefield .subtaskfield,
+.namefield:has(.subtaskfield) .namemirror{
+  font:inherit;font-size:var(--fs-13);font-weight:400;line-height:1.4;
+  padding:4px 0;border:0;
+}
+.namefield .subtaskfield{position:relative;z-index:1;width:100%;background:transparent}
+/* In the task panel it is a boxed field: the mirror takes the box's own
+   padding and border so the text lines up, and is as tall as the field. */
+.namefield .textfield.subtaskfield,
+.namefield:has(.textfield.subtaskfield) .namemirror{
+  font-size:var(--fs-14);padding:0 13px;line-height:38px;
+}
+.namefield:has(.textfield.subtaskfield){background:var(--surface);border-radius:var(--r-sm)}
+.namefield .textfield.subtaskfield{border:1px solid var(--border);background:transparent}
 
 .nmark{
   color:transparent;
@@ -2055,10 +2086,6 @@
 
 /* A finished task keeps its words. The tick already says it is done, and a
    review is no place to read your own week crossed out. */
-.reviewrow.done .check{color:#fff;border-color:var(--ok);background:var(--ok)}
-.reviewrow.done .check.p1{border-color:var(--p1);background:var(--p1)}
-.reviewrow.done .check.p2{border-color:var(--p2);background:var(--p2)}
-.reviewrow.done .check.p3{border-color:var(--p3);background:var(--p3)}
 .reviewrow.done .ttitle{color:var(--text);text-decoration:none}
 .pflag{
   flex:0 0 auto;padding:1px 6px;border-radius:var(--r-xs);
@@ -2596,7 +2623,7 @@
 .dashboard-bento .priority-focus .splitbar{height:13px}
 /* Even a stale completed snapshot must not paint a checkbox back onto a
    Todoist note: the done-row rules otherwise outrank `.check.nocheck`. */
-.task.done .check.nocheck,.tcard.done .check.nocheck,
+.task.done .check.nocheck,.tcard.done .check.nocheck,.subtaskrow.done .check.nocheck,
 .reviewrow.done .check.nocheck,.reviewrow.done .check.p1.nocheck,
 .reviewrow.done .check.p2.nocheck,.reviewrow.done .check.p3.nocheck{
   border-color:transparent;background:transparent;
@@ -2641,3 +2668,22 @@
   font-variant-numeric:tabular-nums;box-shadow:0 0 0 2px var(--surface);
 }
 .carrying-selection .task.picked{opacity:.45}
+
+/* ---------- The desktop app's quick-add window ----------
+   The window itself is transparent; the composer floats in it, so it looks
+   like it opened over whatever was on screen. */
+html.quickadd, html.quickadd body{background:transparent}
+html.quickadd .scrim{background:transparent}
+
+/* ---------- Inside the desktop app (desktop/) ----------
+   The window has no title bar and its buttons float over the top-left corner,
+   so the sidebar starts lower, and a thin strip at the top moves the window. */
+html.desktop-app body::before{
+  content:"";position:fixed;top:0;left:0;right:0;height:28px;z-index:100;
+  -webkit-app-region:drag;app-region:drag;
+}
+html.desktop-app .sidebar{padding-top:44px}
+html.desktop-app .app.collapsed .expand-wrap{top:8px;left:84px;-webkit-app-region:no-drag;app-region:no-drag}
+html.desktop-app.quickadd body::before{display:none}
+/* The demo banner sits under that strip; its button has to stay clickable. */
+html.desktop-app .demobanner button{-webkit-app-region:no-drag;app-region:no-drag}

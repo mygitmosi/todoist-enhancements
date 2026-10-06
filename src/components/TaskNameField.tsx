@@ -1,17 +1,18 @@
 import {
   createElement, useEffect, useLayoutEffect, useRef, useState,
-  type ChangeEvent, type KeyboardEvent, type MouseEvent, type MutableRefObject,
+  type ChangeEvent, type ClipboardEvent, type KeyboardEvent, type MouseEvent, type MutableRefObject,
   type SyntheticEvent,
 } from 'react';
 import { Icon } from './Icon';
 import { markerStyle } from '@/domain/colors';
 import {
-  carryRanges, parseShorthand, type HighlightKind, type TextRange,
+  carryRanges, parseShorthand, trailingEstimate, type HighlightKind, type TextRange,
 } from '@/domain/shorthand';
 import { useStore } from '@/store/store';
 import { useT } from '@/hooks/useT';
 import type { Snapshot } from '@/domain/types';
 import { bySectionOrder } from '@/domain/orderKey';
+import { splitPastedList } from '@/domain/pastedList';
 
 /** A name with its spaces, case and accents set aside, as the parser reads it. */
 const squash = (text: string): string =>
@@ -56,6 +57,24 @@ interface TaskNameFieldProps {
   onCancel?: () => void;
   /** The field's own element, for a caller that has to focus or release it. */
   fieldRef?: MutableRefObject<(HTMLTextAreaElement | HTMLInputElement) | null>;
+  /**
+   * A list was pasted: two or more lines, one task each (#152).
+   *
+   * Given, the paste is taken over instead of landing in the field, and the
+   * caller gets the titles and a way to put the text back as an ordinary
+   * paste, for when the list is turned down. Left out, every paste is the
+   * field's own, which is what the task panel's title wants.
+   */
+  onPasteList?: (lines: string[], keepAsText: () => void) => void;
+  /**
+   * A subtask's field: the only thing it reads is the estimate that ends the
+   * line (#163), and that is the only thing it marks. No `@` or `#` lists, no
+   * dates, nothing to turn down, because a subtask is created with a title
+   * and, at most, an estimate.
+   */
+  estimateOnly?: boolean;
+  /** Whether the field takes the caret when it appears. Defaults to the single-line field doing so. */
+  autoFocus?: boolean;
   /** The readings turned down so far, as positions in `value`. */
   refusals: TextRange[];
   /**
@@ -85,7 +104,8 @@ interface TaskNameFieldProps {
  */
 export function TaskNameField({
   value, onChange, onSubmit, placeholder, ariaLabel, snapshot, naturalDates,
-  refusals, onRefusals, multiline = false, fieldClassName, onBlur, onCancel, fieldRef,
+  refusals, onRefusals, multiline = false, fieldClassName, onBlur, onCancel, fieldRef, onPasteList,
+  estimateOnly = false, autoFocus,
 }: TaskNameFieldProps) {
   const { t } = useT();
   const createLabel = useStore((s) => s.createLabel);
@@ -95,8 +115,12 @@ export function TaskNameField({
   const [caret, setCaret] = useState(0);
   const [pick, setPick] = useState(0);
 
-  const { ranges } = parseShorthand(value, snapshot, naturalDates, refusals, dateFormat);
-  const token = tokenAtCaret(value, caret);
+  const read = parseShorthand(value, snapshot, naturalDates, refusals, dateFormat);
+  const tail = estimateOnly ? trailingEstimate(value) : null;
+  const ranges = estimateOnly
+    ? (tail ? [{ start: tail.start, end: tail.end, kind: 'duration' as const }] : [])
+    : read.ranges;
+  const token = estimateOnly ? null : tokenAtCaret(value, caret);
 
   /**
    * The refusals that are still refusing something.
@@ -333,6 +357,7 @@ export function TaskNameField({
    * putting the caret beside the word, not somebody aiming at it.
    */
   const clicked = (at: number) => {
+    if (estimateOnly) return;
     const span = spans.find((s) => at > s.start && at < s.end);
     // A link is shown, not read — there is nothing here for a click to turn
     // down and hand back to plain text; it is plain text already.
@@ -373,10 +398,24 @@ export function TaskNameField({
         className: fieldClassName ?? 'composer-name',
         placeholder,
         'aria-label': ariaLabel,
-        autoFocus: !multiline,
+        autoFocus: autoFocus ?? !multiline,
         rows: multiline ? 1 : undefined,
         onBlur,
         value,
+        onPaste: onPasteList && ((e: ClipboardEvent<HTMLInputElement>) => {
+          const text = e.clipboardData.getData('text/plain');
+          const lines = splitPastedList(text);
+          if (!lines) return;
+          e.preventDefault();
+          const field = e.currentTarget;
+          const from = field.selectionStart ?? value.length;
+          const to = field.selectionEnd ?? from;
+          onPasteList(lines, () => {
+            // What the field would have done itself: the lines run together.
+            const flat = text.split(/\r\n|\r|\n/).map((line) => line.trim()).filter(Boolean).join(' ');
+            onChange(value.slice(0, from) + flat + value.slice(to));
+          });
+        }),
         onChange: (e: ChangeEvent<HTMLInputElement>) => {
           /* The refusals are positions in the text being edited, so they move
              with it before anything is read from it again. */
@@ -432,7 +471,7 @@ export function TaskNameField({
             const input = e.currentTarget;
             const at = input.selectionStart ?? 0;
             if (at === input.selectionEnd) {
-              const mark = ranges.find((range) => range.end === at);
+              const mark = estimateOnly ? undefined : ranges.find((range) => range.end === at);
               if (mark) {
                 e.preventDefault();
                 refuse(mark);

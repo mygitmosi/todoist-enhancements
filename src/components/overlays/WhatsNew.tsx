@@ -6,6 +6,7 @@ import { renderTitle } from '@/domain/markdown';
 import {
   localisedReleases, parseChangelog, type ChangeKind, type Release,
 } from '@/domain/changelog';
+import { tourStops } from '@/domain/tour';
 import { COFFEE_URL, GITHUB_URL, VERSION } from '@/app-info';
 import type { TranslationKey } from '@/i18n';
 
@@ -18,6 +19,8 @@ export type WhatsNewScope = { versions: string[] } | 'all';
 interface WhatsNewProps {
   scope: WhatsNewScope | null;
   onClose: () => void;
+  /** Closes the window and runs the tour over what these releases brought. */
+  onShowMe?: (versions: string[]) => void;
 }
 
 /**
@@ -72,7 +75,7 @@ const anchorOf = (version: string) => `whatsnew-${version.replace(/\./g, '-')}`;
  * whole history, from Settings, keeps a heading per release and a row of
  * pills to jump from one to the next.
  */
-export function WhatsNew({ scope, onClose }: WhatsNewProps) {
+export function WhatsNew({ scope, onClose, onShowMe }: WhatsNewProps) {
   const { t, locale } = useT();
   const open = scope !== null;
   const all = useChangelog(open, locale);
@@ -86,6 +89,10 @@ export function WhatsNew({ scope, onClose }: WhatsNewProps) {
   }, [all, scope]);
 
   const history = scope === 'all';
+  /* After an update only, and only when a release brought something the tour
+     can point at: the history has no "since you last looked". */
+  const showable = scope !== null && scope !== 'all' && onShowMe !== undefined
+    && tourStops(scope.versions).length > 0;
   /* One release after an update: no heading of its own, the title says it. */
   const headings = history || shown.length > 1;
   const titleText = history
@@ -214,6 +221,11 @@ export function WhatsNew({ scope, onClose }: WhatsNewProps) {
             <Icon name="coffee" size="sm" />
             {t('coffee.offer')}
           </a>
+          {showable && (
+            <button className="btn" onClick={() => onShowMe(scope.versions)}>
+              {t('whatsNew.showMe')}
+            </button>
+          )}
           <button className="btn primary" data-autofocus onClick={onClose}>
             {t('whatsNew.continue')}
           </button>

@@ -1,4 +1,5 @@
 /** The preferences, and the settings comment that carries them across devices. */
+import { canStoreDurations } from '@/domain/estimates';
 import { request } from '@/api/client';
 import { command, type Command, deleteItem, newUuid } from '@/api/commands';
 import * as idb from '@/db/idb';
@@ -121,6 +122,7 @@ export const createPreferencesSlice: Slice<PreferencesSlice> = (set, get) => ({
   prefs: defaultPreferences(detectLocale()),
   setPrefs(patch) {
     const prefs = { ...get().prefs, ...patch };
+    if (prefs.estimateStorage === 'duration' && !canStoreDurations(get().snapshot.user)) prefs.estimateStorage = 'tag';
     if (patch.weekLabel !== undefined) setWeekLabel(prefs.weekLabel);
     set({ prefs });
     void idb.savePrefs(PREFS_KEY, prefs);

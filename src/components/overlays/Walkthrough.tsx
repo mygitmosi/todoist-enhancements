@@ -1,7 +1,8 @@
+import { canStoreDurations } from '@/domain/estimates';
 import { useState } from 'react';
 import { Overlay } from './Overlay';
 import { Icon } from '../Icon';
-import { AccentChoice, DensityChoice, ThemeChoice } from '../Choosers';
+import { AccentChoice, DensityChoice, ThemeChoice, EstimateStorageChoice } from '../Choosers';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { markOnboarded } from '@/domain/onboarding';
@@ -56,7 +57,7 @@ export function Walkthrough({
   const finish = () => {
     markOnboarded(user?.id);
     // With the settings too, so the account's other browsers know.
-    if (!prefs.onboarded) setPrefs({ onboarded: true });
+    setPrefs({ onboarded: true, estimateStorage: prefs.estimateStorage === 'duration' && canStoreDurations(user) ? 'duration' : 'tag' });
     setStep(0);
     onDone();
   };
@@ -109,6 +110,8 @@ export function Walkthrough({
 
           {step === 1 && (
             <section className="wt-setup">
+              <h3>{t('estimates.storage')}</h3>
+              <EstimateStorageChoice value={prefs.estimateStorage} allowed={canStoreDurations(user)} onChange={(value) => setPrefs({ estimateStorage: value })} />
               <div className="wt-week-layouts">
                 {(['unified', 'split'] as const).map((layout) => (
                   <button

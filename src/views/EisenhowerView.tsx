@@ -59,7 +59,7 @@ export function EisenhowerView({ onOpen, onUnestimated }: EisenhowerViewProps) {
           item, now, urgentRules, importantPriorities, weekLabel,
         ) === quadrant)),
     ])) as Record<EisenhowerQuadrant, typeof roots>;
-  }, [visibleItems, roots, urgentRules, importantPriorities, weekLabel]);
+  }, [visibleItems, urgentRules, importantPriorities, weekLabel]);
 
   return (
     <div className="page eisenhower-page">

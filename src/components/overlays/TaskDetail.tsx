@@ -1,9 +1,11 @@
+import { useCreateTag } from '@/hooks/useCreateTag';
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { copyText, isTemporaryId, todoistTaskUrl } from '@/api/links';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Overlay } from './Overlay';
 import { isTopOverlay } from './overlayStack';
 import { Icon } from '../Icon';
+import { ProgressRing } from '../ProgressRing';
 import { useT } from '@/hooks/useT';
 import { useMenuKeys } from '@/hooks/useMenuKeys';
 import { useData } from '@/hooks/useData';
@@ -11,13 +13,13 @@ import { navigate } from '@/hooks/useRoute';
 import { useStore } from '@/store/store';
 import { useConfirm } from './Confirm';
 import {
-  effectiveEstimate, formatDuration, withEstimate,
+  effectiveEstimate, formatDuration,
 } from '@/domain/estimates';
 import {
   deadlineDate, dueDate, formatRelativeDay, hasTime, toApiDate, toApiDateTime,
 } from '@/domain/dates';
 import { plainTitle, renderMarkdown, titleLinks } from '@/domain/markdown';
-import { parseShorthand, savedRefusals, type TextRange } from '@/domain/shorthand';
+import { parseShorthand, savedRefusals, splitTrailingEstimate, type TextRange } from '@/domain/shorthand';
 import { dueForDate, readRecurrence } from '@/domain/recurrence';
 import { EstimateField } from '../EstimateField';
 import { TaskNameField } from '../TaskNameField';
@@ -118,7 +120,7 @@ export const subtaskRowId = (id: string): string => `subtask:${id}`;
  * way the sidebar's project rows do, and it is both the handle and the landing
  * place — dropping one on another puts it in that one's position.
  */
-function SubtaskRow({ id, children }: { id: string; children: React.ReactNode }) {
+function SubtaskRow({ id, done, children }: { id: string; done: boolean; children: React.ReactNode }) {
   const rowId = subtaskRowId(id);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: rowId });
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: rowId });
@@ -127,7 +129,7 @@ function SubtaskRow({ id, children }: { id: string; children: React.ReactNode })
   return (
     <div
       ref={setDropRef}
-      className={`subtaskrow${isDragging ? ' lifting' : ''}${isOver && !isDragging ? ' landing' : ''}`}
+      className={`subtaskrow${done ? ' done' : ''}${isDragging ? ' lifting' : ''}${isOver && !isDragging ? ' landing' : ''}`}
     >
       {/* Dragged by its handle, so the row's own controls keep working. */}
       <span className="drag subdrag" title={t('detail.reorderSubtask')} ref={setNodeRef} {...attributes} {...listeners}>
@@ -177,7 +179,9 @@ function EditableSubtask({ child, onOpen }: { child: Item; onOpen: (id: string) 
   };
 
   return (
-    <SubtaskRow id={child.id}>
+    /* The box and the title both read `child.checked`, through the row's
+       `done` class, so one can never say done while the other says open (#164). */
+    <SubtaskRow id={child.id} done={child.checked}>
       {isUncompletable(child) ? (
         <span className={`check p${toDisplayPriority(child.priority)} nocheck`} aria-hidden="true" />
       ) : (
@@ -212,9 +216,7 @@ function EditableSubtask({ child, onOpen }: { child: Item; onOpen: (id: string) 
         />
       ) : (
         <button className="subtasktitle" onClick={() => onOpen(child.id)}>
-          <span style={child.checked ? { textDecoration: 'line-through', color: 'var(--faint)' } : undefined}>
-            {plainTitle(displayTaskContent(child))}
-          </span>
+          <span>{plainTitle(displayTaskContent(child))}</span>
         </button>
       )}
       <span className="subtaskactions">
@@ -348,6 +350,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
   const [tagQuery, setTagQuery] = useState('');
+  const newTagChoice = useCreateTag(tagQuery);
   const panelRef = useRef<HTMLDivElement>(null);
   const menuRef = useMenuKeys(menuOpen, () => setMenuOpen(false));
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
@@ -469,7 +472,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
     setRefusals(savedRefusals(item.content, snapshot, naturalDates, dateFormat));
     setMenuOpen(false);
     setTagPickerOpen(false);
-  }, [item?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [item?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- Re-seed only for a different task; sync updates must preserve edits.
 
   useEffect(() => {
     if (editingDescription) descriptionRef.current?.focus();
@@ -515,6 +518,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   const due = dueDate(item);
   const deadline = deadlineDate(item);
   const subtasks = childrenOf(item.id);
+  const doneSubtasks = subtasks.filter((c) => c.checked).length;
   const { minutes, computed } = effectiveEstimate(item, childrenOf);
   /* The parents above this task, outermost first. Guarded against a cycle the
      server should never send but which would otherwise hang the panel. */
@@ -537,6 +541,18 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
     .filter((l) => !l.is_deleted && !l.name.startsWith('est-'))
     .sort(byLabelOrder);
   const filteredTags = allTags.filter((label) => matchesSearch(label.name, tagQuery));
+
+  const { name: newTag, available: canCreateTag, busy: creatingTag } = newTagChoice;
+  async function createAndAttachTag() {
+    if (!item) return;
+    const taskId = item.id;
+    const name = await newTagChoice.create();
+    const current = useStore.getState().snapshot.items[taskId];
+    if (name && current) {
+      await updateTask(taskId, { labels: [...new Set([...current.labels, name])] });
+      setTagQuery('');
+    }
+  }
 
   const toggleTag = (name: string) => void updateTask(item.id, {
     labels: item.labels.includes(name)
@@ -583,7 +599,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
 
     let labels = item.labels;
     if (read.labels.length > 0) labels = [...new Set([...labels, ...read.labels])];
-    if (read.minutes !== null) labels = withEstimate(labels, read.minutes);
+    if (read.minutes !== null) fields.estimateMinutes = read.minutes;
     if (labels !== item.labels) fields.labels = labels;
 
     if (Object.keys(fields).length > 0) void updateTask(item.id, fields);
@@ -639,7 +655,15 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
       setAddingSubtask(false);
       return;
     }
-    void createTask({ content, project_id: item!.project_id, parent_id: item!.id });
+    /* An estimate that ends the line is read the way the composer reads it
+       (#163): `Draft outline (5)` is a subtask of 5 minutes. */
+    const { content: title, minutes: estimate } = splitTrailingEstimate(content);
+    void createTask({
+      content: title,
+      project_id: item!.project_id,
+      parent_id: item!.id,
+      ...(estimate === null ? {} : { estimateMinutes: estimate }),
+    });
     setSubtaskDraft('');
   }
 
@@ -931,11 +955,9 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
             <h3 className="sectionlabel">
               {t('detail.subtasks')}
               {subtasks.length > 0 && (
-                <span className="count">
-                  {t('task.subtaskProgress', {
-                    done: subtasks.filter((c) => c.checked).length,
-                    total: subtasks.length,
-                  })}
+                <span className="count subprog">
+                  <ProgressRing done={doneSubtasks} total={subtasks.length} size="sm" />
+                  {t('task.subtaskProgress', { done: doneSubtasks, total: subtasks.length })}
                 </span>
               )}
             </h3>
@@ -943,23 +965,24 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
             {subtasks.map((child) => <EditableSubtask child={child} onOpen={onOpen} key={child.id} />)}
 
             {addingSubtask ? (
-              <input
-                className="textfield"
+              <TaskNameField
+                estimateOnly
                 autoFocus
+                fieldClassName="textfield subtaskfield"
                 placeholder={t('detail.addSubtask')}
+                ariaLabel={t('detail.addSubtask')}
                 value={subtaskDraft}
-                onChange={(e) => setSubtaskDraft(e.target.value)}
+                onChange={setSubtaskDraft}
                 onBlur={() => { addSubtask(); setAddingSubtask(false); }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addSubtask();
-                  }
-                  if (e.key === 'Escape') {
-                    setSubtaskDraft('');
-                    setAddingSubtask(false);
-                  }
+                onSubmit={addSubtask}
+                onCancel={() => {
+                  setSubtaskDraft('');
+                  setAddingSubtask(false);
                 }}
+                snapshot={snapshot}
+                naturalDates={false}
+                refusals={[]}
+                onRefusals={() => {}}
               />
             ) : (
               <button className="addline" onClick={() => setAddingSubtask(true)}>
@@ -1059,7 +1082,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                   : t('task.estimatePlaceholder')
               }
               onCommit={(value) =>
-                void updateTask(item.id, { labels: withEstimate(item.labels, value) })}
+                void updateTask(item.id, { estimateMinutes: value })}
             />
           </div>
 
@@ -1135,7 +1158,10 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                     onChange={(event) => setTagQuery(event.target.value)}
                     onKeyDown={(event) => {
                       event.stopPropagation();
-                      if (event.key === 'Enter' && filteredTags[0]) {
+                      if (event.key === 'Enter' && canCreateTag) {
+                        event.preventDefault();
+                        void createAndAttachTag();
+                      } else if (event.key === 'Enter' && filteredTags[0]) {
                         event.preventDefault();
                         toggleTag(filteredTags[0].name);
                       }
@@ -1143,6 +1169,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                     }}
                   />
                 </div>
+                {canCreateTag && <button className="opt" disabled={creatingTag} onClick={() => void createAndAttachTag()}><Icon name="plus" size="sm" />{t('estimates.createTag', { name: newTag })}</button>}
                 {allTags.length === 0 && <p className="menuhint">{t('labels.none')}</p>}
                 {allTags.length > 0 && filteredTags.length === 0 && <p className="menuhint">{t('search.noResults')}</p>}
                 {filteredTags.map((label) => (

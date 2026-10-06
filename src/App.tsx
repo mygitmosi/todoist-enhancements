@@ -1,3 +1,4 @@
+import { EstimateConversion } from '@/components/overlays/EstimateConversion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './components/Icon';
 import { Sidebar } from './components/Sidebar';
@@ -13,6 +14,7 @@ import { ProjectSheet, type ProjectSheetTarget } from './components/overlays/Pro
 import { Unestimated } from './components/overlays/Unestimated';
 import { ConfirmProvider } from './components/overlays/Confirm';
 import { Overlay } from './components/overlays/Overlay';
+import { QUICK_ADD, QuickAdd } from './QuickAdd';
 import { WeekView } from './views/WeekView';
 import { UpcomingView } from './views/UpcomingView';
 import { SimpleListView } from './views/SimpleListView';
@@ -23,12 +25,13 @@ import { ReviewView } from './views/ReviewView';
 import { SettingsView } from './views/SettingsView';
 import { EisenhowerView } from './views/EisenhowerView';
 import { ConnectView } from './views/ConnectView';
+import { EstimateStorageDialog } from './components/overlays/EstimateStorageDialog';
 import { Walkthrough } from './components/overlays/Walkthrough';
 import { Tour } from './components/overlays/Tour';
 import { WhatsNew, type WhatsNewScope } from './components/overlays/WhatsNew';
 import { hasChanges, parseChangelog, unseenReleases } from './domain/changelog';
 import { VERSION } from './app-info';
-import { hasOnboarded } from './domain/onboarding';
+import { hasOnboarded, shouldAskEstimateStorage } from './domain/onboarding';
 import { useStore } from './store/store';
 import type { Accent, Theme } from './store/prefs';
 import { ACCENT_TOKENS, accentFamily, hexToHsl } from './domain/accent';
@@ -41,6 +44,7 @@ import { rootItems } from './store/selectors';
 import { detectConflicts } from './domain/conflicts';
 import { anytimeItems, bucketOf, hasLabel, somedayItems, upcomingItems, weekItems } from './domain/views';
 import { effectiveEstimate } from './domain/estimates';
+import type { Item } from './domain/types';
 import type { TranslationKey } from './i18n';
 
 export function App() {
@@ -58,6 +62,10 @@ export function App() {
   const demo = useStore((s) => s.demo);
   const walkthroughOpen = useStore((s) => s.walkthrough);
   const [tourOpen, setTourOpen] = useState(false);
+  /* Null is the whole tour, for a new account. A list of versions is the tour
+     of what an update brought, asked for from What's new: shorter, and with no
+     first-run dialog after it. */
+  const [tourVersions, setTourVersions] = useState<string[] | null>(null);
   const [onboardingStarted, setOnboardingStarted] = useState(false);
   const setWalkthrough = useStore((s) => s.setWalkthrough);
   const beginTourPreview = useStore((s) => s.beginTourPreview);
@@ -70,7 +78,11 @@ export function App() {
   const setPrefs = useStore((s) => s.setPrefs);
   const [whatsNew, setWhatsNew] = useState<WhatsNewScope | null>(null);
   /** The account's own settings have been read at least once since loading. */
+  const storage = useStore((s) => s.prefs.estimateStorage);
+  const onboarded = useStore((s) => s.prefs.onboarded);
+  const [storageDismissed, setStorageDismissed] = useState<string | null>(null);
   const [settled, setSettled] = useState(false);
+  const [conversionRequest, setConversionRequest] = useState({ target: 'tag' as 'tag' | 'duration', request: 0 });
   const syncing = useRef(false);
 
   const route = useRoute();
@@ -81,7 +93,13 @@ export function App() {
   const [searchSeed, setSearchSeed] = useState('');
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [issuesOpen, setIssuesOpen] = useState(false);
-  const [insightsOpen, setInsightsOpen] = useState(false);
+  /* One right-hand panel at a time (Insights, I have time): which one is open
+     is the store's to say, so opening one closes the other. */
+  const insightsOpen = useStore((s) => s.sidePanel === 'insights');
+  const openSidePanel = useStore((s) => s.openSidePanel);
+  const closeSidePanel = useStore((s) => s.closeSidePanel);
+  const setInsightsOpen = (open: boolean) =>
+    (open ? openSidePanel('insights') : closeSidePanel('insights'));
   /* Not a boolean: what the sheet was opened to do — create one here, or edit
      that one — is carried by the open state itself. */
   const [projectSheet, setProjectSheet] = useState<ProjectSheetTarget>(null);
@@ -150,7 +168,7 @@ export function App() {
      Opened here and closed by the dialog, so asking for it again from Settings
      goes through the same door. */
   useEffect(() => {
-    if (ready && (connected || demo) && !hasOnboarded(userId) && !onboardingStarted) {
+    if (!QUICK_ADD && ready && (connected || demo) && !hasOnboarded(userId) && !onboardingStarted) {
       setOnboardingStarted(true);
       /* Somebody meeting the app for the first time is getting the tour; a
          list of what changed since a version they never used is not news. */
@@ -173,7 +191,7 @@ export function App() {
      top of the first run, and never in the demo, which has no account to
      remember having shown it. */
   useEffect(() => {
-    if (!ready || !connected || demo || !settled || !hasOnboarded(userId)) return;
+    if (QUICK_ADD || !ready || !connected || demo || !settled || !hasOnboarded(userId)) return;
     if (tourOpen || walkthroughOpen || whatsNew) return;
     if (seenVersion === VERSION) return;
     let cancelled = false;
@@ -191,8 +209,21 @@ export function App() {
   }, [ready, connected, demo, settled, userId, tourOpen, walkthroughOpen, whatsNew,
     seenVersion, whatsNewOn, setPrefs]);
 
+  const storageOpen = shouldAskEstimateStorage({
+    ready: ready && connected && Boolean(userId), settled, demo, quickAdd: QUICK_ADD,
+    onboarded: onboarded || hasOnboarded(userId), storage,
+    busy: tourOpen || walkthroughOpen || Boolean(whatsNew) || seenVersion !== VERSION,
+    dismissed: storageDismissed === userId,
+  });
+
+  /* Settings opens the whole history. With `detail.versions` the same event
+     opens the window as an update would, for those releases only: how the
+     "Show me" button is reached without an update to make. */
   useEffect(() => {
-    const show = () => setWhatsNew('all');
+    const show = (event: Event) => {
+      const versions = (event as CustomEvent<{ versions?: string[] } | null>).detail?.versions;
+      setWhatsNew(Array.isArray(versions) ? { versions } : 'all');
+    };
     window.addEventListener('enhanced:changelog', show);
     return () => window.removeEventListener('enhanced:changelog', show);
   }, []);
@@ -204,6 +235,8 @@ export function App() {
   if (!connected) {
     return <ConnectView />;
   }
+
+  if (QUICK_ADD) return <QuickAdd />;
 
   return (
     <>
@@ -239,15 +272,20 @@ export function App() {
 
       {/* Outside the shell, and above it. The choices it offers change the
           page behind it, which is the point of showing them here. */}
+      <EstimateStorageDialog onConvert={(target) => setConversionRequest((previous) => ({ target, request: previous.request + 1 }))} open={storageOpen && !demo && !tourOpen && !walkthroughOpen && !whatsNew} onClose={() => { setStorageDismissed(userId ?? null); }} />
+      <EstimateConversion target={conversionRequest.target} openRequest={conversionRequest.request} hideTrigger />
       <Walkthrough
         open={walkthroughOpen}
         onDone={() => setWalkthrough(false)}
       />
       <Tour
         open={tourOpen}
+        versions={tourVersions}
         onDone={() => {
           setTourOpen(false);
-          setWalkthrough(true);
+          // Only a first run goes on to the first-run choices.
+          if (tourVersions === null) setWalkthrough(true);
+          setTourVersions(null);
         }}
       />
       <WhatsNew
@@ -255,6 +293,14 @@ export function App() {
         onClose={() => {
           if (whatsNew !== 'all') setPrefs({ seenVersion: VERSION });
           setWhatsNew(null);
+        }}
+        onShowMe={(versions) => {
+          // Read, as closing it is; then the tour of what was in it, on My week.
+          setPrefs({ seenVersion: VERSION });
+          setWhatsNew(null);
+          navigate('week');
+          setTourVersions(versions);
+          window.setTimeout(() => setTourOpen(true), 100);
         }}
       />
 
@@ -430,6 +476,9 @@ function paintBrowserChrome(): void {
   if (accent) meta.setAttribute('content', accent);
 }
 
+/** The pages that list tasks to work through, which is where "I have time" is offered (#159). */
+const TIME_PAGES = new Set<Route['view']>(['week', 'today', 'project', 'label', 'inbox', 'someday']);
+
 function AppShell({
   route, openTaskId, setOpenTaskId, composerOpen, setComposerOpen,
   searchOpen, setSearchOpen, searchSeed, openSearch, shortcutsOpen, setShortcutsOpen,
@@ -510,14 +559,38 @@ function AppShell({
     () => contextItems.filter((i) => effectiveEstimate(i, childrenOf).minutes === null),
     [contextItems, childrenOf],
   );
+  /* The estimate pass is for the page in front, unless something else names
+     the tasks: the "I have time" panel hands over the ones it set aside. */
+  const [unestimatedFor, setUnestimatedFor] = useState<Item[] | null>(null);
 
   /* Every way out of the browse page is a navigation, so one effect closes it
      rather than each of its thirty buttons remembering to. */
   useEffect(() => setBrowseOpen(false), [route.view, route.id, route.sectionId, setBrowseOpen]);
 
+  /* The "I have time" panel answers about the page it is on. A page with no
+     pill for it (Upcoming, Insights, the review) has nothing to ask it of, so
+     going there puts the panel away rather than leaving it over a page it
+     cannot speak for. The duration is kept for when you come back. */
+  const closeSidePanel = useStore((s) => s.closeSidePanel);
+  useEffect(() => {
+    if (!TIME_PAGES.has(route.view)) closeSidePanel('time');
+  }, [route.view, closeSidePanel]);
+
   /* A selection belongs to the page it was made on. Carrying it to the next
      one would leave a bar offering to delete tasks that are no longer shown. */
   useEffect(() => clearSelection(), [route.view, route.id, route.sectionId, clearSelection]);
+  useEffect(() => {
+    const onBackground = (event: MouseEvent) => {
+      if (document.querySelector('[role="dialog"]')) return;
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
+      const target = event.target as Element | null;
+      if (!target || target.closest('[data-task-id], .bulkbar, [role="dialog"], .popover, .datepanel, .fselect-list, button, a, input, textarea, select')) return;
+      clearSelection();
+    };
+    document.addEventListener('click', onBackground, true);
+    return () => document.removeEventListener('click', onBackground, true);
+  }, [clearSelection]);
+
 
   useEffect(() => {
     document.querySelector<HTMLElement>('.screen.active')?.scrollTo({ top: 0 });
@@ -566,7 +639,11 @@ function AppShell({
     setComposerOpen(true);
   };
   const openInsights = () => setInsightsOpen(true);
-  const openUnestimated = () => setUnestimatedOpen(true);
+  const openUnestimated = (tasks?: Item[]) => {
+    // A click hands its event to whatever it calls: only a list is a list.
+    setUnestimatedFor(Array.isArray(tasks) ? tasks : null);
+    setUnestimatedOpen(true);
+  };
   const viewProps = {
     onOpen: openTask,
     onInsights: openInsights,
@@ -737,8 +814,8 @@ function AppShell({
       </Overlay>
       <Unestimated
         open={unestimatedOpen}
-        onClose={() => setUnestimatedOpen(false)}
-        items={unestimatedItems}
+        onClose={() => { setUnestimatedOpen(false); setUnestimatedFor(null); }}
+        items={unestimatedFor ?? unestimatedItems}
         onOpen={openTask}
       />
       <BulkBar />

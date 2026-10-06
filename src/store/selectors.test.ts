@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { groupItems, sortItems } from './selectors';
+import { groupItems, pullQuick, sortItems } from './selectors';
 import { emptySnapshot, type Project, type Section, type Snapshot } from '@/domain/types';
-import { item } from '@/test/items';
+import { due, item } from '@/test/items';
 
 const project = (id: string, child_order: number, extra: Partial<Project> = {}): Project => ({
   id, name: id, color: 'grey', parent_id: null, child_order,
@@ -84,5 +84,38 @@ describe('sortItems by priority (#98 follow-up)', () => {
       item({ id: 'p1-late', priority: 4, due: due('2026-10-20') }),
     ];
     expect(sortItems(items, 'priority', () => []).map((i) => i.id)).toEqual(['p1-late', 'p2-soon']);
+  });
+});
+
+describe('pullQuick (#154)', () => {
+  const now = new Date(2026, 9, 7, 12, 0, 0);
+  const none = () => [];
+  const page = [
+    item({ id: 'a', labels: ['est-4'], priority: 1, child_order: 3 }),
+    item({ id: 'b', labels: ['est-2'], priority: 4, child_order: 2 }),
+    item({ id: 'c', labels: ['est-30'], child_order: 1 }),
+    item({ id: 'later', labels: ['est-2'], due: due('2026-10-20') }),
+  ];
+
+  it('takes the quick tasks that can be done now and leaves the rest in order', () => {
+    const { quick, rest } = pullQuick(page, true, 'manual', none, 'project', snapshot, now);
+    expect(quick.map((task) => task.id)).toEqual(['b', 'a']);
+    expect(rest.map((task) => task.id)).toEqual(['c', 'later']);
+  });
+
+  it("sorts the group the way the page's Display sort asks", () => {
+    const { quick } = pullQuick(page, true, 'priority', none, 'project', snapshot, now);
+    expect(quick.map((task) => task.id)).toEqual(['b', 'a']);
+    const alphabetical = pullQuick(
+      [item({ id: 'z', content: 'Zed', labels: ['est-2'] }), item({ id: 'y', content: 'Ay', labels: ['est-2'] })],
+      true, 'alphabetical', none, 'project', snapshot, now,
+    );
+    expect(alphabetical.quick.map((task) => task.id)).toEqual(['y', 'z']);
+  });
+
+  it('takes nothing when the Quick group is off', () => {
+    const { quick, rest } = pullQuick(page, false, 'manual', none, 'project', snapshot, now);
+    expect(quick).toEqual([]);
+    expect(rest).toBe(page);
   });
 });

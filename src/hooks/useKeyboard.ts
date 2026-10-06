@@ -94,9 +94,16 @@ const GO_TO: Record<string, ViewId> = {
 /** How long `g` waits for the letter that follows it. */
 const PREFIX_MS = 1500;
 
-/** The tasks on the page in front, in the order they are drawn. */
+/**
+ * The tasks on the page in front, in the order they are drawn.
+ *
+ * The "I have time" panel is a list of its own, beside the page rather than in
+ * it: with the keyboard inside it the keys walk its rows, and anywhere else
+ * they walk the page's.
+ */
 function rows(): HTMLElement[] {
-  const screen = document.querySelector('.screen.active') ?? document;
+  const inPanel = document.activeElement?.closest('.timepanel');
+  const screen = inPanel ?? document.querySelector('.screen.active') ?? document;
   return [...screen.querySelectorAll<HTMLElement>('[data-task-id]')]
     // A row inside a collapsed group is in the document and not on the page.
     .filter((row) => row.offsetParent !== null);
@@ -117,7 +124,8 @@ function land(row: HTMLElement | undefined) {
 const focusLost = (): boolean => !document.activeElement || document.activeElement === document.body;
 
 const rowById = (id: string): HTMLElement | undefined =>
-  rows().find((row) => row.dataset.taskId === id);
+  [...document.querySelectorAll<HTMLElement>('.timepanel [data-task-id], .screen.active [data-task-id]')]
+    .find((row) => row.dataset.taskId === id && row.offsetParent !== null);
 
 /**
  * What the keyboard asks a row to do that only the row can do.
@@ -277,6 +285,29 @@ export function useKeyboard(bridge: KeyboardBridge) {
       }
 
       const current = cursorRow();
+
+      /* ⌘A and then ⌘⌫ deletes what was selected, with no cursor on any row:
+         the selection is the answer to "which ones", so it needs no row to
+         stand on. */
+      if (!current && (e.metaKey || e.ctrlKey) && (e.key === 'Backspace' || e.key === 'Delete')
+        && store.selection.length > 0) {
+        e.preventDefault();
+        const picked = store.selection;
+        const many = picked.length > 1;
+        void ask_({
+          title: say(many ? 'task.deleteTitleMany' : 'task.deleteTitle'),
+          body: many
+            ? say('bulk.deleteConfirm', { count: picked.length })
+            : say('task.deleteConfirm', { name: store.snapshot.items[picked[0]]?.content ?? '' }),
+          confirmLabel: say('task.delete'),
+          destructive: true,
+        }).then((ok) => {
+          if (!ok) return;
+          store.clearSelection();
+          void store.removeTasks(picked);
+        });
+        return;
+      }
 
       if (e.key === 'Escape') {
         /* Escape gives back the outermost thing that can be given back: the
@@ -515,6 +546,15 @@ export function useKeyboard(bridge: KeyboardBridge) {
         if (e.key === 't') {
           e.preventDefault();
           if (onSelection) openBulk('date'); else ask(current, 'schedule');
+          return;
+        }
+        /* Shift+K keeps a task that is gathering dust where it is, on purpose
+           (#161). Only a row in that group answers: anywhere else the capital
+           is still a letter typed, which starts a search. */
+        if (e.key === 'K' && current.hasAttribute('data-dust')) {
+          e.preventDefault();
+          store.keepInSomeday(id);
+          keepCursor(id);
           return;
         }
         if (e.key === 'T') {

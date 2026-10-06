@@ -76,6 +76,7 @@ export function itemFromCompleted(entry: CompletedItem): Item {
     section_id: entry.section_id,
     content: entry.content,
     labels: entry.labels ?? [],
+    duration: entry.duration ?? null,
     priority: entry.priority ?? 1,
     checked: true,
     completed_at: entry.completed_at,

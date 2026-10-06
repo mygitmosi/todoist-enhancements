@@ -605,6 +605,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
 
   /** What you finished, in the order you want to read it. */
   function DoneList() {
+    // This nested component is recreated on each review render; captured values are fresh.
     const ordered = useMemo(() => {
       const list = [...(step?.completed ?? [])];
       if (doneOrder === 'priority') {
@@ -618,7 +619,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
       return list.sort(
         (a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime(),
       );
-    }, [step?.completed, doneOrder]);
+    }, []);
 
     if (loading && ordered.length === 0) return <p className="reviewquiet">{t('common.loading')}</p>;
     if (ordered.length === 0) return <Settled note={t('review.doneNone')} />;
@@ -700,8 +701,8 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
   function Stats() {
     const summary = useMemo(
       () => summariseInsights(step?.completed ?? [], roots, snapshot),
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      [step?.completed, roots, snapshot],
+      // This nested component is recreated on each review render, so captured step, roots and snapshot are fresh.
+      [],
     );
 
     const byPriority: SliceDatum[] = useMemo(
@@ -727,6 +728,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
     /* The seven days of the week under review, in order, including the ones
        nothing was finished on — a gap is part of the shape — each carrying the
        same weekday of the week before as its reference. */
+    // Previous-week data is fresh on each mount of this nested component.
     const byDay: BarDatum[] = useMemo(() => {
       const counts = new Map(summary.byDay.map((d) => [d.date, d.count]));
       const before = new Map<string, number>();
@@ -747,7 +749,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
           reference: before.get(lastWeek) ?? 0,
         };
       });
-    }, [summary.byDay, previous]);
+    }, [summary.byDay]);
 
     if (loading && summary.completedCount === 0) {
       return <p className="reviewquiet">{t('common.loading')}</p>;

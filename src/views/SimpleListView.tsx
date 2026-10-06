@@ -5,12 +5,14 @@ import { DisplayMenu } from '@/components/DisplayMenu';
 import { ModeSurface } from '@/components/ModeSurface';
 import { TaskGroup } from '@/components/TaskGroup';
 import { Icon } from '@/components/Icon';
+import { TimePanel } from '@/components/TimePanel';
 import { useT } from '@/hooks/useT';
+import { useTimePill } from '@/hooks/useTimePill';
 import { useData } from '@/hooks/useData';
 import { useStore } from '@/store/store';
 import { viewPrefs } from '@/store/prefs';
-import { applyFilters, rootItems, sortItems } from '@/store/selectors';
-import { somedayItems, hasLabel } from '@/domain/views';
+import { applyFilters, pullQuick, rootItems, sortItems } from '@/store/selectors';
+import { somedayItems, hasLabel, splitDust } from '@/domain/views';
 import { summariseLoad } from '@/domain/load';
 import type { TranslationKey } from '@/i18n';
 import type { Item } from '@/domain/types';
@@ -21,7 +23,7 @@ interface SimpleListViewProps {
   labelName?: string;
   onOpen: (id: string) => void;
   onInsights: () => void;
-  onUnestimated: () => void;
+  onUnestimated: (items?: Item[]) => void;
   onAddTaskTo: (placement: TaskPlacement) => void;
 }
 
@@ -48,6 +50,7 @@ function SimpleListBody({
   kind, labelName, onOpen, onInsights, onUnestimated, onAddTaskTo,
 }: SimpleListViewProps) {
   const { t } = useT();
+  const timePill = useTimePill();
   const { snapshot, items, childrenOf } = useData();
   const prefs = useStore((s) => s.prefs);
   const viewKey = kind === 'label' ? `label:${labelName}` : kind;
@@ -78,9 +81,36 @@ function SimpleListBody({
      lists like that. */
   const order: RowOrder = kind === 'inbox' ? 'project' : 'day';
 
+  /* The quick tasks lead the page and are listed only there (#154). A board
+     keeps its columns whole. */
+  const split = useMemo(
+    () => current.mode === 'board' && current.group !== 'none'
+      ? { quick: [], rest: scoped }
+      : pullQuick(scoped, prefs.showQuickGroup, current.sort, childrenOf, order, snapshot),
+    [scoped, current.mode, current.group, current.sort, prefs.showQuickGroup, childrenOf, order, snapshot],
+  );
+  /* Under Quick, on Someday only: what has sat there for months (#161). Quick
+     has taken its own already, so nothing is listed twice. The group is oldest
+     first unless the Display sort asks for something else. */
+  const dustKept = useStore((s) => s.dustKept);
+  const dustSplit = useMemo(() => {
+    if (kind !== 'someday' || !prefs.showDustGroup || current.mode === 'board') {
+      return { dust: [], rest: split.rest };
+    }
+    const { dust, rest } = splitDust(split.rest, {
+      months: prefs.dustAfterMonths, kept: dustKept,
+    });
+    return {
+      dust: current.sort === 'manual' ? dust : sortItems(dust, current.sort, childrenOf, order, snapshot),
+      rest,
+    };
+  }, [kind, split.rest, prefs.showDustGroup, prefs.dustAfterMonths, dustKept,
+    current.mode, current.sort, childrenOf, order, snapshot]);
+  const pool = dustSplit.rest;
+
   const ordered = useMemo(
-    () => sortItems(scoped, current.sort, childrenOf, order, snapshot),
-    [scoped, current.sort, childrenOf, order, snapshot],
+    () => sortItems(pool, current.sort, childrenOf, order, snapshot),
+    [pool, current.sort, childrenOf, order, snapshot],
   );
 
   const load = useMemo(
@@ -125,6 +155,35 @@ function SimpleListBody({
     return undefined;
   };
 
+  /* One group at the top of the page. Each row says where it comes from: the
+     project, and the section when it has one. It takes no drop and has no
+     line to add a task. */
+  const quickGroup = split.quick.length > 0 ? (
+    <TaskGroup
+      title={t('group.quick')}
+      items={split.quick}
+      childrenOf={childrenOf}
+      onOpen={onOpen}
+      showSection
+      accent="quick"
+    />
+  ) : undefined;
+
+  /* Under Quick, above everything else. It takes no drop and has no line to
+     add a task: nothing is filed as dusty on purpose. */
+  const dustGroup = dustSplit.dust.length > 0 ? (
+    <TaskGroup
+      title={t('group.dust')}
+      subtitle={t('group.dustSince', { count: prefs.dustAfterMonths })}
+      items={dustSplit.dust}
+      childrenOf={childrenOf}
+      onOpen={onOpen}
+      accent="dust"
+      dust
+    />
+  ) : undefined;
+  const lead = quickGroup || dustGroup ? <>{quickGroup}{dustGroup}</> : undefined;
+
   return (
     <div className="page">
       <PageHeader
@@ -144,15 +203,26 @@ function SimpleListBody({
         }
         load={load}
         onOpenUnestimated={load.unestimatedCount > 0 ? onUnestimated : undefined}
+        time={timePill}
+      />
+      <TimePanel
+        pageItems={scoped}
+        pageLabel={title}
+        onOpen={onOpen}
+        onUnestimated={onUnestimated}
       />
 
 
-      {current.mode === 'list' && current.group === 'none' ? (
+      {/* A list with nothing in it is drawn as the one flat list whatever it is
+          grouped by: groups of nothing have no line to add a task, and an empty
+          page is exactly where one is wanted. */}
+      {current.mode === 'list' && (current.group === 'none' || scoped.length === 0) ? (
         /* One flat list is one place, so it is a group of its own rather than
            a grouping of one: somewhere to drop a task, and a standing line to
            add one that already belongs here — in the Inbox, in the project;
            on a tag page, with the tag on. */
         <div className="mode">
+          {lead}
           <TaskGroup
             items={ordered}
             childrenOf={childrenOf}
@@ -166,7 +236,18 @@ function SimpleListBody({
         </div>
       ) : (
         <ModeSurface
-          items={scoped}
+          items={pool}
+          lead={lead}
+          /* A board with no grouping is its one column, led by Quick: blue,
+             and a place to look rather than somewhere to drop. */
+          boardColumns={current.mode === 'board' && current.group === 'none'
+            ? [
+                ...(split.quick.length > 0
+                  ? [{ id: 'quick', title: t('group.quick'), items: split.quick, accent: 'quick' as const }]
+                  : []),
+                { id: 'all', title: t('common.all'), items: ordered },
+              ]
+            : undefined}
           childrenOf={childrenOf}
           mode={current.mode}
           wide={current.wide}

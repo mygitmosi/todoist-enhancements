@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { defaultConflictSettings, detectConflicts, detectIncomplete } from './conflicts';
-import { weekLabel } from './types';
+import { setEstimateStorage, weekLabel } from './types';
 import { due, item } from '@/test/items';
 
 const noChildren = () => [];
@@ -52,5 +52,30 @@ describe('detectIncomplete', () => {
     const estimated = item({ id: 'estimated', labels: ['est-15'] });
     const bare = item({ id: 'bare' });
     expect(detectIncomplete([estimated, bare]).map((task) => task.id)).toEqual(['bare']);
+  });
+
+  it("counts Todoist's own duration as an estimate (#151)", () => {
+    const timed = item({ id: 'timed', duration: { amount: 30, unit: 'minute' } });
+    const days = item({ id: 'days', duration: { amount: 1, unit: 'day' } });
+    expect(detectIncomplete([timed, days]).map((task) => task.id)).toEqual(['days']);
+  });
+
+  it('never reports a duration as a second estimate', () => {
+    const both = item({ labels: ['est-30'], duration: { amount: 45, unit: 'minute' } });
+    expect(detectConflicts([both], noChildren, defaultConflictSettings())).toEqual([]);
+  });
+});
+
+afterEach(() => setEstimateStorage(null));
+describe('estimate storage conflicts', () => {
+  it('shows differing sources only when duration is selected, and warns about timed blocks', () => {
+    const task = item({ labels: ['est-25'], duration: { amount: 60, unit: 'minute' }, due: due('2026-10-06T10:00:00') });
+    expect(kinds([task])).toEqual([]);
+    setEstimateStorage('duration');
+    const conflicts = detectConflicts([task], noChildren);
+    expect(conflicts[0].kind).toBe('estimate-mismatch');
+    expect(conflicts[0].options[1].labelKey).toBe('estimates.keepTagTimed');
+    expect(detectConflicts([task], noChildren, { ...defaultConflictSettings(), estimateMismatch: false })).toEqual([]);
+    expect(kinds([item({ labels: ['est-60'], duration: { amount: 60, unit: 'minute' } })])).toEqual([]);
   });
 });

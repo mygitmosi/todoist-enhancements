@@ -1,4 +1,6 @@
+import { useCreateTag } from '@/hooks/useCreateTag';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { EstimateField } from './EstimateField';
 import { Icon, type IconName } from './Icon';
 import { DatePicker, taskShortcuts } from './DatePicker';
 import { useT } from '@/hooks/useT';
@@ -199,6 +201,21 @@ function BulkMenu({
   );
 }
 
+function BulkEstimateEditor({ onSave, onClose }: { onSave: (minutes: number | null) => void; onClose: () => void }) {
+  const { t } = useT();
+  const [minutes, setMinutes] = useState<number | null>(null);
+  return <div className="bulk-estimate" onKeyDownCapture={(event) => {
+    if (event.key === 'Enter' && event.target instanceof HTMLInputElement && minutes !== null) {
+      event.preventDefault(); event.stopPropagation(); onSave(minutes); onClose();
+    }
+  }}>
+    <p className="menuhint">{t('estimates.inputHint')}</p>
+    <EstimateField minutes={null} placeholder="25, 1h15, 90 min" unitLabel="min / h" inputMode="text" autoFocus onChange={setMinutes} onCommit={setMinutes} onCancel={onClose} />
+    <button className="btn primary" disabled={minutes === null} onClick={() => { onSave(minutes); onClose(); }}>{t('estimates.applySelection')}</button>
+    <button className="opt" onClick={() => { onSave(null); onClose(); }}>{t('estimates.clear')}</button>
+  </div>;
+}
+
 /**
  * What to do with the tasks you picked out.
  *
@@ -222,6 +239,7 @@ export function BulkBar() {
   const clearSelection = useStore((s) => s.clearSelection);
   const sendManyTo = useStore((s) => s.sendManyTo);
   const removeTasks = useStore((s) => s.removeTasks);
+  const setEstimates = useStore((s) => s.setEstimates);
   const updateMany = useStore((s) => s.updateMany);
   const moveMany = useStore((s) => s.moveMany);
   const skipOccurrences = useStore((s) => s.skipOccurrences);
@@ -229,6 +247,7 @@ export function BulkBar() {
   const snapshot = useStore((s) => s.snapshot);
   const [projectQuery, setProjectQuery] = useState('');
   const [tagQuery, setTagQuery] = useState('');
+  const newTag = useCreateTag(tagQuery);
 
   /* The bar and the toasts share the foot of the window, and the toast that
      answers a bulk action used to land on the very buttons the next one needs.
@@ -370,6 +389,15 @@ export function BulkBar() {
     );
   };
 
+  async function createAndSetTag() {
+    const ids = [...selection];
+    const name = await newTag.create();
+    if (name) {
+      await updateMany(ids, (item) => item.labels.includes(name) ? null : { labels: [...item.labels, name] }, t('bulk.labels'));
+      setTagQuery('');
+    }
+  }
+
   return (
     <div ref={measureBar} className="bulkbar" role="toolbar" aria-label={t('bulk.title')}>
       <strong>{t('bulk.count', { count })}</strong>
@@ -421,6 +449,10 @@ export function BulkBar() {
             ) : undefined}
           />
         )}
+      </BulkMenu>
+
+      <BulkMenu icon="clock" label={t('detail.estimate')}>
+        {(close) => <BulkEstimateEditor onClose={close} onSave={(minutes) => void setEstimates(selection.map((id) => ({ id, minutes })))} />}
       </BulkMenu>
 
       <BulkMenu icon="project" label={t('bulk.move')} name="move">
@@ -498,7 +530,9 @@ export function BulkBar() {
                 onChange={(event) => setTagQuery(event.target.value)}
                 onKeyDown={(event) => {
                   event.stopPropagation();
-                  if (event.key === 'Enter' && filteredTags[0]) {
+                  if (event.key === 'Enter' && newTag.available) {
+                    event.preventDefault(); void createAndSetTag();
+                  } else if (event.key === 'Enter' && filteredTags[0]) {
                     event.preventDefault();
                     const first = filteredTags[0];
                     setTag(first.name, tagState(first.name) !== 'all');
@@ -507,6 +541,7 @@ export function BulkBar() {
               />
             </div>
             <div className="bulkpop-list">
+              {newTag.available && <button className="opt" disabled={newTag.busy} onClick={() => void createAndSetTag()}><Icon name="plus" size="sm" />{t('estimates.createTag', { name: newTag.name })}</button>}
               {tags.length === 0 && <p className="menuhint">{t('labels.none')}</p>}
               {tags.length > 0 && filteredTags.length === 0 && <p className="menuhint">{t('search.noResults')}</p>}
               {filteredTags.map((label) => {

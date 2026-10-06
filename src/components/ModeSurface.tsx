@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useDndMonitor } from '@dnd-kit/core';
 import { TaskGroup } from './TaskGroup';
 import { Icon } from './Icon';
@@ -42,6 +42,8 @@ interface ModeSurfaceProps {
     onAddTask?: () => void;
     /** A day column knows its capacity, and shows its load against it. */
     capacityMinutes?: number | null;
+    /** Quick is blue, as it is in a list; its cards say which section they come from. */
+    accent?: 'quick';
   }>;
   /**
    * Makes a section at the end of the board, from a column of its own after
@@ -51,6 +53,11 @@ interface ModeSurfaceProps {
   onAddSection?: (name: string) => Promise<void> | void;
   /** A board as wide as the page rather than the header (ViewPrefs.wide). */
   wide?: boolean;
+  /**
+   * Groups a list leads with, above whatever it was grouped by (the Quick
+   * group, #154). A board has no such lead, and never draws one.
+   */
+  lead?: ReactNode;
 }
 
 /**
@@ -103,12 +110,13 @@ function ListSurface(props: ModeSurfaceProps) {
   const { t } = useT();
   const groups = useGrouped(props);
 
-  if (props.items.length === 0) {
+  if (props.items.length === 0 && !props.lead) {
     return <p className="empty">{t('task.noTasks')}</p>;
   }
 
   return (
     <div className="mode">
+      {props.lead}
       {groups.map((group) => (
         <TaskGroup
           key={group.key}
@@ -277,7 +285,7 @@ function BoardSurface(props: ModeSurfaceProps) {
           // An empty column has nothing to measure; "0 %" under it is noise.
           if (column.items.length === 0) parts.length = 0;
           const body = (isOver: boolean) => (
-            <section className={`col${isOver ? ' dropping' : ''}`}>
+            <section className={`col${column.accent ? ` accent-${column.accent}` : ''}${isOver ? ' dropping' : ''}`}>
             <div className="chead">
               <div className="chead-title">
                 <strong>{column.title}</strong>
@@ -294,13 +302,14 @@ function BoardSurface(props: ModeSurfaceProps) {
                 childrenOf={props.childrenOf}
                 onOpen={props.onOpen}
                 showProject={props.showProject}
+                showSection={column.accent === 'quick'}
                 surface="card"
               />
             ))}
             {column.items.length === 0 && <p className="empty">{t('group.empty')}</p>}
             {/* Not a card: a card is a task, and the thing that makes one is
                 the end of the column rather than something sitting in it. */}
-            {(column.onAddTask ?? props.addToGroup?.(column.id)) && (
+            {column.accent !== 'quick' && (column.onAddTask ?? props.addToGroup?.(column.id)) && (
               <button
                 className="coladd"
                 onClick={column.onAddTask ?? props.addToGroup?.(column.id)}
