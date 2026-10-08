@@ -1,7 +1,8 @@
-import { differenceInCalendarDays, format, startOfDay } from 'date-fns';
+import { differenceInCalendarDays, format, startOfDay, subDays } from 'date-fns';
 import type { CompletedItem, Item, Snapshot } from './types';
 import { ESTIMATE_PREFIX, toDisplayPriority } from './types';
 import { estimateOf } from './estimates';
+import { bucketKey, bucketsOf, type Grain, type Range } from './periods';
 
 /**
  * The numbers behind Insights, computed from the completed-task history and
@@ -92,11 +93,11 @@ function streaks(days: Set<string>, now: Date): { current: number; longest: numb
   let current = 0;
   let cursor = startOfDay(now);
   if (!days.has(format(cursor, 'yyyy-MM-dd'))) {
-    cursor = new Date(cursor.getTime() - 86_400_000);
+    cursor = subDays(cursor, 1);
   }
   while (days.has(format(cursor, 'yyyy-MM-dd'))) {
     current += 1;
-    cursor = new Date(cursor.getTime() - 86_400_000);
+    cursor = subDays(cursor, 1);
   }
 
   return { current, longest };
@@ -171,4 +172,23 @@ export function summariseInsights(
       ? Math.round((estimated / openTasks.length) * 100)
       : 0,
   };
+}
+
+/**
+ * Completions counted per day or per month of a range, every bucket present
+ * even when nothing was finished in it. A quarter read by month has three
+ * buckets whose counts add up to the quarter's total (#174).
+ */
+export function completionBuckets(
+  items: Array<{ completed_at: string }>, range: Range, grain: Grain,
+): Array<{ at: Date; key: string; value: number }> {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const key = bucketKey(new Date(item.completed_at), grain);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return bucketsOf(range, grain).map((at) => {
+    const key = bucketKey(at, grain);
+    return { at, key, value: counts.get(key) ?? 0 };
+  });
 }

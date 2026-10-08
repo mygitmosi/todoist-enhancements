@@ -253,6 +253,7 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
       // What was asked of one account's tasks is not asked of the next one's.
       sidePanel: null,
       timeFilter: { minutes: null, scope: 'page', sort: 'duration' },
+      // One account's note is never the next account's.
     });
   },
   async refresh(full = false, signedIn) {

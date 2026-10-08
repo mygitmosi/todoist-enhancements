@@ -6,7 +6,7 @@ import {
 import type { Modifier } from '@dnd-kit/core';
 import { useStore } from '@/store/store';
 import {
-  canNest, decodeRowTarget, decodeTarget, dropMutation, moveArgs, siblingTasks,
+  arrangeDrop, canNest, descendantsOf, decodeRowTarget, decodeTarget, dropMutation, moveArgs, siblingTasks,
   type DropTarget,
 } from '@/domain/dnd';
 import { formatDayOrName } from '@/domain/dates';
@@ -172,7 +172,7 @@ const collisionsForKind: CollisionDetection = (args) => {
 };
 
 /** How far to the left of a row its own drag handle is drawn. */
-const HANDLE_GUTTER_PX = 36;
+const HANDLE_GUTTER_PX = 132;
 
 /**
  * When the last drag ended, for the click that a browser fires on a drop.
@@ -342,17 +342,17 @@ export function DragProvider({ children }: { children: ReactNode }) {
     const id = String(event.active.id);
     const isSection = id.startsWith('section:');
     const isProject = id.startsWith('project-row:');
-    const isSubtask = id.startsWith('subtask:');
+
     setDraggingId(id);
     /* None of these is a task being filed somewhere, so the "a task is in
        flight" flag stays down and the empty drop zones stay closed. A subtask
        being reordered is moving inside its parent, not out of it. */
-    setDragging(isSection || isProject || isSubtask ? null : taskIdOf(id));
+    setDragging(isSection || isProject ? null : taskIdOf(id));
     setDraggingSection(isSection ? id.slice('section:'.length) : null);
     setDraggingProject(isProject ? id.slice('project-row:'.length) : null);
     setDraggingTag(id.startsWith(TAG_DRAG_PREFIX) ? id.slice(TAG_DRAG_PREFIX.length) : null);
 
-    const block = isSection || isProject || isSubtask ? [] : carriedWith(taskIdOf(id));
+    const block = isSection || isProject || id.startsWith('subtask:') ? [] : carriedWith(taskIdOf(id));
     setCarrying(block);
     document.documentElement.classList.toggle('carrying-selection', block.length > 1);
   }
@@ -421,7 +421,11 @@ export function DragProvider({ children }: { children: ReactNode }) {
     if (activeId.startsWith(SUBTASK_DRAG_PREFIX) && pulledOut) {
       const sub = snapshot.items[taskIdOf(activeId)];
       if (sub?.parent_id && !(event.over && decodeRowTarget(String(event.over.id)))) {
-        await promoteTask(sub);
+        /* A selection pulled out goes out whole, as it goes in (#166): the
+           picked subtasks, each from its own parent, in one step of undo. */
+        const group = carried.length > 1 && carried.includes(sub.id) ? carried : [sub.id];
+        await promoteTasks(group.map((id) => snapshot.items[id]).filter((it): it is Item => !!it));
+        if (group.length > 1) useStore.getState().clearSelection();
         return;
       }
     }
@@ -636,11 +640,40 @@ export function DragProvider({ children }: { children: ReactNode }) {
        the row; straight onto it, the task takes its place. */
     const onRow = decodeRowTarget(String(event.over.id));
     if (item && onRow && onRow !== item.id) {
+      const pointerY = (event.activatorEvent as PointerEvent).clientY + event.delta.y;
+      const afterRow = pointerY >= event.over.rect.top + event.over.rect.height / 2;
+      const slot = afterRow ? 'after' : 'before';
       const row = snapshot.items[onRow];
       if (!row) return;
-      const list = (event.over.data.current as { list?: RowList } | undefined)?.list;
-      if (nesting) { await nestTask(item, row.id); return; }
-      if (!list) return;
+      const list = (event.over.data.current as { list?: RowList } | undefined)?.list
+        ?? (item.parent_id ? { order: 'project' as const, ids: siblingTasks(snapshot.items, row) } : undefined);
+      if (item.parent_id === row.id && afterRow && !pulledOut) {
+        const siblings = siblingTasks(snapshot.items, item);
+        const block = carried.length > 1 && carried.includes(item.id) ? carried : [item.id];
+        if (block.includes(row.id) || block.some((id) => {
+          const task = snapshot.items[id];
+          return !task || descendantsOf(snapshot.items, id).includes(row.id) || (task.parent_id !== row.id && !canNest(snapshot.items, id, row.id));
+        })) return;
+        const first = siblings.find((id) => !block.includes(id));
+        if (first && block.length > 1) {
+          await reorderMany(block.map((id) => snapshot.items[id]).filter((it): it is Item => !!it), item, snapshot.items[first], { order: 'project', ids: siblings }, 'before');
+          useStore.getState().clearSelection();
+        } else if (first) await reorderTask(item, snapshot.items[first], { order: 'project', ids: siblings }, false, true, 'before');
+        return;
+      }
+      if (nesting) {
+        /* A selection carried out of one of its rows goes inside the row
+           together, all of it or none (#166); only the dragged task used to. */
+        if (carried.length > 1 && carried.includes(item.id)) {
+          const store = useStore.getState();
+          if (await store.nestMany(carried, row.id)) store.clearSelection();
+          return;
+        }
+        await nestTask(item, row.id);
+        return;
+      }
+      if (!list || descendantsOf(snapshot.items, item.id).includes(row.id)) return;
+      if (row.parent_id && item.parent_id !== row.parent_id && !canNest(snapshot.items, item.id, row.parent_id)) return;
       /* A task put into a place by hand is a view arranged by hand. Views open
          sorted by priority, and a drop used to be refused rather than obeyed
          on one; it is obeyed, and the sort gives way to it. The order written
@@ -653,12 +686,16 @@ export function DragProvider({ children }: { children: ReactNode }) {
         if (carried.includes(row.id)) return;
         useStore.getState().clearSelection();
         const block = carried.map((id) => snapshot.items[id]).filter((it): it is Item => !!it);
-        if (list.order === 'day') await orderManyInList(block, item, row, list);
-        else await reorderMany(block, item, row, list);
+        if (block.some((it) => descendantsOf(snapshot.items, it.id).includes(row.id)
+          || (row.parent_id && it.parent_id !== row.parent_id && !canNest(snapshot.items, it.id, row.parent_id)))) return;
+        if (block.some((it) => it.parent_id) || row.parent_id) await reorderMany(block, item, row, list, slot);
+        else if (list.order === 'day') await orderManyInList(block, item, row, list, slot);
+        else await reorderMany(block, item, row, list, slot);
         return;
       }
-      if (list.order === 'day') await orderInList(item, row, list);
-      else await reorderTask(item, row, list);
+      if (item.parent_id || row.parent_id) await reorderTask(item, row, list, afterRow, true, slot);
+      else if (list.order === 'day') await orderInList(item, row, list, afterRow, slot);
+      else await reorderTask(item, row, list, afterRow, true, slot);
       return;
     }
 
@@ -752,20 +789,20 @@ export function DragProvider({ children }: { children: ReactNode }) {
    * them. Dragged down, the block goes after the row it was dropped on;
    * dragged up, or from another list, before it.
    */
-  function spliceBlock(ids: string[], block: string[], dragged: string, row: string): string[] {
+  function spliceBlock(ids: string[], block: string[], dragged: string, row: string, slot?: 'before' | 'after'): string[] {
     const from = ids.indexOf(dragged);
     const onto = ids.indexOf(row);
     const moving = new Set(block);
     const rest = ids.filter((id) => !moving.has(id));
     const at = rest.indexOf(row);
     if (at < 0) return ids;
-    const down = from >= 0 && from < onto;
+    const down = slot ? slot === 'after' : from >= 0 && from < onto;
     return [...rest.slice(0, at + (down ? 1 : 0)), ...block, ...rest.slice(at + (down ? 1 : 0))];
   }
 
   /** A block dropped between rows of a list ordered by day (My week, Upcoming). */
-  async function orderManyInList(block: Item[], dragged: Item, row: Item, list: RowList) {
-    const ids = spliceBlock(list.ids, block.map((it) => it.id), dragged.id, row.id);
+  async function orderManyInList(block: Item[], dragged: Item, row: Item, list: RowList, slot?: 'before' | 'after') {
+    const ids = spliceBlock(list.ids, block.map((it) => it.id), dragged.id, row.id, slot);
     const before = Object.fromEntries(
       ids.filter((id) => snapshot.items[id]).map((id) => [id, snapshot.items[id].day_order]),
     );
@@ -819,7 +856,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
   }
 
   /** A block dropped between rows of a project, a section or a parent's subtasks. */
-  async function reorderMany(block: Item[], dragged: Item, row: Item, list: RowList) {
+  async function reorderMany(block: Item[], dragged: Item, row: Item, list: RowList, slot?: 'before' | 'after') {
     const container = { project_id: row.project_id, section_id: row.section_id, parent_id: row.parent_id };
     const joins = (it: Item) => it.project_id !== container.project_id
       || (it.section_id ?? null) !== (container.section_id ?? null)
@@ -835,7 +872,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
       .filter((at) => at >= 0)
       .forEach((at, index) => { arranged[at] = shown[index]; });
     if (!arranged.includes(row.id)) return;
-    const next = spliceBlock(arranged, block.map((it) => it.id), dragged.id, row.id);
+    const next = spliceBlock(arranged, block.map((it) => it.id), dragged.id, row.id, slot);
 
     const moveTo = (it: Item) => (container.parent_id
       ? moveItem(it.id, { parent_id: container.parent_id })
@@ -888,12 +925,15 @@ export function DragProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  async function orderInList(item: Item, row: Item, list: RowList, landAfter = false) {
+  async function orderInList(item: Item, row: Item, list: RowList, landAfter = false, slot?: 'before' | 'after') {
     const ids = [...list.ids];
     const onto = ids.indexOf(row.id);
     if (onto < 0) return;
     const at = ids.indexOf(item.id);
-    if (at >= 0) ids.splice(onto, 0, ...ids.splice(at, 1));
+    if (slot) {
+      if (at >= 0) ids.splice(at, 1);
+      ids.splice(ids.indexOf(row.id) + (slot === 'after' ? 1 : 0), 0, item.id);
+    } else if (at >= 0) ids.splice(onto, 0, ...ids.splice(at, 1));
     // A task from another list goes in before the row, or after it when asked.
     else ids.splice(onto + (landAfter ? 1 : 0), 0, item.id);
 
@@ -950,7 +990,10 @@ export function DragProvider({ children }: { children: ReactNode }) {
    * joins that container first, in the same batch — otherwise Todoist would
    * renumber it among tasks it does not live with.
    */
-  async function reorderTask(item: Item, row: Item, list: RowList, landAfter = false) {
+  async function reorderTask(
+    item: Item, row: Item, list: RowList, landAfter = false, skipUnchanged = false,
+    slot?: 'before' | 'after' | 'first',
+  ) {
     const container = {
       project_id: row.project_id,
       section_id: row.section_id,
@@ -968,19 +1011,11 @@ export function DragProvider({ children }: { children: ReactNode }) {
        from the screen: the siblings the page is showing are laid back into
        their own slots in screen order, and the ones a filter is hiding keep
        the places they had between them. */
-    const shown = list.ids.filter((id) => siblings.includes(id));
-    const arranged = [...siblings];
-    const slots = siblings
-      .map((id, at) => (shown.includes(id) ? at : -1))
-      .filter((at) => at >= 0);
-    slots.forEach((at, index) => { arranged[at] = shown[index]; });
-
-    const onto = arranged.indexOf(row.id);
-    if (onto < 0) return;
-    const next = [...arranged];
-    const at = next.indexOf(item.id);
-    if (at >= 0) next.splice(onto, 0, ...next.splice(at, 1));
-    else next.splice(onto + (landAfter ? 1 : 0), 0, item.id);
+    const arrangement = arrangeDrop(siblings, list.ids, item.id, row.id, landAfter, slot);
+    if (!arrangement) return;
+    const { arranged, next } = arrangement;
+    // Put back where it was, which is nothing to write (#165).
+    if (skipUnchanged && !joining && next.join() === arranged.join()) return;
 
     const move = container.parent_id
       ? moveItem(item.id, { parent_id: container.parent_id })
@@ -1099,10 +1134,18 @@ export function DragProvider({ children }: { children: ReactNode }) {
         return { ...snap, items };
       };
 
+    const siblings = siblingTasks(snapshot.items, { ...item, parent_id: parent.id, project_id: parent.project_id, section_id: parent.section_id }).filter((id) => id !== item.id);
+    const order = keysInOrder(siblings.length + 1);
     const before = { parent_id: item.parent_id, project_id: item.project_id, section_id: item.section_id };
+    const oldOrder = { child_order: item.child_order, order_key: item.order_key ?? null };
     await apply(
-      [moveItem(item.id, { parent_id: parent.id })],
-      place({ parent_id: parent.id, project_id: parent.project_id, section_id: parent.section_id }),
+      [moveItem(item.id, { parent_id: parent.id }), reorderItems([...siblings, item.id].map((id, i) => ({ id, child_order: i + 1 })))],
+      (snap) => {
+        const next = place({ parent_id: parent.id, project_id: parent.project_id, section_id: parent.section_id })(snap);
+        const items = { ...next.items };
+        [...siblings, item.id].forEach((id, i) => { items[id] = { ...items[id], child_order: i + 1, order_key: order[i] }; });
+        return { ...next, items };
+      },
     );
 
     // Moving to a project or a section puts a task back at its top level.
@@ -1110,23 +1153,34 @@ export function DragProvider({ children }: { children: ReactNode }) {
       ? moveItem(item.id, { parent_id: before.parent_id })
       : moveItem(item.id, moveArgs({ project_id: before.project_id, section_id: before.section_id }));
     toast(t('drop.nested', { name: parent.content }), () => {
-      void apply([undo], place(before));
+      void apply([undo, reorderItems([{ id: item.id, child_order: oldOrder.child_order }])], (snap) => { const next = place(before)(snap); return { ...next, items: { ...next.items, [item.id]: { ...next.items[item.id], ...oldOrder } } }; });
     });
   }
 
-  async function promoteTask(item: Item) {
-    const parentId = item.parent_id;
-    if (!parentId) return;
-    const patch = (parent_id: string | null) => (snap: typeof snapshot) => ({
-      ...snap,
-      items: { ...snap.items, [item.id]: { ...snap.items[item.id], parent_id } },
-    });
+  /**
+   * Subtasks pulled out to the left: each moves up one level within
+   * its own project and section. A picked task whose own parent is picked
+   * too stays with it, as in a block going in (#166).
+   */
+  async function promoteTasks(picked: Item[]) {
+    const set = new Set(picked.map((it) => it.id));
+    const leaving = picked.filter((it) => it.parent_id && !set.has(it.parent_id));
+    const nextParent = (it: Item) => snapshot.items[it.parent_id ?? '']?.parent_id ?? null;
+    if (leaving.length === 0) return;
+    const patch = (parentOf: (it: Item) => string | null) => (snap: typeof snapshot) => {
+      const items = { ...snap.items };
+      for (const it of leaving) if (items[it.id]) items[it.id] = { ...items[it.id], parent_id: parentOf(it) };
+      return { ...snap, items };
+    };
     await apply(
-      [moveItem(item.id, moveArgs({ project_id: item.project_id, section_id: item.section_id }))],
-      patch(null),
+      leaving.map((it) => moveItem(it.id, nextParent(it) ? { parent_id: nextParent(it)! } : moveArgs({ project_id: it.project_id, section_id: it.section_id }))),
+      patch(nextParent),
     );
     toast(t('drop.promoted'), () => {
-      void apply([moveItem(item.id, { parent_id: parentId })], patch(parentId));
+      void apply(
+        leaving.map((it) => moveItem(it.id, { parent_id: it.parent_id as string })),
+        patch((it) => leaving.find((l) => l.id === it.id)?.parent_id ?? null),
+      );
     });
   }
 
@@ -1153,7 +1207,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
     const item = snapshot.items[itemId];
     const row = snapshot.items[ontoId];
     if (!item || !row) return;
-    if (subtask) { void reorderTask(item, row, list); return; }
+    if (subtask) { void reorderTask(item, row, { ...list, ids: [] }, false, true); return; }
     if (list.viewKey) setViewPrefs(list.viewKey, { sort: 'manual' });
     if (list.order === 'day') void orderInList(item, row, list, after);
     else void reorderTask(item, row, list, after);

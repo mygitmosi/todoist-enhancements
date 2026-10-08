@@ -1,6 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import {
-  canStoreDurations, estimatePatch, durationMinutes, effectiveEstimate, estimateOf, formatDuration, parseDurationInput, readEstimate, withEstimate,
+  canStoreDurations, estimatePatch, durationMinutes, effectiveEstimate, estimateOf, formatDuration, parentEstimateWrites, parseDurationInput, readEstimate, withEstimate,
 } from './estimates';
 import { setEstimateStorage, type TodoistDuration } from './types';
 import { item } from '@/test/items';
@@ -85,13 +85,52 @@ describe('effectiveEstimate', () => {
   ];
   const childrenOf = (id: string) => (id === 'parent' ? children : []);
 
-  it("prefers the task's own estimate", () => {
-    expect(effectiveEstimate({ ...parent, labels: ['est-90'] }, childrenOf))
+  it("keeps the task's own estimate while a subtask has none", () => {
+    const unestimated = [...children, item({ id: 'c', parent_id: 'parent' })];
+    const of = (id: string) => (id === 'parent' ? unestimated : []);
+    expect(effectiveEstimate({ ...parent, labels: ['est-90'] }, of))
       .toEqual({ minutes: 90, computed: false });
   });
 
-  it('otherwise sums the open children', () => {
-    expect(effectiveEstimate(parent, childrenOf)).toEqual({ minutes: 45, computed: true });
+  it("lets the subtasks' sum win once every open one has an estimate (#187)", () => {
+    expect(effectiveEstimate({ ...parent, labels: ['est-90'] }, childrenOf))
+      .toEqual({ minutes: 45, computed: false });
+    expect(effectiveEstimate(parent, childrenOf)).toEqual({ minutes: 45, computed: false });
+  });
+
+  it('shows a partial sum as computed when the parent has no estimate', () => {
+    const unestimated = [...children, item({ id: 'c', parent_id: 'parent' })];
+    expect(effectiveEstimate(parent, (id) => (id === 'parent' ? unestimated : [])))
+      .toEqual({ minutes: 45, computed: true });
+  });
+
+  it('follows a nested parent through its own sum', () => {
+    const grand = item({ id: 'g', labels: ['est-5'] });
+    const mid = item({ id: 'm', parent_id: 'g', labels: ['est-99'] });
+    const leaves = [item({ id: 'l1', parent_id: 'm', labels: ['est-10'] }), item({ id: 'l2', parent_id: 'm', labels: ['est-20'] })];
+    const of = (id: string) => (id === 'g' ? [mid] : id === 'm' ? leaves : []);
+    expect(effectiveEstimate(grand, of)).toEqual({ minutes: 30, computed: false });
+  });
+
+  it('does not count a subtask whose figure is only a partial sum', () => {
+    const grand = item({ id: 'g', labels: ['est-5'] });
+    const mid = item({ id: 'm', parent_id: 'g' });
+    const leaves = [item({ id: 'l1', parent_id: 'm', labels: ['est-10'] }), item({ id: 'l2', parent_id: 'm' })];
+    const of = (id: string) => (id === 'g' ? [mid] : id === 'm' ? leaves : []);
+    expect(effectiveEstimate(grand, of)).toEqual({ minutes: 5, computed: false });
+  });
+
+  it('lists the parents to rewrite, and only those', () => {
+    const wrong = item({ id: 'p1', labels: ['est-60'] });
+    const right = item({ id: 'p2', labels: ['est-30'] });
+    const partial = item({ id: 'p3', labels: ['est-60'] });
+    const kids: Record<string, ReturnType<typeof item>[]> = {
+      p1: [item({ id: 'a', parent_id: 'p1', labels: ['est-10'] }), item({ id: 'b', parent_id: 'p1', labels: ['est-20'] })],
+      p2: [item({ id: 'c', parent_id: 'p2', labels: ['est-30'] })],
+      p3: [item({ id: 'd', parent_id: 'p3', labels: ['est-10'] }), item({ id: 'e', parent_id: 'p3' })],
+    };
+    expect(parentEstimateWrites([wrong, right, partial], (id) => kids[id] ?? []))
+      .toEqual([{ id: 'p1', minutes: 30 }]);
   });
 });
 
@@ -149,13 +188,13 @@ describe("Todoist's own duration, read beside the tag (#151)", () => {
       item({ id: 'a', parent_id: 'p', labels: ['est-10'] }),
       item({ id: 'b', parent_id: 'p', duration: minutes(20) }),
     ];
-    expect(effectiveEstimate(parent, () => children)).toEqual({ minutes: 30, computed: true });
+    expect(effectiveEstimate(parent, (id) => (id === 'p' ? children : []))).toEqual({ minutes: 30, computed: false });
   });
 
-  it("uses a parent's own duration before its children", () => {
+  it("uses a parent's own duration before children that are not all estimated", () => {
     const parent = item({ id: 'p', duration: minutes(50) });
-    const children = [item({ id: 'a', parent_id: 'p', labels: ['est-10'] })];
-    expect(effectiveEstimate(parent, () => children)).toEqual({ minutes: 50, computed: false });
+    const children = [item({ id: 'a', parent_id: 'p', labels: ['est-10'] }), item({ id: 'b', parent_id: 'p' })];
+    expect(effectiveEstimate(parent, (id) => (id === 'p' ? children : []))).toEqual({ minutes: 50, computed: false });
   });
 });
 

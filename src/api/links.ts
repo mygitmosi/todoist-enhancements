@@ -10,6 +10,9 @@ import { request } from './client';
 /** A task's page in Todoist's web app. */
 export const todoistTaskUrl = (id: string): string => `https://app.todoist.com/app/task/${id}`;
 
+/** A section's page in Todoist's web app. */
+export const todoistSectionUrl = (id: string): string => `https://app.todoist.com/app/section/${id}`;
+
 /**
  * An id the app made up while Todoist had not answered yet (see `newUuid`).
  * Todoist's own ids have no dashes, and a made-up one has no page to link to.

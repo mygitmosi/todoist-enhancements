@@ -3,7 +3,8 @@ import { canStoreDurations } from '@/domain/estimates';
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { Select } from '@/components/Select';
-import { AccentChoice, DensityChoice, ThemeChoice, EstimateStorageChoice } from '@/components/Choosers';
+import { AccentChoice, DensityChoice, ThemeChoice, EstimateStorageChoice, TaskChipsChoice } from '@/components/Choosers';
+import { WorkspacePreview } from '@/components/WorkspacePreview';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { avatarUrl } from '@/domain/colors';
@@ -54,13 +55,18 @@ export function SettingsView() {
     new Intl.DateTimeFormat(intl, { weekday: 'short' }).format(new Date(2024, 0, 8 + i)),
   );
 
-  const setDayCapacity = (index: number, raw: string) => {
+  /* A day that does not read as a duration is refused out loud, and keeps the
+     value it had, rather than quietly snapping back. */
+  const [capacityError, setCapacityError] = useState<'day' | 'week' | null>(null);
+  const setDayCapacity = (index: number, raw: string): boolean => {
     const minutes = parseDurationInput(raw);
-    if (minutes === null) return;
-    const next = [...prefs.dailyCapacity] as DailyCapacity;
+    if (minutes === null) return false;
+    const next = [...useStore.getState().prefs.dailyCapacity] as DailyCapacity;
     next[index] = minutes;
     setPrefs({ dailyCapacity: next });
+    return true;
   };
+  const daysTotal = prefs.dailyCapacity.reduce((sum, minutes) => sum + minutes, 0);
 
   const toggle = (key: keyof typeof prefs.conflicts) =>
     setPrefs({ conflicts: { ...prefs.conflicts, [key]: !prefs.conflicts[key] } });
@@ -73,6 +79,7 @@ export function SettingsView() {
         <div>
           <h1 className="ptitle">{t('settings.title')}</h1>
         </div>
+
       </div>
 
       <div className="settings">
@@ -224,11 +231,99 @@ export function SettingsView() {
             <Row title={t('settings.searchSections')} hint={t('settings.searchSectionsHint')}>
               <Switch checked={prefs.includeSectionsInSearch} onChange={() => setPrefs({ includeSectionsInSearch: !prefs.includeSectionsInSearch })} label={t('settings.searchSections')} />
             </Row>
+
+            {/* How the pages are laid out, in one place, with a picture of it. */}
+            <h3 className="setsubhead">{t('settings.groupOrganisation')}</h3>
+            <p className="setgroup-hint">{t('settings.groupOrganisationHint')}</p>
+            <Row title={t('settings.weekLayout')} hint={t('settings.weekLayoutHint')}>
+              <Select
+                value={prefs.weekLayout}
+                onChange={(value) => setPrefs({ weekLayout: value as WeekLayout })}
+                ariaLabel={t('settings.weekLayout')}
+                options={WEEK_LAYOUTS.map((layout) => ({
+                  value: layout,
+                  label: t(`settings.weekLayout.${layout}` as TranslationKey),
+                }))}
+              />
+            </Row>
             <Row title={t('settings.eisenhower')} hint={t('settings.eisenhowerHint')}>
               <Switch checked={prefs.eisenhowerEnabled} onChange={() => setPrefs({ eisenhowerEnabled: !prefs.eisenhowerEnabled })} label={t('settings.eisenhower')} />
             </Row>
-            <h3 className="setsubhead">{t('settings.week')}</h3>
+            <Row title={t('settings.showQuick')} hint={t('settings.showQuickHint')}>
+              <Switch
+                checked={prefs.showQuickGroup}
+                onChange={() => setPrefs({ showQuickGroup: !prefs.showQuickGroup })}
+                label={t('settings.showQuick')}
+              />
+            </Row>
+            {/* The tag is a name on the user's own board, not a setting this
+                app invented, so it is typed rather than chosen from a list:
+                the tag it should read may not exist here yet. */}
+            <Row title={t('settings.weekLabel')} hint={t('settings.weekLabelHint')}>
+              <input
+                className="estinput"
+                defaultValue={prefs.weekLabel}
+                aria-label={t('settings.weekLabel')}
+                onBlur={(event) => {
+                  const next = event.target.value.trim().replace(/^@/, '');
+                  setPrefs({ weekLabel: next || DEFAULT_WEEK_LABEL });
+                  event.target.value = next || DEFAULT_WEEK_LABEL;
+                }}
+              />
+            </Row>
+            <WorkspacePreview stage="organisation" />
 
+            <h3 className="setsubhead">{t('settings.groupSomeday')}</h3>
+            <Row title={t('settings.showDust')} hint={t('settings.showDustHint')}>
+              <Switch
+                checked={prefs.showDustGroup}
+                onChange={() => setPrefs({ showDustGroup: !prefs.showDustGroup })}
+                label={t('settings.showDust')}
+              />
+            </Row>
+            <Row title={t('settings.dustAfter')} hint={t('settings.dustAfterHint')}>
+              <Select
+                value={String(prefs.dustAfterMonths)}
+                onChange={(value) => {
+                  const months = Number(value);
+                  if (isDustMonths(months)) setPrefs({ dustAfterMonths: months });
+                }}
+                ariaLabel={t('settings.dustAfter')}
+                options={DUST_MONTHS.map((months) => ({
+                  value: String(months),
+                  label: t('settings.months', { count: months }),
+                }))}
+              />
+            </Row>
+            <Row title={t('settings.quietAfter')} hint={t('settings.quietAfterHint')}>
+              <span className="setunit">
+                <input
+                  className="estinput"
+                  inputMode="numeric"
+                  defaultValue={String(prefs.quietAfterDays)}
+                  aria-label={t('settings.quietAfter')}
+                  onBlur={(event) => {
+                    const days = Number.parseInt(event.target.value, 10);
+                    const next = Number.isFinite(days) && days > 0 ? days : prefs.quietAfterDays;
+                    setPrefs({ quietAfterDays: next });
+                    event.target.value = String(next);
+                  }}
+                />
+                <span>{t('settings.days')}</span>
+              </span>
+            </Row>
+
+            {/* Where an estimate is kept. Choosing is never converting: the
+                conversion is its own button, with its own preview. */}
+            <h3 className="setsubhead">{t('settings.groupEstimates')}</h3>
+            <Row title={t('estimates.storage')} hint={t('estimates.dialogIntro')} wide>
+              <EstimateStorageChoice value={prefs.estimateStorage} allowed={canStoreDurations(user)} onChange={(value) => setPrefs({ estimateStorage: value })} />
+              <EstimateConversion target={prefs.estimateStorage ?? 'tag'} />
+            </Row>
+
+            {/* After the choices about the week, because it measures them. */}
+            <h3 className="setsubhead">{t('settings.groupCapacity')}</h3>
+            <p className="setgroup-hint">{t('settings.groupCapacityHint')}</p>
             <Row title={t('settings.perDayCapacity')} hint={t('settings.dailyCapacityHint')} />
             <div className="capgrid">
               {dayNames.map((name, index) => {
@@ -242,9 +337,11 @@ export function SettingsView() {
                     <input
                       key={prefs.dailyCapacity[dayIndex]}
                       defaultValue={formatDuration(prefs.dailyCapacity[dayIndex], locale)}
+                      aria-invalid={capacityError === 'day' || undefined}
+                      onChange={() => setCapacityError(null)}
                       onBlur={(event) => {
-                        setDayCapacity(dayIndex, event.target.value);
-                        event.target.value = formatDuration(prefs.dailyCapacity[dayIndex], locale);
+                        setCapacityError(setDayCapacity(dayIndex, event.target.value) ? null : 'day');
+                        event.target.value = formatDuration(useStore.getState().prefs.dailyCapacity[dayIndex], locale);
                       }}
                       onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
                       aria-label={name}
@@ -253,6 +350,20 @@ export function SettingsView() {
                 );
               })}
             </div>
+            {capacityError === 'day' && <p className="capalert" role="alert">{t('settings.capacityInvalid')}</p>}
+
+            {/* The total the days make, and the value that replaces it when one
+                is set, said apart so neither is mistaken for the other. */}
+            {prefs.weeklyCapacityOverride === null ? (
+              <p className="capnote">{t('settings.weeklyCalculated', { total: formatDuration(daysTotal, locale) })}</p>
+            ) : (
+              <p className="capnote override">
+                {t('settings.weeklyOverrideNote', {
+                  value: formatDuration(prefs.weeklyCapacityOverride, locale),
+                  total: formatDuration(daysTotal, locale),
+                })}
+              </p>
+            )}
 
             <Row title={t('settings.weeklySource')} hint={formatDuration(weekly, locale)}>
               <Select
@@ -273,97 +384,19 @@ export function SettingsView() {
                   className="estinput"
                   key={prefs.weeklyCapacityOverride}
                   defaultValue={formatDuration(prefs.weeklyCapacityOverride, locale)}
+                  aria-invalid={capacityError === 'week' || undefined}
+                  onChange={() => setCapacityError(null)}
                   onBlur={(event) => {
                     const minutes = parseDurationInput(event.target.value);
-                    if (minutes !== null) setPrefs({ weeklyCapacityOverride: minutes });
-                    else event.target.value = formatDuration(prefs.weeklyCapacityOverride!, locale);
+                    if (minutes !== null) { setCapacityError(null); setPrefs({ weeklyCapacityOverride: minutes }); }
+                    else { setCapacityError('week'); event.target.value = formatDuration(prefs.weeklyCapacityOverride!, locale); }
                   }}
                   onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
                   aria-label={t('settings.weeklyValue')}
                 />
               </Row>
             )}
-
-            <Row title={t('settings.weekLayout')} hint={t('settings.weekLayoutHint')}>
-              <Select
-                value={prefs.weekLayout}
-                onChange={(value) => setPrefs({ weekLayout: value as WeekLayout })}
-                ariaLabel={t('settings.weekLayout')}
-                options={WEEK_LAYOUTS.map((layout) => ({
-                  value: layout,
-                  label: t(`settings.weekLayout.${layout}` as TranslationKey),
-                }))}
-              />
-            </Row>
-
-            {/* The tag is a name on the user's own board, not a setting this
-                app invented, so it is typed rather than chosen from a list:
-                the tag it should read may not exist here yet. */}
-            <Row title={t('estimates.storage')} hint={t('estimates.dialogIntro')} wide>
-              <EstimateStorageChoice value={prefs.estimateStorage} allowed={canStoreDurations(user)} onChange={(value) => setPrefs({ estimateStorage: value })} />
-              <EstimateConversion target={prefs.estimateStorage ?? 'tag'} />
-            </Row>
-            <Row title={t('settings.weekLabel')} hint={t('settings.weekLabelHint')}>
-              <input
-                className="estinput"
-                defaultValue={prefs.weekLabel}
-                aria-label={t('settings.weekLabel')}
-                onBlur={(event) => {
-                  const next = event.target.value.trim().replace(/^@/, '');
-                  setPrefs({ weekLabel: next || DEFAULT_WEEK_LABEL });
-                  event.target.value = next || DEFAULT_WEEK_LABEL;
-                }}
-              />
-            </Row>
-
-            <Row title={t('settings.showQuick')} hint={t('settings.showQuickHint')}>
-              <Switch
-                checked={prefs.showQuickGroup}
-                onChange={() => setPrefs({ showQuickGroup: !prefs.showQuickGroup })}
-                label={t('settings.showQuick')}
-              />
-            </Row>
-
-            <Row title={t('settings.showDust')} hint={t('settings.showDustHint')}>
-              <Switch
-                checked={prefs.showDustGroup}
-                onChange={() => setPrefs({ showDustGroup: !prefs.showDustGroup })}
-                label={t('settings.showDust')}
-              />
-            </Row>
-
-            <Row title={t('settings.dustAfter')} hint={t('settings.dustAfterHint')}>
-              <Select
-                value={String(prefs.dustAfterMonths)}
-                onChange={(value) => {
-                  const months = Number(value);
-                  if (isDustMonths(months)) setPrefs({ dustAfterMonths: months });
-                }}
-                ariaLabel={t('settings.dustAfter')}
-                options={DUST_MONTHS.map((months) => ({
-                  value: String(months),
-                  label: t('settings.months', { count: months }),
-                }))}
-              />
-            </Row>
-
-            <Row title={t('settings.quietAfter')} hint={t('settings.quietAfterHint')}>
-              <span className="setunit">
-                <input
-                  className="estinput"
-                  inputMode="numeric"
-                  defaultValue={String(prefs.quietAfterDays)}
-                  aria-label={t('settings.quietAfter')}
-                  onBlur={(event) => {
-                    const days = Number.parseInt(event.target.value, 10);
-                    const next = Number.isFinite(days) && days > 0 ? days : prefs.quietAfterDays;
-                    setPrefs({ quietAfterDays: next });
-                    event.target.value = String(next);
-                  }}
-                />
-                <span>{t('settings.days')}</span>
-              </span>
-            </Row>
+            {capacityError === 'week' && <p className="capalert" role="alert">{t('settings.weeklyInvalid')}</p>}
 
             <Row title={t('settings.capacityDefaults')} hint={t('settings.capacityDefaultsHint')}>
               <button
@@ -379,9 +412,13 @@ export function SettingsView() {
           {/* ------------------------------------------------ Appearance */}
           <section className="setsection" id="appearance">
             <h2>{t('settings.appearance')}</h2>
+            <Row title={t('settings.density')} hint={t('settings.densityHint')} wide>
+              <DensityChoice value={prefs.density} onChange={(value) => setPrefs({ density: value })} />
+            </Row>
             <Row title={t('settings.theme')} hint={t('settings.themeHint')} wide>
               <ThemeChoice value={prefs.theme} onChange={(value) => setPrefs({ theme: value })} />
             </Row>
+            <WorkspacePreview stage="appearance" />
             <Row title={t('settings.accent')} hint={t('settings.accentHint')} wide>
               <AccentChoice
                 value={prefs.accent}
@@ -390,9 +427,10 @@ export function SettingsView() {
                 onCustom={(value) => setPrefs({ accent: 'custom', accentCustom: value })}
               />
             </Row>
-            <Row title={t('settings.density')} hint={t('settings.densityHint')} wide>
-              <DensityChoice value={prefs.density} onChange={(value) => setPrefs({ density: value })} />
+            <Row title={t('settings.taskChips')} hint={t('settings.taskChipsHint')} wide>
+              <TaskChipsChoice value={prefs.taskChips} onChange={(value) => setPrefs({ taskChips: value })} />
             </Row>
+            <WorkspacePreview stage="metadata" />
           </section>
 
           {/* ------------------------------------------------- Conflicts */}

@@ -179,7 +179,7 @@ export function dropMutation(item: Item, target: DropTarget): DropMutation | nul
 const ROW_PREFIX = 'row:';
 export const rowTargetId = (itemId: string): string => `${ROW_PREFIX}${itemId}`;
 export const decodeRowTarget = (id: string): string | null =>
-  (id.startsWith(ROW_PREFIX) ? id.slice(ROW_PREFIX.length) : null);
+  (id.startsWith(ROW_PREFIX) ? id.slice(ROW_PREFIX.length).split('|')[0] : null);
 
 /**
  * How a list keeps the order its rows are dropped into.
@@ -270,6 +270,126 @@ export function canNest(items: Record<string, Item>, itemId: string, parentId: s
     if (at.id === itemId) return false;
   }
   return depthOf(items, parentId) + 1 + heightOf(items, itemId) <= MAX_SUBTASK_DEPTH;
+}
+
+/**
+ * The order a drop onto a row gives a set of siblings.
+ *
+ * `siblings` are all the tasks of one container in the database's order and
+ * `shown` the ones the page draws, in the order it draws them. The shown ones
+ * are laid back into their own slots in screen order and the ones a filter is
+ * hiding keep the places they had between them, so the drop is about the page
+ * in front of you. The task takes the row's place: dragged down it lands below
+ * the row you aimed at, dragged up above it, and a task from elsewhere goes in
+ * before the row, or after it when asked. Null when the row is not among them.
+ */
+export function arrangeDrop(
+  siblings: string[], shown: string[], itemId: string, rowId: string, landAfter = false,
+  place?: 'before' | 'after' | 'first',
+): { arranged: string[]; next: string[] } | null {
+  const visible = shown.filter((id) => siblings.includes(id));
+  const arranged = [...siblings];
+  const slots = siblings
+    .map((id, at) => (visible.includes(id) ? at : -1))
+    .filter((at) => at >= 0);
+  slots.forEach((at, index) => { arranged[at] = visible[index]; });
+
+  /* Placed by the line the drop showed (#165): straight after one sibling, or
+     first of all, whichever way the task was dragged. */
+  if (place) {
+    const rest = arranged.filter((id) => id !== itemId);
+    const after = rest.indexOf(rowId);
+    if (place !== 'first' && after < 0) return null;
+    const placed = [...rest];
+    placed.splice(place === 'first' ? 0 : after + (place === 'after' ? 1 : 0), 0, itemId);
+    return { arranged, next: placed };
+  }
+  const onto = arranged.indexOf(rowId);
+  if (onto < 0) return null;
+  const next = [...arranged];
+  const at = next.indexOf(itemId);
+  if (at >= 0) next.splice(onto, 0, ...next.splice(at, 1));
+  else next.splice(onto + (landAfter ? 1 : 0), 0, itemId);
+  return { arranged, next };
+}
+
+/**
+ * Where a subtask picked up in a list lands when the pointer is over a row
+ * (#165): the line is drawn under the row it is over, and the subtask goes
+ * right there.
+ *
+ *  - over its parent: first of its siblings;
+ *  - over a sibling, or anything inside one: right after that sibling;
+ *  - over itself, or anything that is not under its parent: nowhere, null.
+ */
+export function subtaskLanding(
+  items: Record<string, Item>, itemId: string, overId: string,
+): { after: string | null } | null {
+  const parentId = items[itemId]?.parent_id;
+  if (!parentId || overId === itemId) return null;
+  if (overId === parentId) return { after: null };
+  let at: Item | undefined = items[overId];
+  while (at && at.parent_id !== parentId) at = at.parent_id ? items[at.parent_id] : undefined;
+  if (!at || at.id === itemId) return null;
+  return { after: at.id };
+}
+
+/** Every open or closed task below one, at any depth. */
+export function descendantsOf(items: Record<string, Item>, id: string): string[] {
+  const index = childrenIndex(items);
+  const out: string[] = [];
+  const walk = (parentId: string) => {
+    for (const child of index.get(parentId) ?? []) {
+      out.push(child.id);
+      walk(child.id);
+    }
+  };
+  walk(id);
+  return out;
+}
+
+/**
+ * What dropping several picked tasks onto one task, indented, would do (#166).
+ *
+ * The picked tasks go under the target in the order they were given. A picked
+ * task whose own parent is picked too stays with it, so only the highest of
+ * each branch moves: moving both would take the child out and then put it
+ * back, twice. A task already directly under the target has nothing to do.
+ * Anything that would make a loop, or go deeper than Todoist keeps, refuses
+ * the whole drop: a partial move is the one result nobody can read.
+ */
+export type NestPlan =
+  | { ok: true; ids: string[] }
+  | { ok: false; reason: 'target-picked' | 'inside-itself' | 'too-deep' | 'nothing' };
+
+export function planNestMany(
+  items: Record<string, Item>, picked: string[], parentId: string,
+): NestPlan {
+  const target = items[parentId];
+  if (!target || target.is_deleted) return { ok: false, reason: 'nothing' };
+  const unique = [...new Set(picked)].filter((id) => items[id] && !items[id].is_deleted);
+  if (unique.includes(parentId)) return { ok: false, reason: 'target-picked' };
+
+  const set = new Set(unique);
+  const hasPickedAncestor = (id: string) => {
+    for (let at = items[id]?.parent_id; at; at = items[at]?.parent_id) {
+      if (set.has(at)) return true;
+    }
+    return false;
+  };
+  const highest = unique.filter((id) => !hasPickedAncestor(id));
+
+  for (const id of highest) {
+    for (let at: Item | undefined = target; at; at = at.parent_id ? items[at.parent_id] : undefined) {
+      if (at.id === id) return { ok: false, reason: 'inside-itself' };
+    }
+  }
+  const moving = highest.filter((id) => items[id].parent_id !== parentId);
+  if (moving.length === 0) return { ok: false, reason: 'nothing' };
+  for (const id of moving) {
+    if (!canNest(items, id, parentId)) return { ok: false, reason: 'too-deep' };
+  }
+  return { ok: true, ids: moving };
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useId, useState, type CSSProperties, type ReactNode } from 'react';
 
 /**
  * The chart pieces the Insights pages are built from.
@@ -28,16 +28,23 @@ interface StatTileProps {
   tone?: 'neutral' | 'accent';
 }
 
-/** A single number that answers one question. No plot, so no hover layer. */
+/**
+ * A single number that answers one question. No plot, so no hover layer.
+ *
+ * The number and its change sit on one line, with the label under them: the
+ * figure is what is read first and the question it answers comes after.
+ */
 export function StatTile({ label, value, hint, trailing, tone = 'neutral' }: StatTileProps) {
   return (
     <div className={`stat${tone === 'accent' ? ' accent' : ''}`}>
-      <div className="stat-label">{label}</div>
-      <div className="stat-value">
-        {value}
-        {trailing && <span className="stat-trailing">{trailing}</span>}
+      <div className="stat-topline">
+        <div className="stat-value">
+          {value}
+          {trailing && <span className="stat-trailing">{trailing}</span>}
+        </div>
+        {hint && <div className="stat-hint">{hint}</div>}
       </div>
-      {hint && <div className="stat-hint">{hint}</div>}
+      <div className="stat-label">{label}</div>
     </div>
   );
 }
@@ -255,7 +262,12 @@ export function ContributionGrid({
   const max = Math.max(1, ...data.map((day) => day.value));
   return (
     <div className="contribution">
-      <div className="contribution-grid" role="img" aria-label={summary}>
+      <div
+        className="contribution-grid"
+        role="img"
+        aria-label={summary}
+        style={{ '--weeks': Math.ceil(data.length / 7) } as CSSProperties}
+      >
         {data.map((day) => {
           const level = day.value === 0 ? 0 : Math.max(1, Math.ceil((day.value / max) * 4));
           return (
@@ -295,15 +307,22 @@ interface CardProps {
 export function ChartCard({ title, subtitle, span = 6, trailing, children }: CardProps) {
   return (
     <section className={`card w${span}`}>
-      <div className="chead-row">
-        <div>
-          <h3>{title}</h3>
-          {subtitle && <p className="psub">{subtitle}</p>}
-        </div>
-        {trailing}
-      </div>
+      <ChartHead title={title} subtitle={subtitle} trailing={trailing} />
       {children}
     </section>
+  );
+}
+
+/** The heading of a chart's card: what it shows, one line on what to read in it, and its controls. */
+export function ChartHead({ title, subtitle, trailing }: Pick<CardProps, 'title' | 'subtitle' | 'trailing'>) {
+  return (
+    <div className="chead-row">
+      <div>
+        <h3>{title}</h3>
+        {subtitle && <p className="psub">{subtitle}</p>}
+      </div>
+      {trailing}
+    </div>
   );
 }
 

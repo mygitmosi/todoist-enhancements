@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
+import { addDays, endOfDay, format, startOfDay } from 'date-fns';
 import { Overlay } from './Overlay';
 import { Icon } from '../Icon';
 import { Bars, SplitBar, type BarDatum, type SliceDatum } from '../charts';
 import { useT } from '@/hooks/useT';
 import { useData } from '@/hooks/useData';
 import { useCompleted } from '@/hooks/useCompleted';
-import { rangeFor } from '@/domain/periods';
+import { daysOf } from '@/domain/periods';
 import { navigate } from '@/hooks/useRoute';
 import { summariseInsights } from '@/domain/insights';
 import { effectiveEstimate, formatDuration } from '@/domain/estimates';
@@ -29,9 +30,16 @@ export function InsightsPanel({
 }: InsightsPanelProps) {
   const { t, locale } = useT();
   const { snapshot, childrenOf } = useData();
-  const startDay = snapshot.user?.start_day ?? 1;
-  const week = useMemo(() => rangeFor('week', 0, null, startDay), [startDay]);
-  const { data: completed, loading } = useCompleted(week, open);
+  /* The seven calendar days ending today, not the week the calendar is in and
+     not seven weeks: today and the six days before it, every one of them drawn
+     even when nothing was finished on it (#176). Built from calendar days, so
+     a clock change inside the window cannot make it six days or eight. */
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const window7 = useMemo(() => {
+    const now = new Date(`${today}T12:00:00`);
+    return { since: startOfDay(addDays(now, -6)), until: endOfDay(now) };
+  }, [today]);
+  const { data: completed, loading, error, retry } = useCompleted(window7, open);
 
   const summary = useMemo(
     () => summariseInsights(completed, items, snapshot),
@@ -48,16 +56,19 @@ export function InsightsPanel({
     0,
   );
 
-  const weekBars: BarDatum[] = useMemo(
-    () =>
-      summary.byDay.slice(-7).map((day) => ({
-        key: day.date,
-        label: new Intl.DateTimeFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', { weekday: 'narrow' })
-          .format(new Date(day.date)),
-        value: day.count,
-      })),
-    [summary.byDay, locale],
-  );
+  const weekBars: BarDatum[] = useMemo(() => {
+    const counts = new Map(summary.byDay.map((day) => [day.date, day.count]));
+    const intl = locale === 'fr' ? 'fr-FR' : 'en-GB';
+    return daysOf(window7).map((at) => {
+      const key = format(at, 'yyyy-MM-dd');
+      return {
+        key,
+        label: new Intl.DateTimeFormat(intl, { weekday: 'short' }).format(at),
+        value: counts.get(key) ?? 0,
+        current: key === today,
+      };
+    });
+  }, [summary.byDay, window7, locale, today]);
 
   const byPriority: SliceDatum[] = useMemo(
     () =>
@@ -76,6 +87,10 @@ export function InsightsPanel({
         <div>
           <h2 style={{ fontSize: 'var(--fs-20)', fontWeight: 700 }}>{t('insights.title')}</h2>
           <p className="psub">{contextLabel}</p>
+          {/* Which numbers belong to this page and which do not: the open
+              tasks do, the completed ones are the whole account's, over the
+              seven days named here (#176). */}
+          <p className="psub insights-scope">{t('insights.scopeNote', { page: contextLabel })}</p>
         </div>
         <button className="iconbtn" aria-label={t('common.close')} onClick={onClose}>
           <Icon name="close" />
@@ -113,7 +128,7 @@ export function InsightsPanel({
           <div className="ilist">
             <span><strong>{summary.completedCount}</strong> {t('insights.completed')}</span>
             <span><strong>{summary.activeCount}</strong> {t('insights.active')}</span>
-            <span>{t('insights.streak', { count: summary.currentStreak })}</span>
+            <span>{t('insights.streakRecent', { count: summary.currentStreak })}</span>
           </div>
         </div>
       </div>
@@ -132,7 +147,7 @@ export function InsightsPanel({
       <div className="icard">
         <div className="ihead">
           <div>
-            <div className="ikicker">{t('insights.weekActivity')}</div>
+            <div className="ikicker">{t('insights.last7Days')}</div>
             <div className="ibig">
               {summary.completedCount}{' '}
               <span style={{ fontSize: 'var(--fs-12)', color: 'var(--muted)', fontWeight: 500 }}>
@@ -141,10 +156,13 @@ export function InsightsPanel({
             </div>
           </div>
         </div>
-        {loading ? (
-          <p className="psub">{t('insights.loading')}</p>
-        ) : weekBars.length === 0 ? (
-          <p className="psub">{t('insights.noHistory')}</p>
+        {error !== null ? (
+          <div role="alert">
+            <p className="psub">{t('insights.failed')}</p>
+            <button className="btn" onClick={retry}>{t('common.retry')}</button>
+          </div>
+        ) : loading ? (
+          <p className="psub" role="status">{t('insights.loading')}</p>
         ) : (
           <Bars
             data={weekBars}
@@ -153,15 +171,6 @@ export function InsightsPanel({
             format={(value) => t('metrics.tasks', { count: value })}
           />
         )}
-      </div>
-
-      <div className="icard">
-        <div className="ihead">
-          <div>
-            <div className="ikicker">{t('insights.coverage')}</div>
-            <div className="ibig">{summary.estimateCoverage}%</div>
-          </div>
-        </div>
       </div>
 
       <button

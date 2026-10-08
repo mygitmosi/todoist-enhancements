@@ -1,45 +1,45 @@
 import { canStoreDurations } from '@/domain/estimates';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Overlay } from './Overlay';
 import { Icon } from '../Icon';
-import { AccentChoice, DensityChoice, ThemeChoice, EstimateStorageChoice } from '../Choosers';
+import {
+  AccentChoice, DensityChoice, EstimateStorageChoice, TaskChipsChoice, ThemeChoice,
+} from '../Choosers';
+import { WorkspacePreview, type PreviewStage } from '../WorkspacePreview';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { markOnboarded } from '@/domain/onboarding';
-import { useIsPhone } from '@/hooks/useTouchLayout';
+import { WEEK_LAYOUTS } from '@/store/prefs';
+import type { TranslationKey } from '@/i18n';
 
 /**
  * The first run, once, per account.
  *
- * One page, three choices, all of which already have a defensible answer set —
- * so this is a greeting that happens to be adjustable rather than a form
- * standing between somebody and their tasks. Nothing here has to be answered
- * for the app to work, and all three live in Settings afterwards.
- *
- * They are on one page rather than three because they are one decision: what
- * the thing should look like. Paging through them made a four-click ceremony
- * out of a question you can answer by glancing at it, and the shape of the
- * week — which is about how you work rather than how it looks — did not belong
- * in a first run at all. It is in Settings, where it is found when it is
- * wanted rather than asked before anyone knows what it means.
+ * Five short screens, one decision each, in a compact neutral window: the
+ * picture of the workspace above, the choice under it, and the same two
+ * buttons in the same place on every one. Nothing here has to be answered for
+ * the app to work, every answer is already a defensible default, and every
+ * one of them is in Settings afterwards: this is a greeting that happens to be
+ * adjustable rather than a form standing between somebody and their tasks.
  *
  * Each choice takes effect the moment it is made, on the app behind the
- * dialog as well as inside it. That is the whole argument for doing this at
- * all: a colour named in a list is a guess, and a colour applied to the page
- * you are about to use is an answer.
+ * dialog as well as in the picture inside it. The picture shows what the
+ * choice does to a list and a sidebar; it is never a place to act on a real
+ * task. Estimate storage, which is about where a number is kept and not about
+ * how anything looks, has no picture, and nothing is converted.
  *
  * The settings are written immediately; the *record of having been asked* is
- * written by Start or by Skip. Closing the window means being asked again
- * rather than silently never being asked.
- *
- * On a phone it is one choice, not three. Three grids of cards on a 375px
- * screen is a page and a half of scrolling before anyone has seen a task —
- * which is a form standing between somebody and their work, the one thing
- * this was written not to be. Light or dark is worth asking because it is the
- * choice a phone gets wrong most often and the one nobody thinks to go
- * looking for; the accent and the density are a pleasure to find later, in
- * Settings, where both still are.
+ * written by "Use these settings" or by the last step. Closing the window
+ * means being asked again rather than silently never being asked. Going back,
+ * or opening it again from Settings, shows the choices as they are now.
  */
+const STEPS = [
+  { id: 'appearance', preview: 'appearance' },
+  { id: 'accent', preview: 'accent' },
+  { id: 'density', preview: 'density' },
+  { id: 'organise', preview: 'organisation' },
+  { id: 'estimates', preview: null },
+] as const satisfies ReadonlyArray<{ id: string; preview: PreviewStage | null }>;
 
 export function Walkthrough({
   open, onDone,
@@ -48,19 +48,29 @@ export function Walkthrough({
   const prefs = useStore((s) => s.prefs);
   const setPrefs = useStore((s) => s.setPrefs);
   const user = useStore((s) => s.snapshot.user);
-  const phone = useIsPhone();
   const [step, setStep] = useState(0);
+  const current = STEPS[step];
+  const last = step === STEPS.length - 1;
 
-  /* Finishing records the account and hands over to the tour. Skipping records
-     it too and stops there: somebody who skipped the setup did not ask to be
-     shown round either. */
+  // Replaying it starts from the first screen, with what is chosen now.
+  useEffect(() => { if (open) setStep(0); }, [open]);
+
+  /* Finishing records the account and hands over to the tour. "Use these
+     settings" records it too and stops there: somebody who skipped the rest
+     did not ask to be shown round either. */
   const finish = () => {
     markOnboarded(user?.id);
     // With the settings too, so the account's other browsers know.
-    setPrefs({ onboarded: true, estimateStorage: prefs.estimateStorage === 'duration' && canStoreDurations(user) ? 'duration' : 'tag' });
+    setPrefs({
+      onboarded: true,
+      estimateStorage: prefs.estimateStorage === 'duration' && canStoreDurations(user) ? 'duration' : 'tag',
+    });
     setStep(0);
     onDone();
   };
+
+  const title = t(`setup.${current.id}.title` as TranslationKey);
+  const hint = t(`setup.${current.id}.hint` as TranslationKey);
 
   return (
     <Overlay
@@ -71,83 +81,150 @@ export function Walkthrough({
       label={t('walkthrough.title')}
       size="md"
     >
-      <div className="walkthrough">
-        <div className="wt-head">
+      <div className="setup" data-step={current.id}>
+        <header className="setup-head">
           <div>
-            <h2>{t(step === 0 ? 'walkthrough.appearanceTitle' : 'walkthrough.organise')}</h2>
+            <h2>{title}</h2>
+            <p>{hint}</p>
           </div>
-          <button className="wt-skip" onClick={finish}>
-            {t('walkthrough.skip')}
-          </button>
-        </div>
+          <button className="setup-skip" onClick={finish}>{t('setup.useThese')}</button>
+        </header>
 
-        <div className="wt-body">
-          {step === 0 && (
-            <>
-              <section className="wt-appearance-row">
+        <div className="setup-body">
+          {current.preview && (
+            <div className="setup-preview">
+              <WorkspacePreview stage={current.preview} layout="stage" />
+            </div>
+          )}
+
+          <div className="setup-controls">
+            {current.id === 'appearance' && (
+              <ThemeChoice value={prefs.theme} onChange={(theme) => setPrefs({ theme })} />
+            )}
+
+            {current.id === 'accent' && (
+              <AccentChoice
+                value={prefs.accent}
+                custom={prefs.accentCustom}
+                onChange={(accent) => setPrefs({ accent })}
+                onCustom={(accentCustom) => setPrefs({ accent: 'custom', accentCustom })}
+              />
+            )}
+
+            {current.id === 'density' && (
+              <div className="setup-pair">
                 <div>
                   <h3>{t('settings.density')}</h3>
-                  <DensityChoice value={prefs.density} onChange={(value) => setPrefs({ density: value })} />
+                  <DensityChoice value={prefs.density} onChange={(density) => setPrefs({ density })} />
                 </div>
                 <div>
-                  <h3>{t('settings.theme')}</h3>
-                  <ThemeChoice value={prefs.theme} onChange={(value) => setPrefs({ theme: value })} />
+                  <h3>{t('settings.taskChips')}</h3>
+                  <TaskChipsChoice value={prefs.taskChips} onChange={(taskChips) => setPrefs({ taskChips })} />
                 </div>
-              </section>
-              {!phone && (
-                <section>
-                  <h3>{t('settings.accent')}</h3>
-                  <AccentChoice
-                    value={prefs.accent}
-                    custom={prefs.accentCustom}
-                    onChange={(value) => setPrefs({ accent: value })}
-                    onCustom={(value) => setPrefs({ accent: 'custom', accentCustom: value })}
-                  />
-                </section>
-              )}
-            </>
-          )}
-
-          {step === 1 && (
-            <section className="wt-setup">
-              <h3>{t('estimates.storage')}</h3>
-              <EstimateStorageChoice value={prefs.estimateStorage} allowed={canStoreDurations(user)} onChange={(value) => setPrefs({ estimateStorage: value })} />
-              <div className="wt-week-layouts">
-                {(['unified', 'split'] as const).map((layout) => (
-                  <button
-                    key={layout}
-                    className={prefs.weekLayout === layout ? 'selected' : undefined}
-                    aria-pressed={prefs.weekLayout === layout}
-                    onClick={() => setPrefs({ weekLayout: layout })}
-                  >
-                    <span className={`wt-week-visual ${layout}`} aria-hidden="true"><i /><i /></span>
-                    <strong>{t(`walkthrough.weekLayout.${layout}`)}</strong>
-                  </button>
-                ))}
               </div>
-              <button className={`wt-option${prefs.eisenhowerEnabled ? ' selected' : ''}`} onClick={() => setPrefs({ eisenhowerEnabled: !prefs.eisenhowerEnabled })}>
-                <Icon name="dashboard" />
-                <span><strong>{t('settings.eisenhower')}</strong><small>{t('settings.eisenhowerHint')}</small></span>
-                <span className="switch" role="switch" aria-checked={prefs.eisenhowerEnabled} />
-              </button>
-              <button className={`wt-option${prefs.showQuickGroup ? ' selected' : ''}`} onClick={() => setPrefs({ showQuickGroup: !prefs.showQuickGroup })}>
-                <Icon name="clock" />
-                <span><strong>{t('settings.showQuick')}</strong><small>{t('settings.showQuickHint')}</small></span>
-                <span className="switch" role="switch" aria-checked={prefs.showQuickGroup} />
-              </button>
-            </section>
-          )}
+            )}
 
+            {current.id === 'organise' && (
+              <div className="setup-organise">
+                <div className="setup-layouts" role="radiogroup" aria-label={t('settings.weekLayout')}>
+                  {WEEK_LAYOUTS.map((layout) => (
+                    <button
+                      key={layout}
+                      type="button"
+                      role="radio"
+                      aria-checked={prefs.weekLayout === layout}
+                      className={prefs.weekLayout === layout ? 'selected' : undefined}
+                      onClick={() => setPrefs({ weekLayout: layout })}
+                    >
+                      <span className={`setup-layout-picture ${layout}`} aria-hidden="true"><i /><i /></span>
+                      <strong>{t(`setup.layout.${layout}` as TranslationKey)}</strong>
+                      <small>{t(`setup.layout.${layout}Hint` as TranslationKey)}</small>
+                      {prefs.weekLayout === layout && <Icon name="check" size="sm" />}
+                    </button>
+                  ))}
+                </div>
+                <div className="setup-switches">
+                  <SwitchRow
+                    icon="dashboard"
+                    title={t('settings.eisenhower')}
+                    hint={t('setup.eisenhowerHint')}
+                    checked={prefs.eisenhowerEnabled}
+                    onChange={() => setPrefs({ eisenhowerEnabled: !prefs.eisenhowerEnabled })}
+                  />
+                  <SwitchRow
+                    icon="clock"
+                    title={t('settings.showQuick')}
+                    hint={t('setup.quickHint')}
+                    checked={prefs.showQuickGroup}
+                    onChange={() => setPrefs({ showQuickGroup: !prefs.showQuickGroup })}
+                  />
+                </div>
+              </div>
+            )}
+
+            {current.id === 'estimates' && (
+              <EstimateStorageChoice
+                value={prefs.estimateStorage}
+                allowed={canStoreDurations(user)}
+                onChange={(value) => setPrefs({ estimateStorage: value })}
+              />
+            )}
+          </div>
         </div>
 
-        <div className="wt-foot">
-          <span>{t('walkthrough.step', { current: step + 1, total: 2 })}</span>
-          {step > 0 && <button className="btn" onClick={() => setStep((at) => at - 1)}>{t('review.back')}</button>}
-          <button className="btn primary" onClick={() => (step === 1 ? finish() : setStep(1))}>
-            {step === 1 ? t('walkthrough.finish') : t('tour.next')}
-          </button>
-        </div>
+        <footer className="setup-foot">
+          <nav className="setup-progress" aria-label={t('walkthrough.step', { current: step + 1, total: STEPS.length })}>
+            {STEPS.map((entry, at) => {
+              const name = t(`setup.${entry.id}.title` as TranslationKey);
+              return (
+                <button
+                  key={entry.id}
+                  aria-label={name}
+                  title={name}
+                  aria-current={at === step ? 'step' : undefined}
+                  onClick={() => setStep(at)}
+                ><i /></button>
+              );
+            })}
+          </nav>
+          <div className="setup-actions">
+            {step > 0 && (
+              <button className="btn" onClick={() => setStep((at) => at - 1)}>
+                <Icon name="arrow-left" size="sm" />
+                {t('review.back')}
+              </button>
+            )}
+            <button className="btn primary" onClick={() => (last ? finish() : setStep((at) => at + 1))}>
+              {last ? t('walkthrough.finish') : t('setup.continue')}
+              <Icon name="arrow-right" size="sm" />
+            </button>
+          </div>
+        </footer>
       </div>
     </Overlay>
+  );
+}
+
+/** A choice that is on or off: its words, and one switch that is not nested in anything else. */
+function SwitchRow({ icon, title, hint, checked, onChange }: {
+  icon: 'dashboard' | 'clock';
+  title: string;
+  hint: string;
+  checked: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <div className="setup-switch">
+      <Icon name={icon} />
+      <span><strong>{title}</strong><small>{hint}</small></span>
+      <button
+        type="button"
+        className="switch"
+        role="switch"
+        aria-checked={checked}
+        aria-label={title}
+        onClick={onChange}
+      />
+    </div>
   );
 }

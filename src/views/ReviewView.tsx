@@ -19,7 +19,7 @@ import {
   type BarDatum, type SliceDatum,
 } from '@/components/charts';
 import { formatRange, rangeFor } from '@/domain/periods';
-import { addDays, format, startOfDay } from 'date-fns';
+import { addDays, format, startOfDay, subDays } from 'date-fns';
 import { displayTaskContent, isUncompletable, toDisplayPriority, type CompletedItem, type Item, type Project } from '@/domain/types';
 import type { DropTarget } from '@/domain/dnd';
 import {
@@ -163,6 +163,21 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
   const step = steps[index];
   const last = index === steps.length - 1;
 
+  /* On a narrow screen the steps scroll sideways, and the one you are on stays
+     in view rather than being found by swiping. Only when it is not already
+     in view: a step you can see and click is where it is, so the rail does
+     not slide under the pointer on every click. */
+  const rail = useRef<HTMLOListElement | null>(null);
+  useEffect(() => {
+    const strip = rail.current;
+    const current = strip?.querySelector<HTMLElement>('[aria-current="step"]');
+    if (!strip || !current) return;
+    const edge = strip.getBoundingClientRect();
+    const box = current.getBoundingClientRect();
+    if (box.left < edge.left) strip.scrollLeft -= edge.left - box.left + 8;
+    else if (box.right > edge.right) strip.scrollLeft += box.right - edge.right + 8;
+  }, [index, finished]);
+
   /**
    * The rows this step is showing, which is not the same as the rows that
    * still belong in it.
@@ -263,11 +278,12 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
             </button>
           ))}
         </div>
+
       </div>
 
       {/* Where you are, and how much is left. A review with no visible end is
           the thing people stop doing. */}
-      <ol className="reviewrail">
+      <ol className="reviewrail" ref={rail}>
         {steps.map((s, i) => {
           /* Where you are in the pass, and nothing else. Colouring a pip by
              how much was in the step meant the rail changed meaning as you
@@ -281,8 +297,11 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
           const outstanding = s.reports ? null : countOf(s);
 
           return (
-            <li key={s.id}>
+            <li key={s.id} className={seen ? 'seen' : undefined}>
               <button
+                aria-label={t('review.stepAria', {
+                  name: t(`review.step.${s.id}` as TranslationKey), index: i + 1, total: steps.length,
+                })}
                 className={`reviewpip${current ? ' current' : ''}${seen ? ' seen' : ''}${s.reports ? ' reports' : ''}`}
                 aria-current={current ? 'step' : undefined}
                 onClick={() => { setIndex(i); setFinished(false); }}
@@ -738,9 +757,9 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
       }
       const todayKey = format(startOfDay(new Date()), 'yyyy-MM-dd');
       return Array.from({ length: 7 }, (_, offset) => {
-        const day = new Date(weekRange.since.getTime() + offset * 86_400_000);
+        const day = addDays(weekRange.since, offset);
         const key = format(day, 'yyyy-MM-dd');
-        const lastWeek = format(new Date(day.getTime() - 7 * 86_400_000), 'yyyy-MM-dd');
+        const lastWeek = format(subDays(day, 7), 'yyyy-MM-dd');
         return {
           key,
           label: new Intl.DateTimeFormat(locale, { weekday: 'narrow' }).format(day),

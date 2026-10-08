@@ -17,6 +17,7 @@ test('#104 ▲ ▼ and J / K walk the list from the task panel, and Esc lands on
 
   // Typing in the description keeps its arrows.
   await page.locator('.descview').click();
+  await expect(page.locator('.descedit .cm-content')).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(shown).toHaveText(titles[1]);
   await page.keyboard.press('Escape');

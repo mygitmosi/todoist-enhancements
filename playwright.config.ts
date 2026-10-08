@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 4173;
+const development = process.env.PLAYWRIGHT_DEV === '1';
 
 /**
  * End-to-end journeys on the demo account, which needs no token.
@@ -29,7 +30,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run build && npm run preview -- --port ${PORT} --strictPort`,
+    command: development ? `npm run dev -- --port ${PORT} --strictPort` : `npm run build && npm run preview -- --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

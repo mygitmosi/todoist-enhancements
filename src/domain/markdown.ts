@@ -112,7 +112,7 @@ const SLOT_CHARS = new RegExp(`[${OPEN}${CLOSE}]`, 'g');
 /** Emphasis, applied only to text that carries no generated markup. */
 const emphasise = (text: string): string =>
   text
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*\*([^*]*)\*\*/g, (_m, words: string) => words ? `<strong>${words}</strong>` : '')
     .replace(/__([^_]+)__/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
     .replace(/(^|[^_])_([^_\n]+)_/g, '$1<em>$2</em>')
@@ -181,6 +181,16 @@ function inline(text: string, { anchors = true }: InlineOptions = {}): string {
     return code === undefined ? '' : `<code>${code}</code>`;
   });
   return out;
+}
+
+/**
+ * One line of text with its inline Markdown formatted — bold, italic, code,
+ * links and bare addresses — and nothing else: no marker of a list or a
+ * heading is read, so a caller that has already dealt with those gets exactly
+ * the words back.
+ */
+export function renderInlineText(source: string): string {
+  return inline(source);
 }
 
 /**
@@ -284,6 +294,10 @@ export function renderMarkdown(source: string): string {
       flushParagraph();
       flushList();
       continue;
+    }
+
+    if (/^ {0,3}-{3,}\s*$/.test(line)) {
+      flushParagraph(); flushList(); blocks.push('<hr>'); continue;
     }
 
     const heading = line.match(/^(#{1,4})\s+(.*)$/);

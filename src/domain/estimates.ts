@@ -159,19 +159,71 @@ export function formatDuration(minutes: number, locale: 'en' | 'fr' = 'en'): str
 }
 
 /**
+ * What the open subtasks of a task add up to, when every one of them has an
+ * estimate of its own (#187); null as soon as one of them does not, or when
+ * there is no open subtask at all.
+ *
+ * A subtask that is itself a parent counts through the same rule, so a
+ * grandparent follows its children's sums. A subtask whose figure is only a
+ * partial, computed `*` sum does not count as estimated: the whole point is to
+ * be sure every part is known before the parent defers to them.
+ */
+export function childrenSum(
+  item: Pick<Item, 'id'>,
+  childrenOf: (parentId: string) => Item[],
+  /* Ids on the way down, so a list that loops back on itself ends instead of
+     running forever. Todoist never sends one; a test double might. */
+  seen: ReadonlySet<string> = new Set(),
+): number | null {
+  if (seen.has(item.id)) return null;
+  const below = new Set(seen).add(item.id);
+  const children = childrenOf(item.id).filter((c) => !c.checked && !c.is_deleted);
+  if (children.length === 0) return null;
+  let sum = 0;
+  for (const child of children) {
+    const minutes = childrenSum(child, childrenOf, below) ?? estimateOf(child);
+    if (minutes === null) return null;
+    sum += minutes;
+  }
+  return sum;
+}
+
+/**
  * The estimate that counts towards a total.
  *
- * The parent's own estimate wins. Without one, the sum of estimated children
- * stands in as a computed estimate. Children are looked up through `childrenOf`.
+ * When every open subtask has one, their sum wins over the parent's own: the
+ * parts are the more precise information (#187). Otherwise the parent's own
+ * estimate stands; without one, the sum of the estimated children stands in
+ * as a computed estimate. Children are looked up through `childrenOf`.
  */
 export function effectiveEstimate(
   item: Pick<Item, 'id' | 'labels' | 'duration'>,
   childrenOf: (parentId: string) => Item[],
 ): { minutes: number | null; computed: boolean } {
+  const all = childrenSum(item, childrenOf);
+  if (all !== null) return { minutes: all, computed: false };
+
   const own = estimateOf(item);
   if (own !== null) return { minutes: own, computed: false };
 
   const children = childrenOf(item.id).filter((c) => !c.checked);
   const sum = children.reduce((acc, c) => acc + (estimateOf(c) ?? 0), 0);
   return sum > 0 ? { minutes: sum, computed: true } : { minutes: null, computed: false };
+}
+
+/**
+ * The parents whose own estimate no longer says what their subtasks add up
+ * to, with the figure to write (#187). Nothing is returned for a parent that
+ * has a subtask without an estimate: it keeps what it has.
+ */
+export function parentEstimateWrites(
+  items: Item[],
+  childrenOf: (parentId: string) => Item[],
+): Array<{ id: string; minutes: number }> {
+  const writes: Array<{ id: string; minutes: number }> = [];
+  for (const item of items) {
+    const sum = childrenSum(item, childrenOf);
+    if (sum !== null && sum > 0 && estimateOf(item) !== sum) writes.push({ id: item.id, minutes: sum });
+  }
+  return writes;
 }

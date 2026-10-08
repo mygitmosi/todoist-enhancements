@@ -78,7 +78,7 @@ const COPY: Record<Locale, Copy> = {
     },
     tasks: [
       ['Relire le devis avant envoi', 'Vérifier les quantités et **la date de validité**.'],
-      ['Préparer la réunion de lancement', '- Rappeler le contexte\n- Présenter le planning\n- Lister les décisions à prendre'],
+      ['Préparer la réunion de lancement', 'Avant l’appel :\n- [x] Rappeler le contexte\n- [ ] Présenter le planning\n- [ ] Lister les décisions à prendre'],
       ['Envoyer la facture du mois', ''],
       ['Choisir la police du site', 'Comparer deux familles sur un écran réel, pas dans l’éditeur.'],
       ['Arroser les plantes', ''],
@@ -147,7 +147,7 @@ const COPY: Record<Locale, Copy> = {
     },
     tasks: [
       ['Check the quote before sending', 'Verify the quantities and **the expiry date**.'],
-      ['Prepare the kick-off meeting', '- Recap the context\n- Walk through the plan\n- List the decisions needed'],
+      ['Prepare the kick-off meeting', 'Before the call:\n- [x] Recap the context\n- [ ] Walk through the plan\n- [ ] List the decisions needed'],
       ['Send this month’s invoice', ''],
       ['Choose the site typeface', 'Compare two families on a real screen, not in the editor.'],
       ['Water the plants', ''],

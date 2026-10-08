@@ -190,6 +190,11 @@ export interface AppState {
     target: { project_id: string; section_id: string | null },
     destination: string,
   ) => Promise<void>;
+  /**
+   * Puts a selection inside one task as its subtasks, in the order given (#166).
+   * All of it or none of it: true when every task is now under the target.
+   */
+  nestMany: (ids: string[], parentId: string) => Promise<boolean>;
   createTask: (args: Record<string, unknown>) => Promise<void>;
   /** Independent tasks, all in one request: the screen shows them at once. */
   createTasks: (list: Array<Record<string, unknown>>) => Promise<void>;
@@ -264,11 +269,19 @@ export interface AppState {
   updateSectionFields: (id: string, args: Record<string, unknown>) => Promise<void>;
   /** Creates a section at `index` and hands back its id, so the caller can focus its name. */
   /** A new section at `index`, under `name` or the untitled placeholder the list's field then selects. */
-  createSection: (projectId: string, index: number, name?: string) => Promise<string>;
+  createSection: (projectId: string, index: number, name?: string, tempId?: string) => Promise<string>;
+  /* `tempId` lets a caller know the new section's id before Todoist has
+     answered, which this only does after the round trip (#186). */
   /** Moves a section, and the tasks in it, to a new position in its project. */
   moveSection: (id: string, index: number) => Promise<void>;
   /** Deletes a section. Todoist deletes the tasks inside it with it. */
   removeSection: (id: string) => Promise<void>;
+  /** Archives a section, and with it the tasks inside; the toast offers the way back. */
+  archiveSection: (id: string) => Promise<void>;
+  /** Moves a section, with its tasks, to the end of another project. */
+  moveSectionToProject: (id: string, projectId: string) => Promise<void>;
+  /** Copies a section just below the original, with its open tasks and their subtasks. */
+  duplicateSection: (id: string, name: string) => Promise<void>;
 
   /* Toasts */
   toast: (message: string, undo?: () => void, options?: { tone?: 'error' }) => void;
@@ -319,6 +332,9 @@ export interface AppState {
   closeSidePanel: (panel?: SidePanel) => void;
   timeFilter: TimeFilter;
   setTimeFilter: (patch: Partial<TimeFilter>) => void;
+
+
+
 }
 
 /** One slice of the store: its part of the state, built with the whole store's `set` and `get`. */
@@ -328,6 +344,6 @@ export type SyncSlice = Pick<AppState, 'ready' | 'connected' | 'snapshot' | 'syn
 export type DustSlice = Pick<AppState, 'dustKept' | 'keepInSomeday'>;
 export type PreferencesSlice = Pick<AppState, 'prefs' | 'walkthrough' | 'setPrefs' | 'setViewPrefs' | 'setLocale' | 'ensurePreferencesTask' | 'beginTourPreview' | 'endTourPreview' | 'setWalkthrough'>;
 export type TasksSlice = Pick<AppState, 'logbookEntry' | 'setLogbookEntry' | 'loadTask' | 'updateTask' | 'setRecurrence' | 'setEstimates' | 'toggleTask' | 'completeTasks' | 'removeTask' | 'removeTasks' | 'restoreTasks' | 'createTask' | 'createTasks' | 'setTaskLabels' | 'setTaskPriority' | 'skipOccurrence' | 'skipOccurrences' | 'reorderSubtasks'>;
-export type TasksMoveSlice = Pick<AppState, 'sendTo' | 'sendManyTo' | 'updateMany' | 'moveMany' | 'moveTask'>;
-export type StructureSlice = Pick<AppState, 'createLabel' | 'setLabelFavourite' | 'reorderLabels' | 'reorderProjects' | 'nestProject' | 'createProject' | 'archiveProject' | 'deleteProject' | 'duplicateProject' | 'updateProjectFields' | 'createSection' | 'moveSection' | 'removeSection' | 'updateSectionFields'>;
+export type TasksMoveSlice = Pick<AppState, 'sendTo' | 'sendManyTo' | 'updateMany' | 'moveMany' | 'nestMany' | 'moveTask'>;
+export type StructureSlice = Pick<AppState, 'createLabel' | 'setLabelFavourite' | 'reorderLabels' | 'reorderProjects' | 'nestProject' | 'createProject' | 'archiveProject' | 'deleteProject' | 'duplicateProject' | 'updateProjectFields' | 'createSection' | 'moveSection' | 'removeSection' | 'archiveSection' | 'moveSectionToProject' | 'duplicateSection' | 'updateSectionFields'>;
 export type UiSlice = Pick<AppState, 'toasts' | 'undoStack' | 'draggingTaskId' | 'draggingSectionId' | 'nesting' | 'outdenting' | 'draggingProjectId' | 'draggingTag' | 'selection' | 'selectionAnchor' | 'toast' | 'dismissToast' | 'pushUndo' | 'undo' | 'consumeUndo' | 'setDraggingSection' | 'setDraggingTag' | 'setNesting' | 'setOutdenting' | 'setDraggingProject' | 'sidePanel' | 'openSidePanel' | 'closeSidePanel' | 'timeFilter' | 'setTimeFilter' | 'toggleSelection' | 'setSelectionAnchor' | 'selectRange' | 'clearSelection' | 'setDragging'>;

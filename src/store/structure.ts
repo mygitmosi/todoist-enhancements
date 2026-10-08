@@ -6,6 +6,26 @@ import { patchParent } from '@/domain/order';
 import { byChildOrder, bySectionOrder, keyBetween, keysInOrder } from '@/domain/orderKey';
 import type { Slice, StructureSlice } from './types';
 
+/**
+ * Where a section added at `index` among `existing` goes.
+ *
+ * Where every section has a key, the new one takes a key between its two
+ * neighbours and nothing else is written. Otherwise everything from `index`
+ * down moves one place, which is `shifted`.
+ */
+function placeSection<T extends { order_key?: string | null }>(
+  existing: T[], index: number,
+): { orderKey: string | null; shifted: T[] } {
+  let orderKey: string | null = null;
+  try {
+    if (!existing.every((section) => section.order_key)) throw new Error('unmigrated');
+    orderKey = keyBetween(existing[index - 1]?.order_key ?? null, existing[index]?.order_key ?? null);
+  } catch {
+    orderKey = null;
+  }
+  return { orderKey, shifted: orderKey ? [] : existing.slice(index) };
+}
+
 export const createStructureSlice: Slice<StructureSlice> = (_set, get) => ({
   async createLabel(name, color = 'charcoal') {
     const trimmed = name.trim();
@@ -311,8 +331,8 @@ export const createStructureSlice: Slice<StructureSlice> = (_set, get) => ({
       return { ...snapshot, projects: { ...snapshot.projects, [id]: { ...project, ...args } } };
     });
   },
-  async createSection(projectId, index, name) {
-    const tempId = newUuid();
+  async createSection(projectId, index, name, wantedId) {
+    const tempId = wantedId ?? newUuid();
 
     /* The new section takes the clicked position, and everything from there
        down moves one place. Giving it the same order as an existing section
@@ -325,17 +345,7 @@ export const createStructureSlice: Slice<StructureSlice> = (_set, get) => ({
        placeholder the field then selects, so typing replaces it. */
     const untitled = name?.trim() || translate(get().prefs.locale, 'section.untitled');
 
-    /* Where every section has a key, the new one takes a key between its two
-       neighbours and nothing else is written. */
-    let orderKey: string | null = null;
-    try {
-      if (!existing.every((section) => section.order_key)) throw new Error('unmigrated');
-      orderKey = keyBetween(existing[index - 1]?.order_key ?? null, existing[index]?.order_key ?? null);
-    } catch {
-      orderKey = null;
-    }
-
-    const shifted = orderKey ? [] : existing.slice(index);
+    const { orderKey, shifted } = placeSection(existing, index);
     const commands = [
       {
         type: 'section_add',
@@ -415,6 +425,135 @@ export const createStructureSlice: Slice<StructureSlice> = (_set, get) => ({
         return { ...snap, sections };
       },
     );
+  },
+  async archiveSection(id) {
+    const section = get().snapshot.sections[id];
+    if (!section) return;
+    await get().apply([command('section_archive', { id })], (snapshot) => ({
+      ...snapshot,
+      sections: { ...snapshot.sections, [id]: { ...section, is_archived: true } },
+    }));
+    get().toast(
+      translate(get().prefs.locale, 'section.archived', { name: section.name }),
+      () => {
+        void get().apply([command('section_unarchive', { id })], (snapshot) => ({
+          ...snapshot,
+          sections: { ...snapshot.sections, [id]: { ...snapshot.sections[id], is_archived: false } },
+        }));
+      },
+    );
+  },
+  async moveSectionToProject(id, projectId) {
+    const snapshot = get().snapshot;
+    const section = snapshot.sections[id];
+    const target = snapshot.projects[projectId];
+    if (!section || !target || section.project_id === projectId) return;
+    const last = Math.max(
+      -1,
+      ...Object.values(snapshot.sections)
+        .filter((s) => s.project_id === projectId && !s.is_archived && !s.is_deleted)
+        .map((s) => s.section_order),
+    );
+    await get().apply([command('section_move', { id, project_id: projectId })], (current) => {
+      const items = { ...current.items };
+      /* Todoist takes the tasks along; the screen must not leave them behind. */
+      for (const item of Object.values(items)) {
+        if (item.section_id === id) items[item.id] = { ...item, project_id: projectId };
+      }
+      return {
+        ...current,
+        items,
+        sections: {
+          ...current.sections,
+          [id]: { ...current.sections[id], project_id: projectId, section_order: last + 1, order_key: null },
+        },
+      };
+    });
+    get().toast(translate(get().prefs.locale, 'section.moved', { name: section.name, project: target.name }));
+  },
+  async duplicateSection(id, name) {
+    const snapshot = get().snapshot;
+    const source = snapshot.sections[id];
+    if (!source) return;
+
+    const siblings = Object.values(snapshot.sections)
+      .filter((s) => s.project_id === source.project_id && !s.is_archived && !s.is_deleted)
+      .sort(bySectionOrder);
+    const index = siblings.findIndex((s) => s.id === id) + 1;
+    const { orderKey, shifted } = placeSection(siblings, index);
+
+    /* One batch, so the copy can never half-exist: Todoist resolves a temp id
+       used as an argument inside the same call. Open tasks only, with their
+       subtasks kept under the copy of their parent. */
+    const tempId = newUuid();
+    const commands: Command[] = [
+      {
+        type: 'section_add',
+        uuid: newUuid(),
+        temp_id: tempId,
+        args: orderKey
+          ? { name, project_id: source.project_id, order_key: orderKey }
+          : { name, project_id: source.project_id, section_order: index },
+      },
+      ...shifted.map((section, offset) =>
+        command('section_update', { id: section.id, section_order: index + offset + 1 })),
+    ];
+
+    const open = Object.values(snapshot.items)
+      .filter((i) => i.section_id === id && !i.checked && !i.is_deleted);
+    const ids = new Set(open.map((i) => i.id));
+    const tempOf = new Map<string, string>(open.map((i) => [i.id, newUuid()]));
+    const depth = (item: (typeof open)[number]): number => {
+      let d = 0;
+      for (let at = item; at.parent_id && ids.has(at.parent_id); at = snapshot.items[at.parent_id]) d += 1;
+      return d;
+    };
+    for (const item of [...open].sort((a, b) => depth(a) - depth(b) || byChildOrder(a, b))) {
+      commands.push({
+        type: 'item_add',
+        uuid: newUuid(),
+        temp_id: tempOf.get(item.id)!,
+        args: {
+          content: item.content,
+          description: item.description || undefined,
+          project_id: source.project_id,
+          section_id: tempId,
+          parent_id: item.parent_id && ids.has(item.parent_id) ? tempOf.get(item.parent_id) : undefined,
+          priority: item.priority,
+          labels: item.labels,
+          due: item.due ?? undefined,
+          duration: item.duration ?? undefined,
+        },
+      });
+    }
+
+    await get().apply(commands, (current) => {
+      const sections = { ...current.sections };
+      shifted.forEach((section, offset) => {
+        sections[section.id] = { ...section, section_order: index + offset + 1 };
+      });
+      sections[tempId] = {
+        id: tempId, project_id: source.project_id, name,
+        section_order: index, order_key: orderKey, is_archived: false, is_deleted: false,
+      };
+      /* The copies are on screen at once, under the ids they will be given. */
+      const items = { ...current.items };
+      for (const original of open) {
+        const copyId = tempOf.get(original.id)!;
+        items[copyId] = {
+          ...original,
+          id: copyId,
+          section_id: tempId,
+          parent_id: original.parent_id && ids.has(original.parent_id) ? tempOf.get(original.parent_id)! : null,
+          day_order: -1,
+          added_at: null,
+          completed_at: null,
+          updated_at: null,
+        };
+      }
+      return { ...current, sections, items };
+    });
+    get().toast(translate(get().prefs.locale, 'section.duplicated', { name }));
   },
   async removeSection(id) {
     /* Todoist deletes a section's tasks with it. The tasks are moved to the

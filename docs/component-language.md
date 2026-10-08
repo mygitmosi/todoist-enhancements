@@ -125,6 +125,28 @@ its variant for a selection.
 `EstimateField` everywhere (composer, task panel, row, review, Things to
 settle). Variant: the phone sheet adds quick chips above it.
 
+### Checkboxes — ✅ (#157)
+
+Three, told apart on purpose, and none of them borrows another's shape:
+
+| Where | Shape | Rule |
+| --- | --- | --- |
+| A task, in a list, a board, the panel | round box, priority colour | completes the task; the only one that does |
+| A subtask's progress | the progress ring (`ProgressRing`), beside "1/3" | decorative: the number is the information |
+| A checklist line of a description (`.checkbox` in `Checklist.tsx`, and `.md-check` in the editor) | small rounded square, 14px, 4px radius, accent when ticked | ticks one line of text; never a task: no date, no priority, no estimate, never in a list of its own. The real `<input type="checkbox">` takes the focus and Space; done lines are muted and struck through |
+
+The bulk bar's tag list (`.checkrow`) is a menu line with a native checkbox and
+is not part of this family.
+
+### Panels on the right — ✅ (#177)
+
+Insights and I have time are one family and never open together:
+about 340–420px wide, a header with the icon, the name and a close button,
+Escape puts it away when it has the focus, and the focus goes back to what
+opened it. With room (≥1100px) the page makes way for it by a margin on the
+workspace (`data-sidepanel` on the document); under that it lies over the page;
+on a phone it is the page. Opening one closes the other.
+
 ### Searchable selects and typed fields in menus — ✅ look (#114)
 
 Every "type to narrow" field at the top of a menu is `.pickersearch`: one

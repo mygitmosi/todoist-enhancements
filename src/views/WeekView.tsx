@@ -141,7 +141,7 @@ function WeekBody({
 
   /* A week is drawn from every project at once, so the order it is put into
      is the one Todoist keeps for lists like this one. */
-  const sortedGroup = (list: typeof scoped) => sortItems(list, current.sort, childrenOf, 'day', snapshot);
+  const sortedGroup = (list: typeof scoped) => sortItems(list, current.sort, childrenOf, 'day', snapshot, true);
   /* Dropping a task into a place in a list is always offered, whatever the
      list is sorted by: it is how you ask this view for an order of your own,
      and the drop makes it manual rather than being refused for not being
@@ -176,7 +176,7 @@ function WeekBody({
     return columns
       .filter((column) => column.items.length > 0 || column.dropTarget)
       .map((column) => ({
-        ...column, items: sortItems(column.items, current.sort, childrenOf, 'day', snapshot),
+        ...column, items: sortItems(column.items, current.sort, childrenOf, 'day', snapshot, true),
       }));
   }, [groups, prefs.showQuickGroup, current.sort, childrenOf, snapshot, t, scope]);
 

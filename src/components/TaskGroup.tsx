@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Icon } from './Icon';
 import { DraggableTask } from './dnd/DraggableTask';
@@ -8,6 +8,7 @@ import { GROUP_ATTR, RowListContext, groupAnswers } from './dnd/RowList';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { TaskRow } from './TaskRow';
+import { SectionMenu } from './SectionMenu';
 import { formatDuration, effectiveEstimate } from '@/domain/estimates';
 import type { Item } from '@/domain/types';
 
@@ -44,6 +45,8 @@ interface TaskGroupProps {
   dropTarget?: DropTarget;
   /** A real section can be renamed, moved and deleted; a derived grouping cannot. */
   sectionId?: string;
+  /** The project a real section belongs to, for its menu (Move needs to leave it out). */
+  projectId?: string;
   onRename?: (name: string) => void;
   onDelete?: () => void;
   /** Decision views can reuse rows while explicitly forbidding drag semantics. */
@@ -53,12 +56,22 @@ interface TaskGroupProps {
 export function TaskGroup({
   title, items, childrenOf, onOpen, tint, actions,
   showProject = true, showSection = false, defaultCollapsed = false, dropTarget, onAddTask, accent,
-  sectionId, onRename, onDelete, reorderable, viewKey, keepWhenEmpty = false, draggable = true,
+  sectionId, projectId, onRename, onDelete, reorderable, viewKey, keepWhenEmpty = false, draggable = true,
   subtitle, dust = false,
 }: TaskGroupProps) {
   const { t, locale } = useT();
   const dragging = useStore((s) => s.draggingTaskId !== null);
-  const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const [collapsed, setCollapsedNow] = useState(() => (sectionId ? readCollapsed(sectionId) : null) ?? defaultCollapsed);
+  /* A real section remembers being folded across reloads, on this device. */
+  const setCollapsed = (next: (current: boolean) => boolean) => {
+    setCollapsedNow((current) => {
+      const value = next(current);
+      if (sectionId) writeCollapsed(sectionId, value);
+      return value;
+    });
+  };
+  const [menuOpen, setMenuOpen] = useState(false);
+  const moreRef = useRef<HTMLButtonElement>(null);
 
   // An empty derived grouping is noise. A real section is not: it is somewhere
   // you chose to make, and a section you just created has to be visible before
@@ -93,6 +106,19 @@ export function TaskGroup({
           {/* A section is dragged by its own handle, so a click on the heading
               still collapses it. */}
           {sectionId && <SectionHandle id={sectionId} label={t('section.move')} />}
+          {/* The caret sits in the gutter, left of the title, so the titles
+              stay lined up with the tasks under them (#185). */}
+          {sectionId && (
+            <button
+              className="gcaret"
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? t('section.expand') : t('section.collapse')}
+              title={collapsed ? t('section.expand') : t('section.collapse')}
+              onClick={() => setCollapsed((v) => !v)}
+            >
+              <Icon name="caret" size="sm" />
+            </button>
+          )}
           <button
             className="gtoggle"
             aria-expanded={!collapsed}
@@ -110,29 +136,56 @@ export function TaskGroup({
               <span className="gname">{title}</span>
             )}
             {subtitle && <span className="gsub">{subtitle}</span>}
+            {/* On a real section the round count follows the title (#185). */}
+            {sectionId && <span className="gcount">{items.length}</span>}
             {totalMinutes > 0 && <span className="gtime">{formatDuration(totalMinutes, locale)}</span>}
           </button>
           {actions && <span className="gactions">{actions}</span>}
-          <span className="gcount">{items.length}</span>
-          {onDelete && (
-            <button
-              className="gdelete"
-              aria-label={t('section.delete')}
-              title={t('section.delete')}
-              onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            >
-              <Icon name="close" size="sm" />
-            </button>
+          {sectionId ? (
+            onDelete && projectId && (
+              <>
+                <button
+                  ref={moreRef}
+                  className="gmore"
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                  aria-label={t('section.actions')}
+                  title={t('section.actions')}
+                  onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
+                >
+                  <Icon name="more" size="sm" />
+                </button>
+                {menuOpen && (
+                  <SectionMenu
+                    sectionId={sectionId}
+                    name={title ?? ''}
+                    projectId={projectId}
+                    anchor={moreRef.current}
+                    onClose={() => setMenuOpen(false)}
+                    onDelete={onDelete}
+                    onEdit={() => {
+                      const field = document.querySelector<HTMLInputElement>(`[data-section-name="${CSS.escape(sectionId)}"]`);
+                      field?.focus();
+                      field?.select();
+                    }}
+                  />
+                )}
+              </>
+            )
+          ) : (
+            <>
+              <span className="gcount">{items.length}</span>
+              {/* The disclosure caret ends the row, as it does in the sidebar. */}
+              <button
+                className="gdisclose"
+                aria-expanded={!collapsed}
+                aria-label={title}
+                onClick={() => setCollapsed((v) => !v)}
+              >
+                <Icon name={collapsed ? 'caret' : 'caret-up'} size="sm" />
+              </button>
+            </>
           )}
-          {/* The disclosure caret ends the row, as it does in the sidebar. */}
-          <button
-            className="gdisclose"
-            aria-expanded={!collapsed}
-            aria-label={title}
-            onClick={() => setCollapsed((v) => !v)}
-          >
-            <Icon name={collapsed ? 'caret' : 'caret-up'} size="sm" />
-          </button>
         </div>
 
         </div>
@@ -160,6 +213,11 @@ export function TaskGroup({
             dust={dust}
           />
         ))}
+
+      {/* Over the section itself rather than over one of its rows (an empty
+          section, the gap below the last task): the line the rows draw, at the
+          end of the list, instead of a border round the whole section (#184). */}
+      {isOver && <div className="dropbar" aria-hidden="true" />}
 
       {/* A block with no heading has nothing to say it is empty about: the
           add line under it is the whole point of it being there. */}
@@ -199,6 +257,20 @@ export function TaskGroup({
       {({ isOver }) => wrapped(isOver && dragging)}
     </Droppable>
   );
+}
+
+const collapsedKey = (sectionId: string) => `enhanced.section-collapsed.${sectionId}`;
+function readCollapsed(sectionId: string): boolean | null {
+  try {
+    const value = localStorage.getItem(collapsedKey(sectionId));
+    return value === null ? null : value === '1';
+  } catch { return null; }
+}
+function writeCollapsed(sectionId: string, collapsed: boolean) {
+  try {
+    if (collapsed) localStorage.setItem(collapsedKey(sectionId), '1');
+    else localStorage.removeItem(collapsedKey(sectionId));
+  } catch { /* storage refused: the fold lasts for the session */ }
 }
 
 /** The upper and lower halves of a real section are explicit reorder targets. */

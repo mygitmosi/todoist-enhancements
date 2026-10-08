@@ -1,23 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { format, startOfDay } from 'date-fns';
+import { format } from 'date-fns';
 import { Icon } from '@/components/Icon';
 import { DateField } from '@/components/DateField';
 import {
-  Bars, ChartCard, ContributionGrid, Donut, SplitBar,
+  Bars, ChartHead, ContributionGrid, Donut, SplitBar,
   StatTile, seriesColor, type BarDatum, type ContributionDatum,
   type SliceDatum,
 } from '@/components/charts';
+import { DashboardGrid, type DashboardCardSpec } from '@/components/DashboardCards';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { useData } from '@/hooks/useData';
 import { useCompleted } from '@/hooks/useCompleted';
 import { navigate, useRoute } from '@/hooks/useRoute';
 import { rootItems } from '@/store/selectors';
-import { summariseInsights } from '@/domain/insights';
+import { completionBuckets, summariseInsights } from '@/domain/insights';
+import {
+  isDefaultDashboardOrder, moveDashboardCard, resolveDashboardOrder, type DashboardCardId,
+} from '@/domain/dashboard';
 import { formatDuration, estimateOf } from '@/domain/estimates';
 import { formatRelativeDay, toApiDate } from '@/domain/dates';
 import {
-  formatRange, previousRange, rangeFor, spanOf, type Period, type Range,
+  daysOf, formatRange, granularitiesOf, previousRange,
+  rangeFor, spanOf, type Grain, type Period, type Range,
 } from '@/domain/periods';
 import { markerStyle } from '@/domain/colors';
 import { toDisplayPriority, type CompletedItem } from '@/domain/types';
@@ -73,7 +78,7 @@ export function InsightsView({ onOpen }: { onOpen?: (id: string) => void }) {
     () => rangeFor(period, offset, custom, startDay),
     [period, offset, custom, startDay],
   );
-  const { data: completed, previous, loading } = useCompleted(range, true);
+  const { data: completed, previous, loading, error, retry } = useCompleted(range, true);
 
   const pickPreset = (next: Period) => { setPeriod(next); setOffset(0); };
   /* Editing either date makes the range a custom one, starting from whatever
@@ -103,9 +108,17 @@ export function InsightsView({ onOpen }: { onOpen?: (id: string) => void }) {
 
   const intl = locale === 'fr' ? 'fr-FR' : 'en-GB';
 
+  /* The layout can be edited on the overview only, and leaving the tab ends it. */
+  const [editing, setEditing] = useState(false);
+  useEffect(() => { if (tab !== 'overview') setEditing(false); }, [tab]);
+  const storedOrder = useStore((s) => s.prefs.dashboardOrder);
+  const setPrefs = useStore((s) => s.setPrefs);
+  const toast = useStore((s) => s.toast);
+  const order = useMemo(() => resolveDashboardOrder(storedOrder), [storedOrder]);
+
   /* Short ranges read day by day, years month by month, and a quarter gives
      the reader both useful resolutions instead of choosing for them. */
-  const grainOptions = granularitiesOf(spanOf(range));
+  const grainOptions = granularitiesOf(spanOf(range), period);
   const [grainChoice, setGrainChoice] = useState<Grain>('day');
   const grain = grainOptions.includes(grainChoice) ? grainChoice : (grainOptions[0] ?? null);
 
@@ -113,25 +126,15 @@ export function InsightsView({ onOpen }: { onOpen?: (id: string) => void }) {
      the summary cards, where they do not obscure individual days or hours. */
   const perBucket: BarDatum[] = useMemo(() => {
     if (grain === null) return [];
-    const count = (items: CompletedItem[]) => {
-      const map = new Map<string, number>();
-      for (const item of items) {
-        const key = bucketKey(new Date(item.completed_at), grain);
-        map.set(key, (map.get(key) ?? 0) + 1);
-      }
-      return map;
-    };
-    const current = count(completed);
-    const buckets = bucketsOf(range, grain);
+    const buckets = completionBuckets(completed, range, grain);
     /* Every bar in the data colour, and the best one in the accent: the
        card's subtitle names it, and the bar it names is the one lit up. */
-    const values = buckets.map((at) => current.get(bucketKey(at, grain)) ?? 0);
-    const best = firstBest(values);
+    const best = firstBest(buckets.map((bucket) => bucket.value));
 
-    return buckets.map((at, index) => ({
-      key: bucketKey(at, grain),
-      label: bucketLabel(at, grain, intl, spanOf(range) <= 14),
-      value: values[index],
+    return buckets.map((bucket, index) => ({
+      key: bucket.key,
+      label: bucketLabel(bucket.at, grain, intl, spanOf(range) <= 14),
+      value: bucket.value,
       current: index === best,
     }));
   }, [completed, range, grain, intl]);
@@ -195,18 +198,25 @@ export function InsightsView({ onOpen }: { onOpen?: (id: string) => void }) {
   );
 
   const tasksLabel = (count: number) => t('metrics.tasks', { count });
+  /* The change since the period before, as a signed number the colour only
+     repeats: green for more, red for less, neutral for none. What it is set
+     against is in the tooltip and in the accessible name, not drawn (#174). */
   const comparison = (
     current: number, earlier: number,
     formatValue: (value: number) => string = String,
     deltaUnit = '', previousUnit = deltaUnit,
   ) => {
     const delta = current - earlier;
-    return <span className="metric-comparison">
-      <strong className={`compare-delta${delta > 0 ? ' up' : delta < 0 ? ' down' : ''}`}>
-        {delta > 0 ? '+' : delta < 0 ? '−' : ''}{formatValue(Math.abs(delta))}{deltaUnit}
-      </strong>
-      <span>{t('insights.previousValue', { value: `${formatValue(earlier)}${previousUnit}` })}</span>
-    </span>;
+    const sign = delta > 0 ? '+' : delta < 0 ? '−' : '';
+    const text = `${sign}${formatValue(Math.abs(delta))}${deltaUnit}`;
+    const baseline = t('insights.previousValue', { value: `${formatValue(earlier)}${previousUnit}` });
+    return <strong
+      className={`compare-delta${delta > 0 ? ' up' : delta < 0 ? ' down' : ''}`}
+      title={baseline}
+      aria-label={`${text}; ${baseline}`}
+    >
+      {text}
+    </strong>;
   };
   const showHeatmap = period === 'quarter' || period === 'year'
     || (period === 'custom' && spanOf(range) >= 89);
@@ -215,23 +225,223 @@ export function InsightsView({ onOpen }: { onOpen?: (id: string) => void }) {
      horizontally rather than hiding the longest and most useful timeframe. */
   const contribution: ContributionDatum[] = useMemo(() => {
     const counts = countByDay(completed);
-    const days: ContributionDatum[] = [];
-    for (let at = startOfDay(range.since); at <= range.until; at = new Date(at.getTime() + 86_400_000)) {
+    return daysOf(range).map((at) => {
       const key = format(at, 'yyyy-MM-dd');
-      days.push({
+      return {
         key,
         label: new Intl.DateTimeFormat(intl, { day: 'numeric', month: 'short' }).format(at),
         value: counts.get(key) ?? 0,
-      });
-    }
-    return days;
+      } satisfies ContributionDatum;
+    });
   }, [completed, range, intl]);
+
+  const bestBucket = grain === 'month'
+    ? perBucket.reduce<BarDatum | null>((best, bucket) => (!best || bucket.value > best.value ? bucket : best), null)
+    : null;
+
+  const heatmapSpan = period !== 'year' && spanOf(range) <= 180 ? 6 : 12;
+
+  /* Every card the dashboard can show, by name. A card that makes no sense for
+     the period in front of you (the heatmap on a week, the trend on a day) is
+     simply absent, and the order kept for it waits for the period that has it. */
+  const specs: Partial<Record<DashboardCardId, DashboardCardSpec>> = {
+    completed: {
+      id: 'completed', name: t('insights.completedTasks'), span: 3, className: 'metric-card',
+      children: <>
+        <Icon name="check" className="metric-icon" />
+        <StatTile
+          label={t('insights.completedTasks')}
+          value={summary.completedCount}
+          hint={comparison(summary.completedCount, previousSummary.completedCount)}
+        />
+      </>,
+    },
+    pace: {
+      id: 'pace', name: t('insights.tasksPerDay'), span: 3, className: 'metric-card',
+      children: <>
+        <Icon name="calendar" className="metric-icon" />
+        <StatTile
+          label={t('insights.tasksPerDay')}
+          value={tasksPerDay}
+          hint={comparison(tasksPerDay, previousTasksPerDay)}
+        />
+      </>,
+    },
+    time: {
+      id: 'time', name: t('insights.completedTime'), span: 3, className: 'metric-card',
+      children: <>
+        <Icon name="clock" className="metric-icon" />
+        <StatTile
+          label={t('insights.completedTime')}
+          value={formatDuration(summary.completedMinutes, locale).replace(/\s+/g, '')}
+          hint={comparison(summary.completedMinutes, previousSummary.completedMinutes,
+            (value) => formatDuration(value, locale))}
+        />
+      </>,
+    },
+    focus: {
+      id: 'focus', name: t('insights.focusScore'), span: 3, className: 'metric-card focus-metric',
+      children: <>
+        <Icon name="flag" className="metric-icon" />
+        <StatTile
+          label={t('insights.focusScore')}
+          value={`${summary.focusScore}%`}
+          hint={comparison(summary.focusScore, previousSummary.focusScore, String, ' pts', '%')}
+        />
+        <SplitBar data={byPriority} format={(count) =>
+          `${summary.completedCount > 0 ? Math.round(count / summary.completedCount * 100) : 0}%`
+        } />
+      </>,
+    },
+    /* A single day has no series of days inside it. */
+    ...(grain !== null && {
+      trend: {
+        id: 'trend' as const, name: t('dashboard.card.trend'), span: 6,
+        children: <>
+          <ChartHead
+            title={t(`insights.per_${grain}` as TranslationKey)}
+            subtitle={grain === 'month'
+              ? (bestBucket && bestBucket.value > 0
+                ? t('insights.bestMonth', { month: bestBucket.label, tasks: tasksLabel(bestBucket.value) })
+                : t('insights.noHistory'))
+              : (bestDay
+                ? t('insights.bestDay', {
+                  day: new Intl.DateTimeFormat(intl, { weekday: 'long', day: 'numeric', month: 'short' }).format(new Date(`${bestDay.date}T12:00:00`)),
+                  tasks: tasksLabel(bestDay.count),
+                })
+                : t('insights.noHistory'))}
+            trailing={grainOptions.length > 1 ? (
+              <div className="segmented small chart-grain" aria-label={t('insights.granularity')}>
+                {grainOptions.map((option) => (
+                  <button
+                    key={option}
+                    aria-pressed={grain === option}
+                    onClick={() => setGrainChoice(option)}
+                  >
+                    <small>{t(`insights.grain.${option}` as TranslationKey)}</small>
+                  </button>
+                ))}
+              </div>
+            ) : undefined}
+          />
+          <Bars
+            data={perBucket}
+            height={160}
+            labelEvery={perBucket.length > 14 ? Math.ceil(perBucket.length / 12) : 1}
+            emptyLabel={t('insights.noHistory')}
+            format={(value) => String(value)}
+          />
+        </>,
+      },
+    }),
+    hours: {
+      id: 'hours', name: t('insights.dayActivity'), span: grain === null ? 12 : 6,
+      children: <>
+        <ChartHead
+          title={t('insights.dayActivity')}
+          subtitle={bestHour.count > 0
+            ? t('insights.bestHour', { hour: `${String(bestHour.hour).padStart(2, '0')}h–${String((bestHour.hour + 1) % 24).padStart(2, '0')}h`, tasks: tasksLabel(bestHour.count) })
+            : t('insights.noHistory')}
+        />
+        <Bars
+          data={byHour}
+          height={160}
+          labelEvery={3}
+          emptyLabel={t('insights.noHistory')}
+          format={tasksLabel}
+        />
+      </>,
+    },
+    ...(showHeatmap && contribution.length > 0 && {
+      heatmap: {
+        id: 'heatmap' as const, name: t('insights.contribution'), span: heatmapSpan,
+        children: <>
+          <ChartHead title={t('insights.contribution')} subtitle={t('insights.contributionHint')} />
+          <ContributionGrid
+            data={contribution}
+            emptyLabel={t('insights.noHistory')}
+            summary={t('insights.contributionSummary', {
+              active: summary.activeDays,
+              total: contribution.length,
+            })}
+            lessLabel={t('insights.lessActivity')}
+            moreLabel={t('insights.moreActivity')}
+          />
+        </>,
+      },
+    }),
+    projects: {
+      id: 'projects', name: t('insights.byProject'), span: 6,
+      children: <>
+        <ChartHead title={t('insights.byProject')} />
+        <Donut
+          data={byProject}
+          limit={6}
+          otherLabel={t('insights.otherProjects')}
+          total={summary.completedCount}
+          caption={t('insights.tasks')}
+          emptyLabel={t('insights.noHistory')}
+        />
+      </>,
+    },
+    tags: {
+      id: 'tags', name: t('insights.byLabel'), span: 6,
+      children: <>
+        <ChartHead title={t('insights.byLabel')} />
+        <Donut
+          data={byLabel}
+          limit={6}
+          total={byLabel.reduce((sum, entry) => sum + entry.value, 0)}
+          caption={t('insights.tagUses')}
+          otherLabel={t('insights.otherTags')}
+          emptyLabel={t('insights.noHistory')}
+        />
+      </>,
+    },
+  };
+  const cards = order
+    .map((id) => specs[id])
+    .filter((spec): spec is DashboardCardSpec => spec !== undefined);
+
+  const moveCard = (id: DashboardCardId, toIndex: number, visible: DashboardCardId[]) => {
+    const next = moveDashboardCard(order, visible as DashboardCardId[], id, toIndex);
+    setPrefs({ dashboardOrder: isDefaultDashboardOrder(next) ? [] : next });
+  };
+  const resetLayout = () => {
+    setPrefs({ dashboardOrder: [] });
+    toast(t('dashboard.layoutReset'));
+  };
 
   return (
     <div className="page wide">
       <div className="phead">
         <div>
-          <h1 className="ptitle">{t('insights.title')}</h1>
+          <h1 className="ptitle">
+            {t('insights.title')}
+            {/* Which dates the period stands for, beside the title where it is
+                seen at once, and changing with the period (#174). */}
+            <small className="dashboard-title-range" aria-live="polite">{formatRange(range, intl)}</small>
+          </h1>
+        </div>
+        <div className="pactions">
+          {tab === 'overview' && (
+            <>
+            {editing && (
+              <button
+                className="btn"
+                disabled={isDefaultDashboardOrder(order)}
+                onClick={resetLayout}
+              >
+                {t('dashboard.resetLayout')}
+              </button>
+            )}
+            <button className="btn" aria-pressed={editing} onClick={() => setEditing((on) => !on)}>
+              <Icon name={editing ? 'check' : 'sliders'} size="sm" />
+              {editing ? t('dashboard.doneEditing') : t('dashboard.editLayout')}
+            </button>
+            </>
+          )}
+
         </div>
       </div>
 
@@ -293,7 +503,6 @@ export function InsightsView({ onOpen }: { onOpen?: (id: string) => void }) {
             />
           </span>
         </span>
-        <span className="rangelabel">{formatRange(range, intl)}</span>
       </div>
 
       <div className="tabs" role="tablist">
@@ -309,147 +518,27 @@ export function InsightsView({ onOpen }: { onOpen?: (id: string) => void }) {
         ))}
       </div>
 
-      {loading && <p className="empty">{t('insights.loading')}</p>}
+      {editing && tab === 'overview' && <p className="psub dash-hint">{t('dashboard.layoutHint')}</p>}
 
-      {!loading && tab === 'overview' && (
-        <div className="bento dashboard-bento">
-          <h2 className="dashboard-group-label">{t('insights.dashboardSummary')}</h2>
-          <section className="card w3 metric-card">
-            <Icon name="check" className="metric-icon" />
-            <StatTile
-              label={t('insights.completedTasks')}
-              value={summary.completedCount}
-              hint={comparison(summary.completedCount, previousSummary.completedCount)}
-            />
-          </section>
+      {loading && <p className="empty" role="status">{t('insights.loading')}</p>}
 
-          <section className="card w3 metric-card">
-            <Icon name="calendar" className="metric-icon" />
-            <StatTile
-              label={t('insights.tasksPerDay')}
-              value={tasksPerDay}
-              hint={comparison(tasksPerDay, previousTasksPerDay)}
-            />
-          </section>
-
-          <section className="card w3 metric-card">
-            <Icon name="clock" className="metric-icon" />
-            <StatTile
-              label={t('insights.completedTime')}
-              value={formatDuration(summary.completedMinutes, locale)}
-              hint={comparison(summary.completedMinutes, previousSummary.completedMinutes,
-                (value) => formatDuration(value, locale))}
-            />
-          </section>
-
-          <section className="card w3 metric-card focus-metric">
-            <Icon name="flag" className="metric-icon" />
-            <StatTile
-              label={t('insights.focusScore')}
-              value={`${summary.focusScore}%`}
-              hint={comparison(summary.focusScore, previousSummary.focusScore, String, ' pts', '%')}
-            />
-            <SplitBar data={byPriority} format={(count) =>
-              `${summary.completedCount > 0 ? Math.round(count / summary.completedCount * 100) : 0}%`
-            } />
-          </section>
-
-          <h2 className="dashboard-group-label">{t('insights.dashboardActivity')}</h2>
-          {/* A single day has no series of days inside it. */}
-          {grain !== null && (
-            <ChartCard
-              title={t(`insights.per_${grain}` as TranslationKey)}
-              subtitle={bestDay
-                ? t('insights.bestDay', {
-                  day: new Intl.DateTimeFormat(intl, { weekday: 'long', day: 'numeric', month: 'short' }).format(new Date(`${bestDay.date}T12:00:00`)),
-                  tasks: tasksLabel(bestDay.count),
-                })
-                : t('insights.noHistory')}
-              span={6}
-              trailing={grainOptions.length > 1 ? (
-                <div className="segmented small chart-grain" aria-label={t('insights.granularity')}>
-                  {grainOptions.map((option) => (
-                    <button
-                      key={option}
-                      aria-pressed={grain === option}
-                      onClick={() => setGrainChoice(option)}
-                    >
-                      <small>{t(`insights.grain.${option}` as TranslationKey)}</small>
-                    </button>
-                  ))}
-                </div>
-              ) : undefined}
-            >
-              <Bars
-                data={perBucket}
-                height={160}
-                labelEvery={perBucket.length > 14 ? Math.ceil(perBucket.length / 12) : 1}
-                emptyLabel={t('insights.noHistory')}
-                format={(value) => String(value)}
-              />
-            </ChartCard>
-          )}
-
-          <ChartCard
-            title={t('insights.dayActivity')}
-            subtitle={bestHour.count > 0
-              ? t('insights.bestHour', { hour: `${String(bestHour.hour).padStart(2, '0')}h–${String((bestHour.hour + 1) % 24).padStart(2, '0')}h`, tasks: tasksLabel(bestHour.count) })
-              : t('insights.noHistory')}
-            span={grain === null ? 12 : 6}
-          >
-            <Bars
-              data={byHour}
-              height={160}
-              labelEvery={3}
-              emptyLabel={t('insights.noHistory')}
-              format={tasksLabel}
-            />
-          </ChartCard>
-
-          {showHeatmap && contribution.length > 0 && (
-            <ChartCard
-              title={t('insights.contribution')}
-              subtitle={t('insights.contributionHint')}
-              span={12}
-            >
-              <ContributionGrid
-                data={contribution}
-                emptyLabel={t('insights.noHistory')}
-                summary={t('insights.contributionSummary', {
-                  active: summary.activeDays,
-                  total: contribution.length,
-                })}
-                lessLabel={t('insights.lessActivity')}
-                moreLabel={t('insights.moreActivity')}
-              />
-            </ChartCard>
-          )}
-
-          <ChartCard title={t('insights.byProject')} span={6}>
-            <Donut
-              data={byProject}
-              limit={6}
-              otherLabel={t('insights.otherProjects')}
-              total={summary.completedCount}
-              caption={t('insights.tasks')}
-              emptyLabel={t('insights.noHistory')}
-            />
-          </ChartCard>
-
-          <ChartCard title={t('insights.byLabel')} span={6}>
-            <Donut
-              data={byLabel}
-              limit={6}
-              total={byLabel.reduce((sum, entry) => sum + entry.value, 0)}
-              caption={t('insights.tagUses')}
-              otherLabel={t('insights.otherTags')}
-              emptyLabel={t('insights.noHistory')}
-            />
-          </ChartCard>
+      {error !== null && (
+        <div className="empty" role="alert">
+          <p>{t(typeof navigator !== 'undefined' && navigator.onLine === false ? 'insights.offline' : 'insights.failed')}</p>
+          <button className="btn" onClick={retry}>{t('common.retry')}</button>
         </div>
       )}
 
-      {!loading && tab === 'logbook' && <Logbook completed={completed} onOpen={onOpen} />}
+      {!loading && error === null && tab === 'overview' && (
+        <DashboardGrid
+          cards={cards}
+          headings={{ summary: t('insights.dashboardSummary'), activity: t('insights.dashboardActivity') }}
+          editing={editing}
+          onMove={moveCard}
+        />
+      )}
+
+      {!loading && error === null && tab === 'logbook' && <Logbook completed={completed} onOpen={onOpen} />}
 
       {/* The foot of a page that has been read to the bottom. */}
     </div>
@@ -457,45 +546,6 @@ export function InsightsView({ onOpen }: { onOpen?: (id: string) => void }) {
 }
 
 /* ------------------------------------------------------------------ */
-
-type Grain = 'day' | 'month';
-
-/**
- * The unit a range of so many days is read in.
- *
- * A day has no series of days inside it, so it gets none; a quarter read day
- * by day is ninety bars nobody can tell apart, and a year is three hundred
- * and sixty-five.
- */
-function granularitiesOf(days: number): Grain[] {
-  if (days <= 1) return [];
-  if (days <= 31) return ['day'];
-  if (days <= 180) return ['day', 'month'];
-  return ['month'];
-}
-
-/** The start of every bucket the range touches, in order. */
-function bucketsOf(range: Range, grain: Grain): Date[] {
-  const out: Date[] = [];
-  for (let at = startOfGrain(range.since, grain); at <= range.until; at = shiftBucket(at, grain, 1)) {
-    out.push(at);
-  }
-  return out;
-}
-
-const startOfGrain = (at: Date, grain: Grain): Date => {
-  if (grain === 'month') return new Date(at.getFullYear(), at.getMonth(), 1);
-  return startOfDay(at);
-};
-
-const bucketKey = (at: Date, grain: Grain): string =>
-  format(startOfGrain(at, grain), grain === 'month' ? 'yyyy-MM' : 'yyyy-MM-dd');
-
-function shiftBucket(from: Date, grain: Grain, by: number): Date {
-  const at = startOfGrain(from, grain);
-  if (grain === 'month') return new Date(at.getFullYear(), at.getMonth() + by, 1);
-  return new Date(at.getTime() + by * 86_400_000);
-}
 
 function bucketLabel(at: Date, grain: Grain, intl: string, weekday = false): string {
   if (grain === 'month') {

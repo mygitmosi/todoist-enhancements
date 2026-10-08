@@ -1,9 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { fetchCompleted } from '@/api/completed';
 import { useStore } from '@/store/store';
 import { buildDemoCompleted } from '@/demo/demoData';
 import { previousRange, type Range } from '@/domain/periods';
 import type { CompletedItem } from '@/domain/types';
+
+const NONE: CompletedItem[] = [];
+
+interface Loaded {
+  /** The window these items answer, so they are never shown for another. */
+  key: string;
+  data: CompletedItem[];
+  previous: CompletedItem[];
+}
 
 /**
  * Reads completed tasks for a range, and for the range of the same length
@@ -15,20 +24,25 @@ import type { CompletedItem } from '@/domain/types';
  * The window asked for is twice the range, because every chart that compares
  * "this month" to "last month" would otherwise need a second round trip to say
  * anything. The result is split at the range's start before it is returned.
+ *
+ * What comes back always belongs to the range asked for: while the next one is
+ * loading, or after it failed, the last one's values are not handed out under
+ * the new one's name, and an answer that arrives after the person has moved on
+ * is dropped.
  */
 export function useCompleted(range: Range, enabled: boolean) {
   const connected = useStore((s) => s.connected);
   const demo = useStore((s) => s.demo);
   const locale = useStore((s) => s.prefs.locale);
-  const [data, setData] = useState<CompletedItem[]>([]);
-  const [previous, setPrevious] = useState<CompletedItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [failed, setFailed] = useState<{ key: string; message: string } | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   // Dates are compared by value: a fresh object with the same instant is the
   // same request, and must not fetch again.
   const sinceMs = range.since.getTime();
   const untilMs = range.until.getTime();
+  const key = `${sinceMs}:${untilMs}`;
 
   useEffect(() => {
     if (!enabled || !connected) return;
@@ -46,31 +60,35 @@ export function useCompleted(range: Range, enabled: boolean) {
         if (at >= sinceMs) inside.push(item);
         else if (at >= earlier.since.getTime()) before.push(item);
       }
-      setData(inside);
-      setPrevious(before);
+      setLoaded({ key, data: inside, previous: before });
+      setFailed(null);
     };
 
     if (demo) {
       split(buildDemoCompleted(locale));
-      setLoading(false);
       return;
     }
 
-    setLoading(true);
-    setError(null);
-
+    setFailed(null);
     fetchCompleted(earlier.since, current.until, controller.signal)
-      .then(split)
+      .then((items) => { if (!controller.signal.aborted) split(items); })
       .catch((err: unknown) => {
         if (controller.signal.aborted) return;
-        setError(err instanceof Error ? err.message : 'unknown');
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        setFailed({ key, message: err instanceof Error ? err.message : 'unknown' });
       });
 
     return () => controller.abort();
-  }, [sinceMs, untilMs, enabled, connected, demo, locale]);
+  }, [sinceMs, untilMs, key, enabled, connected, demo, locale, attempt]);
 
-  return { data, previous, loading, error };
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  const ready = loaded?.key === key;
+  const error = failed?.key === key ? failed.message : null;
+
+  return {
+    data: ready ? loaded.data : NONE,
+    previous: ready ? loaded.previous : NONE,
+    loading: enabled && connected && !ready && error === null,
+    error,
+    retry,
+  };
 }

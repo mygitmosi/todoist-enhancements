@@ -223,6 +223,7 @@ export function useKeyboard(bridge: KeyboardBridge) {
     };
 
     const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       const extending = e.shiftKey && !e.metaKey && !e.ctrlKey
         && (e.key === 'ArrowDown' || e.key === 'ArrowUp');
       if (!extending && e.key !== 'Shift') range = null;
@@ -243,6 +244,7 @@ export function useKeyboard(bridge: KeyboardBridge) {
       }
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        if (target?.closest('.mdedit, .md-link-dialog')) return;
         e.preventDefault();
         to.openSearch('');
         return;
@@ -390,8 +392,8 @@ export function useKeyboard(bridge: KeyboardBridge) {
          half of how this app is navigated. */
       if (goingTo) {
         e.preventDefault();
-        const to = GO_TO[e.key.toLowerCase()];
         stopGoing();
+        const to = GO_TO[e.key.toLowerCase()];
         if (!to) return;
         /* Today is a page of its own only when the week is split in two. Left
            unified it is the top of My week, and there is no Today in the

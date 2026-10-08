@@ -4,7 +4,7 @@ import { setEstimateStorage, weekLabel } from './types';
 import { due, item } from '@/test/items';
 
 const noChildren = () => [];
-const kinds = (items: Parameters<typeof detectConflicts>[0], childrenOf = noChildren) =>
+const kinds = (items: Parameters<typeof detectConflicts>[0], childrenOf: Parameters<typeof detectConflicts>[1] = noChildren) =>
   detectConflicts(items, childrenOf).map((conflict) => conflict.kind);
 
 describe('detectConflicts', () => {
@@ -32,12 +32,19 @@ describe('detectConflicts', () => {
     expect(kinds([item({ labels: ['est-soon'] })])).toEqual(['invalid-estimate']);
   });
 
-  it('flags a parent estimated alongside its estimated subtasks', () => {
+  it('flags a parent estimated alongside only some estimated subtasks', () => {
     const parent = item({ id: 'parent', labels: ['est-60'] });
     const child = item({ id: 'child', parent_id: 'parent', labels: ['est-30'] });
-    const [conflict] = detectConflicts([parent], (id) => (id === 'parent' ? [child] : []));
+    const bare = item({ id: 'bare', parent_id: 'parent' });
+    const [conflict] = detectConflicts([parent], (id) => (id === 'parent' ? [child, bare] : []));
     expect(conflict.kind).toBe('parent-and-children-estimated');
     expect(conflict.messageValues).toEqual({ parent: 60, children: 30 });
+  });
+
+  it('raises nothing once every open subtask is estimated: their sum wins (#187)', () => {
+    const parent = item({ id: 'parent', labels: ['est-60'] });
+    const child = item({ id: 'child', parent_id: 'parent', labels: ['est-30'] });
+    expect(kinds([parent], (id) => (id === 'parent' ? [child] : []))).toEqual([]);
   });
 
   it('leaves a kind alone once it is turned off', () => {

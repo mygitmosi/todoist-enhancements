@@ -1,6 +1,7 @@
-import { useDroppable } from '@dnd-kit/core';
+import { useId, useState } from 'react';
+import { useDndMonitor, useDroppable } from '@dnd-kit/core';
 import { useStore } from '@/store/store';
-import { canNest, rowTargetId } from '@/domain/dnd';
+import { canNest, planNestMany, rowTargetId } from '@/domain/dnd';
 import { useRowList } from './RowList';
 
 /**
@@ -18,18 +19,30 @@ import { useRowList } from './RowList';
  * somewhere nobody aimed.
  */
 export function useRowTarget(itemId: string, { nestable }: { nestable: boolean }) {
+  const instance = useId();
+  const targetId = `${rowTargetId(itemId)}|${instance}`;
   const list = useRowList();
+  const [landingBefore, setLandingBefore] = useState(false);
+  useDndMonitor({ onDragMove(event) {
+    if (event.over?.id !== targetId) return;
+    const y = (event.activatorEvent as PointerEvent).clientY + event.delta.y;
+    setLandingBefore(y < event.over.rect.top + event.over.rect.height / 2);
+  } });
   const nesting = useStore((s) => s.nesting);
   const open = useStore((s) => (
     s.draggingTaskId !== null && s.draggingTaskId !== itemId
-      && ((nestable && s.nesting) || (list !== null && !s.nesting))
+      && ((nestable && s.nesting) || (!s.nesting && (list !== null || (nestable && !!s.snapshot.items[s.draggingTaskId]?.parent_id))))
   ));
+  const ownParentSeam = useStore((s) => !landingBefore && !s.outdenting && !!s.draggingTaskId && s.snapshot.items[s.draggingTaskId]?.parent_id === itemId);
   const allowed = useStore((s) => (
     nestable && s.nesting && s.draggingTaskId !== null && s.draggingTaskId !== itemId
-      && canNest(s.snapshot.items, s.draggingTaskId, itemId)
+      /* A drag that carries a selection goes inside as a whole (#166). */
+      && (s.selection.length > 1 && s.selection.includes(s.draggingTaskId)
+        ? planNestMany(s.snapshot.items, s.selection, itemId).ok
+        : canNest(s.snapshot.items, s.draggingTaskId, itemId))
   ));
   const { setNodeRef, isOver } = useDroppable({
-    id: rowTargetId(itemId),
+    id: targetId,
     disabled: !open,
     /* Read back when the drop lands: the provider is given a row, and the row
        has to be able to say which list it was a row of. */
@@ -38,9 +51,10 @@ export function useRowTarget(itemId: string, { nestable }: { nestable: boolean }
 
   return {
     setRowRef: setNodeRef,
+    landingBefore,
     /** The task in flight would go inside this row. */
-    nestOver: isOver && allowed,
+    nestOver: isOver && (allowed || ownParentSeam),
     /** The task in flight would land in this row's place. */
-    landing: isOver && !nesting && list !== null,
+    landing: isOver && !nesting && !ownParentSeam && list !== null,
   };
 }

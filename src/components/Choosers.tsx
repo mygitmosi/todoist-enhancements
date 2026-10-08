@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 import { Icon } from './Icon';
 import { useT } from '@/hooks/useT';
 import {
-  ACCENTS, DENSITIES, THEMES, isHexColour,
-  type Accent, type Density, type Theme,
+  ACCENTS, DENSITIES, TASK_CHIPS, THEMES, isHexColour,
+  type Accent, type Density, type TaskChips, type Theme,
 } from '@/store/prefs';
 import { accentFamily, hexToHsl } from '@/domain/accent';
 import type { TranslationKey } from '@/i18n';
@@ -89,72 +89,97 @@ export function AccentChoice({
 }) {
   const { t } = useT();
   const [typed, setTyped] = useState(custom);
+  const [invalid, setInvalid] = useState(false);
 
   // The stored colour wins whenever it changes under us — another device, or
   // the native picker, which fires continuously while it is open.
-  useEffect(() => { setTyped(custom); }, [custom]);
+  useEffect(() => { setTyped(custom); setInvalid(false); }, [custom]);
 
+  /* A colour that is not a hex code is refused out loud, and the last good one
+     stays: the field goes back to it rather than leaving the card on a colour
+     nobody chose. */
   const commitTyped = (raw: string) => {
     const withHash = raw.startsWith('#') ? raw : `#${raw}`;
-    if (isHexColour(withHash)) onCustom(withHash.toLowerCase());
-    else setTyped(custom);
+    if (isHexColour(withHash)) { setInvalid(false); onCustom(withHash.toLowerCase()); }
+    else { setInvalid(true); setTyped(custom); }
   };
 
   return (
-    <div className="accentchoice" role="radiogroup" aria-label={t('settings.accent')}>
-      {ACCENTS.map((option) => (
+    <div className="accentchoice-wrap">
+      <div className="accentchoice" role="radiogroup" aria-label={t('settings.accent')}>
+        {ACCENTS.map((option) => (
+          <button
+            key={option}
+            type="button"
+            role="radio"
+            aria-checked={value === option}
+            aria-label={t(`settings.accent.${option}` as TranslationKey)}
+            className={`accentcard${value === option ? ' selected' : ''}`}
+            data-accent={option}
+            onClick={() => onChange(option)}
+          >
+            <AccentPreview />
+            <span className="accentlabel">
+              {t(`settings.accent.${option}` as TranslationKey)}
+              {value === option && <Icon name="check" size="sm" />}
+            </span>
+          </button>
+        ))}
+
+        {/* A card like the others, a radio like the others: the two controls
+            that set its colour are below the cards, not inside one, because a
+            radio wrapping a text field is a keyboard trap. */}
         <button
-          key={option}
           type="button"
           role="radio"
-          aria-checked={value === option}
-          aria-label={t(`settings.accent.${option}` as TranslationKey)}
-          className={`accentcard${value === option ? ' selected' : ''}`}
-          data-accent={option}
-          onClick={() => onChange(option)}
+          aria-checked={value === 'custom'}
+          aria-label={t('settings.accent.custom')}
+          className={`accentcard custom${value === 'custom' ? ' selected' : ''}`}
+          data-accent={value === 'custom' ? undefined : 'custom-preview'}
+          style={value === 'custom' ? undefined : customPreviewStyle(custom)}
+          onClick={() => onChange('custom')}
         >
           <AccentPreview />
           <span className="accentlabel">
-            {t(`settings.accent.${option}` as TranslationKey)}
-            {value === option && <Icon name="check" size="sm" />}
+            {t('settings.accent.custom')}
+            {value === 'custom' && <Icon name="check" size="sm" />}
           </span>
         </button>
-      ))}
-
-      {/* Not a radio: it holds two controls of its own, and a radio wrapping
-          a text field is a keyboard trap. Selecting it is what the swatch and
-          the field already do. */}
-      <div
-        className={`accentcard custom${value === 'custom' ? ' selected' : ''}`}
-        data-accent={value === 'custom' ? undefined : 'custom-preview'}
-        style={value === 'custom' ? undefined : customPreviewStyle(custom)}
-      >
-        <AccentPreview />
-        <span className="accentlabel">
-          {t('settings.accent.custom')}
-          {value === 'custom' && <Icon name="check" size="sm" />}
-        </span>
-        <span className="accentpicker">
-          <input
-            type="color"
-            value={isHexColour(custom) ? custom : '#d1453b'}
-            aria-label={t('settings.accent.customPick')}
-            onChange={(event) => onCustom(event.target.value.toLowerCase())}
-          />
-          <input
-            className="accenthex"
-            value={typed}
-            spellCheck={false}
-            aria-label={t('settings.accent.customHex')}
-            onChange={(event) => setTyped(event.target.value)}
-            onBlur={(event) => commitTyped(event.target.value.trim())}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') { event.preventDefault(); commitTyped(typed.trim()); }
-              if (event.key === 'Escape') setTyped(custom);
-            }}
-          />
-        </span>
       </div>
+
+      {value === 'custom' && (
+        <div className="custom-colour-editor">
+          <label>
+            <span>{t('settings.accent.customPick')}</span>
+            <input
+              type="color"
+              value={isHexColour(custom) ? custom : '#d1453b'}
+              onChange={(event) => onCustom(event.target.value.toLowerCase())}
+            />
+          </label>
+          <label>
+            <span>{t('settings.accent.customHex')}</span>
+            <input
+              className="accenthex"
+              value={typed}
+              spellCheck={false}
+              aria-invalid={invalid || undefined}
+              aria-describedby={invalid ? 'accent-hex-error' : undefined}
+              onChange={(event) => { setTyped(event.target.value); setInvalid(false); }}
+              onBlur={(event) => commitTyped(event.target.value.trim())}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') { event.preventDefault(); commitTyped(typed.trim()); }
+                if (event.key === 'Escape') { setTyped(custom); setInvalid(false); }
+              }}
+            />
+          </label>
+          {invalid && (
+            <span id="accent-hex-error" className="accenthex-error" role="alert">
+              {t('settings.accent.customInvalid', { colour: custom })}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -228,6 +253,48 @@ export function DensityChoice({
           </span>
           <span className="denslabel">
             {t(`settings.density.${option}` as TranslationKey)}
+            {value === option && <Icon name="check" size="sm" />}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * How the chips on a task's metadata are coloured, shown with two sample
+ * chips each (#175). One choice for Settings and for the first run, so the
+ * two can only ever say the same thing.
+ */
+export function TaskChipsChoice({
+  value, onChange,
+}: { value: TaskChips; onChange: (next: TaskChips) => void }) {
+  const { t } = useT();
+  return (
+    <div className="chipschoice" role="radiogroup" aria-label={t('settings.taskChips')}>
+      {TASK_CHIPS.map((option) => (
+        <button
+          key={option}
+          type="button"
+          role="radio"
+          aria-checked={value === option}
+          className={`chipscard${value === option ? ' selected' : ''}`}
+          onClick={() => onChange(option)}
+        >
+          {/* The sample is drawn by the real chip rules, with the mode of this
+              card rather than the page's own. */}
+          <span className="chipssample" data-chips={option} aria-hidden="true">
+            <span className="task"><span className="sample-title">{t('preview.task.homepage')}</span><span className="meta">
+              <span className="at">{option === 'minimal' ? `45min · ${t('common.today')}` : t('common.today')}</span>
+              <span className="est">45 min</span>
+              <span className="proj" style={{ '--marker': '#4073ff' } as React.CSSProperties}>#Website</span>
+              <span className="tag" style={{ '--marker': '#299438' } as React.CSSProperties}>
+                <Icon name="tag" size="sm" />home
+              </span>
+            </span></span>
+          </span>
+          <span className="chipslabel">
+            {t(`settings.taskChips.${option}` as TranslationKey)}
             {value === option && <Icon name="check" size="sm" />}
           </span>
         </button>

@@ -1,5 +1,6 @@
+import { DescriptionEditor } from '../Checklist';
 import { useCreateTag } from '@/hooks/useCreateTag';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Overlay } from './Overlay';
 import { useConfirm } from './Confirm';
 import { Icon } from '../Icon';
@@ -67,14 +68,6 @@ export function Composer({
   const newTag = useCreateTag(tagQuery);
   const [subtasks, setSubtasks] = useState<string[]>([]);
   const [subtaskDraft, setSubtaskDraft] = useState('');
-  /* The description is as tall as what is written in it (#113). */
-  const descriptionRef = useRef<HTMLTextAreaElement>(null);
-  useLayoutEffect(() => {
-    const el = descriptionRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
-  }, [description, open]);
   /** The readings of the name that have been turned down, by position in it. */
   const [refusals, setRefusals] = useState<TextRange[]>([]);
 
@@ -366,14 +359,13 @@ export function Composer({
         {/* Level 1, the task itself: the description sits under the title on
             the same left edge, quieter, and grows with what is written in it
             rather than being a box to fill (#113). */}
-        <textarea
-          ref={descriptionRef}
-          className="composer-desc"
-          rows={1}
-          placeholder={t('composer.descriptionPlaceholder')}
-          aria-label={t('detail.description')}
+        <DescriptionEditor
+          variant="composer"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={setDescription}
+          onCommit={() => undefined}
+          placeholder={t('composer.descriptionPlaceholder')}
+          ariaLabel={t('detail.description')}
         />
 
         {/* Level 2, planning, as one line of chips (direction B of #113): a

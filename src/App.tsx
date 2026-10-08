@@ -42,6 +42,7 @@ import { useData } from './hooks/useData';
 import { navigate, useRoute, type Route } from './hooks/useRoute';
 import { rootItems } from './store/selectors';
 import { detectConflicts } from './domain/conflicts';
+import { useParentEstimates } from './hooks/useParentEstimates';
 import { anytimeItems, bucketOf, hasLabel, somedayItems, upcomingItems, weekItems } from './domain/views';
 import { effectiveEstimate } from './domain/estimates';
 import type { Item } from './domain/types';
@@ -58,6 +59,7 @@ export function App() {
   const theme = useStore((s) => s.prefs.theme);
   const accent = useStore((s) => s.prefs.accent);
   const accentCustom = useStore((s) => s.prefs.accentCustom);
+  const taskChips = useStore((s) => s.prefs.taskChips);
   const userId = useStore((s) => s.snapshot.user?.id);
   const demo = useStore((s) => s.demo);
   const walkthroughOpen = useStore((s) => s.walkthrough);
@@ -110,6 +112,7 @@ export function App() {
   const [placement, setPlacement] = useState<ComposerPlacement>({});
 
   useEffect(() => { void init(); }, [init]);
+  useParentEstimates();
 
   /* A task or a project made before Todoist answered is opened under its
      temporary id. When the answer lands — after reconnecting, most of all —
@@ -150,6 +153,7 @@ export function App() {
   /* Also on `scheme`: a custom accent is two families, and which one is
      written depends on the scheme that ended up resolved. */
   useEffect(() => applyAccent(accent, accentCustom), [accent, accentCustom, scheme]);
+  useEffect(() => { document.documentElement.dataset.chips = taskChips; }, [taskChips]);
   useEffect(() => (connected ? startPolling() : undefined), [connected, startPolling]);
   useEffect(() => {
     const replay = () => {
@@ -819,6 +823,7 @@ function AppShell({
         onOpen={openTask}
       />
       <BulkBar />
+
       <InsightsPanel
         open={insightsOpen}
         onClose={() => setInsightsOpen(false)}

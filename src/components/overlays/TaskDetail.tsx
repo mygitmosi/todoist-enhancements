@@ -1,11 +1,13 @@
 import { useCreateTag } from '@/hooks/useCreateTag';
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { copyText, isTemporaryId, todoistTaskUrl } from '@/api/links';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Overlay } from './Overlay';
 import { isTopOverlay } from './overlayStack';
 import { Icon } from '../Icon';
 import { ProgressRing } from '../ProgressRing';
+import { ChecklistProgress, DescriptionEditor, DescriptionView } from '../Checklist';
+import { toggleItemAt } from '@/domain/checklist';
 import { useT } from '@/hooks/useT';
 import { useMenuKeys } from '@/hooks/useMenuKeys';
 import { useData } from '@/hooks/useData';
@@ -353,18 +355,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   const newTagChoice = useCreateTag(tagQuery);
   const panelRef = useRef<HTMLDivElement>(null);
   const menuRef = useMenuKeys(menuOpen, () => setMenuOpen(false));
-  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const titleRef = useRef<HTMLTextAreaElement | HTMLInputElement>(null);
-  /**
-   * Keeps the description box exactly as tall as its text, so leaving the
-   * field does not change the height of the panel.
-   *
-   * The editor was a fixed 96px box that scrolled, and the rendered view below
-   * it is as tall as the text — so clicking away from a long description made
-   * the panel jump open under the pointer, which is what it looked like when
-   * clicking "add subtask" right after pasting one in. Edited and rendered are
-   * the same height now, and nothing moves on the way between them.
-   */
   /** Asked for, then done. The one action in here that cannot be taken back. */
   const askThenDelete = useCallback(() => {
     if (!item) return;
@@ -449,16 +440,6 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
     return () => document.removeEventListener('keydown', onKey);
   }, [askThenDelete, item, overlayId]);
 
-  const fitDescription = useCallback(() => {
-    const el = descriptionRef.current;
-    if (!el) return;
-    const style = getComputedStyle(el);
-    const border =
-      Number.parseFloat(style.borderTopWidth) + Number.parseFloat(style.borderBottomWidth);
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight + border}px`;
-  }, []);
-
   // Re-seed the editable fields whenever a different task is opened.
   useEffect(() => {
     if (!item) return;
@@ -473,24 +454,6 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
     setMenuOpen(false);
     setTagPickerOpen(false);
   }, [item?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- Re-seed only for a different task; sync updates must preserve edits.
-
-  useEffect(() => {
-    if (editingDescription) descriptionRef.current?.focus();
-  }, [editingDescription]);
-
-  // Measured after layout, and again once webfonts settle, because the text
-  // height is not final on the first paint.
-  useLayoutEffect(fitDescription, [fitDescription, description, editingDescription, taskId]);
-  // Measured again once webfonts settle: the text height is not final on the
-  // first paint.
-  useEffect(() => {
-    void document.fonts?.ready.then(fitDescription);
-  }, [fitDescription]);
-
-  const descriptionHtml = useMemo(
-    () => renderMarkdown(item?.description ?? ''),
-    [item?.description],
-  );
 
   if (!item) {
     if (!taskId || !missing) return null;
@@ -647,6 +610,18 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   const commitDescription = () => {
     setEditingDescription(false);
     if (description !== item.description) void updateTask(item.id, { description });
+  };
+  /* The box is ticked on the text as it is now, not as it was when the panel
+     opened: two ticks in a row, or one after a sync, lose neither (#157). */
+  const tickChecklist = (line: number) => {
+    const latest = useStore.getState().snapshot.items[item.id]?.description ?? item.description;
+    const next = toggleItemAt(latest, line);
+    if (next !== latest) void updateTask(item.id, { description: next });
+  };
+  /* Opened on what the task says now: a box ticked since the panel opened is in it. */
+  const startEditingDescription = () => {
+    setDescription(useStore.getState().snapshot.items[item.id]?.description ?? item.description);
+    setEditingDescription(true);
   };
 
   function addSubtask() {
@@ -894,30 +869,23 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                 </div>
               )}
 
+              {/* Where the checklist's progress is read: with the description it
+                  belongs to, whether it is being edited or read (#157). */}
+              <ChecklistProgress description={editingDescription ? description : item.description} />
+
               {editingDescription ? (
-                <textarea
-                  ref={descriptionRef}
-                  className="descfield"
+                /* Escape leaves the field, and leaving the field saves — the
+                   same thing clicking away from it does. Nothing typed here is
+                   ever discarded, so Escape and clicking away agree. ⌘↵ is the
+                   same act, said deliberately. The checklist's lines are rows
+                   to edit, not Markdown to type (#157). */
+                <DescriptionEditor
                   value={description}
+                  onChange={setDescription}
+                  onCommit={commitDescription}
                   placeholder={t('detail.descriptionPlaceholder')}
-                  aria-label={t('detail.description')}
-                  onChange={(e) => setDescription(e.target.value)}
-                  onBlur={commitDescription}
-                  onKeyDown={(e) => {
-                    /* Escape leaves the field, and leaving the field saves —
-                       the same thing clicking away from it does. It used to
-                       throw the edit away and take the whole panel with it,
-                       which is two surprises for one key. Nothing typed here
-                       is ever discarded, so Escape and clicking away agree.
-                       Cmd+Enter is the same act, said deliberately. */
-                    if (e.key === 'Escape' || (e.key === 'Enter' && (e.metaKey || e.ctrlKey))) {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      commitDescription();
-                      // The panel keeps the keyboard; only the field gives it up.
-                      descriptionRef.current?.blur();
-                    }
-                  }}
+                  ariaLabel={t('detail.description')}
+                  autoFocus
                 />
               ) : (
                 /* Not a <button>: the description holds links, and a link
@@ -929,20 +897,22 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                   tabIndex={0}
                   className={`descview${item.description ? '' : ' placeholder'}`}
                   onClick={(e) => {
-                    if ((e.target as Element).closest('a[href]')) return;
-                    setEditingDescription(true);
+                    // A link is followed and a box is ticked; neither opens the editor.
+                    if ((e.target as Element).closest('a[href], .checkitem input')) return;
+                    e.preventDefault();
+                    startEditingDescription();
                   }}
                   onKeyDown={(e) => {
                     if (e.target !== e.currentTarget) return;
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
-                      setEditingDescription(true);
+                      startEditingDescription();
                     }
                   }}
                   aria-label={t('detail.description')}
                 >
                   {item.description ? (
-                    <div className="md" dangerouslySetInnerHTML={{ __html: descriptionHtml }} />
+                    <DescriptionView value={item.description} onToggle={tickChecklist} />
                   ) : (
                     t('detail.descriptionPlaceholder')
                   )}
@@ -991,6 +961,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
               </button>
             )}
           </section>
+
 
           <section className="detail-section boxed">
             <h3 className="sectionlabel">{t('detail.comments')}</h3>

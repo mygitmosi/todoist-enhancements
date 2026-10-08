@@ -196,7 +196,7 @@ async function groupTitles(page: import('@playwright/test').Page): Promise<Array
 /* A project's sections, without the Quick group that leads it (#154): its
    tasks are not moved by hand, and these journeys are about the sections. */
 const sectionTitles = async (page: import('@playwright/test').Page) =>
-  (await groupTitles(page)).filter(([name]) => name !== 'Quick');
+  (await groupTitles(page)).filter(([name]) => name !== 'Quick Tasks');
 
 test('⌘↓ at the end of a section carries the task into the next one, ⌘↑ brings it back', async ({ demo: page }) => {
   await page.goto('/#/project/site');

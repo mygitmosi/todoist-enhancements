@@ -52,7 +52,7 @@ export type SyncedPreferences = Omit<Preferences, 'sidebarCollapsed' | 'views'> 
 };
 
 export function syncedPreferences(prefs: Preferences): SyncedPreferences {
-  const { sidebarCollapsed: _local, views, ...rest } = prefs;
+  const { sidebarCollapsed: _folded, views, ...rest } = prefs;
   /* Sorted, so two devices holding the same settings write the same text
      and never take turns rewriting the comment. */
   const projectViews = Object.entries(views)
@@ -208,6 +208,20 @@ export const isHomeView = (value: unknown): value is HomeView =>
 export const WEEK_LAYOUTS = ['unified', 'split'] as const;
 export type WeekLayout = (typeof WEEK_LAYOUTS)[number];
 
+/**
+ * How the chips of a task's metadata are coloured (#175).
+ *
+ * Classic preserves the published text layout. Inherited draws the date, project and each tag in
+ * the colour they carry in Todoist, on a very light fill of it. Neutral keeps
+ * every chip grey. One preference, read by Settings and by the first-run
+ * setup alike, and kept with the account's other settings.
+ */
+export const TASK_CHIPS = ['classic', 'neutral', 'inherited', 'minimal'] as const;
+export type TaskChips = (typeof TASK_CHIPS)[number];
+
+export const isTaskChips = (value: unknown): value is TaskChips =>
+  typeof value === 'string' && (TASK_CHIPS as readonly string[]).includes(value);
+
 export const MATRIX_LAYOUTS = ['list', 'matrix'] as const;
 export type MatrixLayout = (typeof MATRIX_LAYOUTS)[number];
 
@@ -265,6 +279,14 @@ export interface Preferences {
   theme: Theme;
   /** The brand colour. Every accent exists in both schemes. */
   accent: Accent;
+  /** Whether the chips on a task's metadata wear their own colours (#175). */
+  taskChips: TaskChips;
+  /**
+   * The order the dashboard's cards are drawn in (#172): names of cards, from
+   * domain/dashboard. Empty is the default order, and a list that mentions
+   * only some cards or some that no longer exist is read by resolveDashboardOrder.
+   */
+  dashboardOrder: string[];
   /**
    * The colour behind `accent: 'custom'`.
    *
@@ -342,6 +364,8 @@ export const defaultPreferences = (locale: Locale): Preferences => ({
   density: 'comfortable',
   theme: 'system',
   accent: 'red',
+  taskChips: 'classic',
+  dashboardOrder: [],
   accentCustom: '#d1453b',
   views: {},
   upcomingHorizonDays: 15,
@@ -392,6 +416,11 @@ export function hydratePreferences(stored: unknown, locale: Locale): Preferences
     density: isDensity(s.density) ? s.density : base.density,
     theme: isTheme(s.theme) ? s.theme : base.theme,
     accent: isAccent(s.accent) ? s.accent : base.accent,
+    // A missing choice is the published text layout, for an old account as much as a new one.
+    taskChips: isTaskChips(s.taskChips) ? s.taskChips : base.taskChips,
+    dashboardOrder: Array.isArray(s.dashboardOrder)
+      ? s.dashboardOrder.filter((id): id is string => typeof id === 'string')
+      : [],
     accentCustom: isHexColour(s.accentCustom) ? s.accentCustom : base.accentCustom,
     dateFormat: (DATE_FORMATS as readonly string[]).includes(s.dateFormat as string)
       ? (s.dateFormat as DateFormat)

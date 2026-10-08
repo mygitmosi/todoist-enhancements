@@ -1,7 +1,7 @@
 {
   "name": "todoist-enhancements",
   "private": true,
-  "version": "1.20.0",
+  "version": "1.22.0",
   "engines": {
     "node": ">=20"
   },
@@ -20,6 +20,9 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.14",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
@@ -46,5 +49,8 @@
     "vite": "^6.0.11",
     "vite-plugin-pwa": "^0.21.1",
     "vitest": "^3.2.7"
+  },
+  "overrides": {
+    "@codemirror/language": "6.12.4"
   }
 }

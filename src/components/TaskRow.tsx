@@ -2,9 +2,12 @@ import { useDraggable } from '@dnd-kit/core';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { ProgressRing } from './ProgressRing';
+import { ProjectIcon } from './ProjectIconPicker';
+import { readProjectIcon } from '@/domain/projectIcons';
+import { withoutChecklist } from '@/domain/checklist';
 import { useRowTarget } from './dnd/useRowTarget';
 import {
-  GROUP_ATTR, TASK_DROP_EVENT, TASK_PLACE_EVENT, groupAnswers, useRowList,
+  GROUP_ATTR, RowListContext, SUBTASK_DRAG_PREFIX, TASK_DROP_EVENT, TASK_PLACE_EVENT, groupAnswers, useRowList,
   type TaskDropRequest, type TaskPlaceRequest,
 } from './dnd/RowList';
 import { ROW_MOVE_EVENT, type RowMove } from '@/hooks/useKeyboard';
@@ -72,7 +75,7 @@ export function TaskRow({
   item, childrenOf, onOpen, depth = 0, showProject = true, showSection = false, dust = false, dragHandleProps,
   nestable = false, dragRef, lifted = false,
 }: TaskRowProps) {
-  const { setRowRef, nestOver, landing } = useRowTarget(item.id, { nestable });
+  const { setRowRef, nestOver, landing, landingBefore } = useRowTarget(item.id, { nestable });
   const list = useRowList();
   const rowEl = useRef<HTMLDivElement | null>(null);
 
@@ -144,6 +147,7 @@ export function TaskRow({
   }, [item.id, item.parent_id, list, childrenOf]);
   const { t, locale } = useT();
   const snapshot = useStore((s) => s.snapshot);
+  const minimal = useStore((s) => s.prefs.taskChips === 'minimal');
   const hour12 = useStore((s) => s.prefs.hour12);
   const toggleTask = useStore((s) => s.toggleTask);
   const keepInSomeday = useStore((s) => s.keepInSomeday);
@@ -173,7 +177,10 @@ export function TaskRow({
     if (item.checked) { void toggleTask(item.id); return; }
     if (settling) return;
     setSettling(true);
-    timer.current = setTimeout(() => { void toggleTask(item.id); }, COMPLETION_LINGER_MS);
+    /* A row that is still there afterwards — a habit that stays in today's
+       list, a repeating task in a project — is not "settling" any more, or it
+       would stay faded and out of reach of the pointer for good. */
+    timer.current = setTimeout(() => { void toggleTask(item.id).finally(() => setSettling(false)); }, COMPLETION_LINGER_MS);
   };
 
   const uncompletable = isUncompletable(item);
@@ -187,6 +194,8 @@ export function TaskRow({
   const deadline = deadlineDate(item);
   const late = isOverdue(item);
   const project = snapshot.projects[item.project_id];
+  const projectIcon = project ? readProjectIcon(project.description) : null;
+  const preview = useMemo(() => withoutChecklist(item.description), [item.description]);
   const section = showSection && item.section_id ? snapshot.sections[item.section_id] : undefined;
 
   /**
@@ -231,7 +240,7 @@ export function TaskRow({
     <>
       <div
         ref={(node) => { rowEl.current = node; setRowRef(node); dragRef?.(node); }}
-        className={`task${item.checked || settling ? ' done' : ''}${settling ? ' settling' : ''}${picked ? ' picked' : ''}${nestOver ? ' nesttarget' : ''}${landing ? ' landing' : ''}${lifted ? ' dragging' : ''}${gesture.className}`}
+        className={`task${item.checked || settling ? ' done' : ''}${settling ? ' settling' : ''}${picked ? ' picked' : ''}${nestOver ? ' nesttarget' : ''}${landing ? ` landing${landingBefore ? ' landing-before' : ''}` : ''}${lifted ? ' dragging' : ''}${gesture.className}`}
         role="button"
         tabIndex={0}
         /* The row the keyboard is on is the row that has focus, so the walk
@@ -334,34 +343,43 @@ export function TaskRow({
 
         <span className="tmain">
           {/* Formatted as Todoist formats a title: a link is a link. */}
-          <span
-            className="ttitle"
-            dangerouslySetInnerHTML={{ __html: renderTitle(displayTaskContent(item)) }}
-          />
+          {minimal && item.due?.is_recurring ? (
+            <span className="titleline">
+              <span
+                className="ttitle"
+                dangerouslySetInnerHTML={{ __html: renderTitle(displayTaskContent(item)) }}
+              />
+              <Icon name="repeat" size="sm" />
+            </span>
+          ) : (
+            <span
+              className="ttitle"
+              dangerouslySetInnerHTML={{ __html: renderTitle(displayTaskContent(item)) }}
+            />
+          )}
 
-          {item.description && (
-            /* The row shows the formatted line, not the Markdown syntax. */
+          {preview && (
+            /* The row shows the formatted line, not the Markdown syntax, and
+               never a checklist line: its boxes are in the task, not here (#157). */
             <span
               className="tdesc"
-              dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(item.description) }}
+              dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(preview) }}
             />
           )}
 
           <span className="meta">
-            {minutes !== null && (
-              <span className="est" title={computed ? t('task.computedEstimate') : undefined}>
-                <Icon name="clock" />
-                {formatDuration(minutes, locale)}
-                {computed && '*'}
-              </span>
-            )}
-
+            {/* On a phone the pill leaves the title line, where it would push the
+                title onto a second line, and stands first here (#155). */}
             {due && (
               <span className={late ? 'late' : 'at'}>
                 {!late && <Icon name="calendar" />}
                 {formatRelativeDay(due, locale)}
                 {hasTime(item.due) && ` ${formatTime(due, locale, hour12)}`}
-                {late && overdueBy(item) > 0 && ` · ${overdueBy(item)}d`}
+                {/* How many days late is said in words for whoever cannot see
+                    the colour, not drawn on the chip (#175). */}
+                {late && overdueBy(item) > 0 && (
+                  <span className="sr">{`, ${t('task.overdueBy', { count: overdueBy(item) })}`}</span>
+                )}
               </span>
             )}
 
@@ -374,10 +392,27 @@ export function TaskRow({
               </span>
             )}
 
+            {minutes !== null && (
+              <span className="est" title={computed ? t('task.computedEstimate') : undefined}>
+                <Icon name="clock" />
+                {formatDuration(minutes, locale)}
+                {computed && '*'}
+              </span>
+            )}
+
             {deadline && (
               <span className="deadline">
                 <Icon name="deadline" />
                 {formatRelativeDay(deadline, locale)}
+              </span>
+            )}
+
+            {showProject && project && (
+              <span className="proj" style={markerStyle(project.color)}>
+                {project.inbox_project
+                  ? <Icon name="inbox" size="sm" />
+                  : projectIcon ? <ProjectIcon iconId={projectIcon} size="sm" /> : '#'}
+                {project.name}
               </span>
             )}
 
@@ -387,12 +422,6 @@ export function TaskRow({
                 {label}
               </span>
             ))}
-
-            {showProject && project && !project.inbox_project && (
-              <span className="proj" style={markerStyle(project.color, false)}>
-                #{project.name}
-              </span>
-            )}
 
             {dust && <DustAge item={item} />}
 
@@ -414,6 +443,9 @@ export function TaskRow({
           </span>
         </span>
 
+        {minimal && (due || minutes !== null) && <span className={`minimal-date${late ? ' late' : ''}`}>
+          {[minutes !== null ? formatDuration(minutes, locale).replace(/\s+/g, '') : null, due ? formatRelativeDay(due, locale) + (hasTime(item.due) ? ` ${formatTime(due, locale, hour12)}` : '') : null].filter(Boolean).join(' · ')}
+        </span>}
         <span className="trow-end">
           {showSubtasks && openChildren.length > 0 && (
             <button
@@ -438,8 +470,8 @@ export function TaskRow({
         </span>
       </div>
 
-      {showSubtasks && expanded &&
-        openChildren.map((child) => (
+      {showSubtasks && expanded && <RowListContext.Provider value={{ order: 'project', ids: openChildren.map((child) => child.id), viewKey: list?.viewKey }}>
+        {openChildren.map((child) => (
           <SubtaskRow
             key={child.id}
             item={child}
@@ -449,18 +481,12 @@ export function TaskRow({
             showProject={showProject}
             nestable={nestable}
           />
-        ))}
+        ))}</RowListContext.Provider>}
     </>
   );
 }
 
-/**
- * Prefixes the id a subtask row is picked up by.
- *
- * Deliberately not `sub:`, which is a prefix of the `subtask:` the task panel
- * gives its own rows: every test for one would answer true for the other.
- */
-export const SUBTASK_DRAG_PREFIX = 'subrow:';
+export { SUBTASK_DRAG_PREFIX };
 
 /**
  * A subtask that can be picked up by its handle.

@@ -1,0 +1,600 @@
+/* ==========================================================================
+   Polish pass (1.21): the reviewed prototype of #171, one section per surface.
+   Loaded after theme.css so it refines the finished look rather than fighting
+   it, and written on the same tokens, so every rule follows light and dark.
+   ========================================================================== */
+
+/* ---------- Task metadata chips (#175) ----------
+   Date, repeat, duration, project, tags, in that order, each a light chip
+   with no outline. Inherited colours: the date, the project and
+   every tag wear the colour they have in Todoist, on a very light fill of it
+   mixed into the surface, so the chip reads on a plain row and on the red and
+   blue callouts alike. Neutral keeps them grey. The duration is always grey,
+   and an overdue or deadline date keeps its own colour either way, because it
+   is a state and not a decoration. */
+:root:not([data-chips="classic"]) :is(.task, .tcard, .preview-task) .meta{gap:6px;margin-top:7px;line-height:18px}
+:root:not([data-chips="classic"]) :is(.task, .tcard, .preview-task) .meta > :is(.at, .late:not(.repeatdot), .deadline, .est, .proj, .tag, .sect),
+.chipssample .task .meta > :is(.at, .late:not(.repeatdot), .deadline, .est, .proj, .tag, .sect){
+  --chip-fg:var(--muted);
+  --chip-bg:var(--subtle);
+  display:inline-flex;align-items:center;gap:4px;
+  height:auto;min-width:0;max-width:100%;padding:1px 6px;
+  border:0;border-radius:var(--r-xs);
+  background:var(--chip-bg);color:var(--chip-fg);
+  font-size:var(--fs-12);line-height:18px;overflow-wrap:anywhere;
+}
+:root:not([data-chips="classic"]) :is(.task, .tcard, .preview-task) .meta > :is(.at, .late:not(.repeatdot), .deadline, .est, .proj, .tag, .sect) .ic{
+  color:inherit;width:12px;height:12px;flex:0 0 auto;
+}
+:root:not([data-chips="classic"]) :is(.task, .tcard, .preview-task) .meta > .est .ic,
+:root:not([data-chips="classic"]) :is(.task, .tcard, .preview-task) .meta > .sect .ic{color:var(--faint)}
+:root:not([data-chips="classic"]) :is(.task, .tcard, .preview-task) .meta > .late:not(.repeatdot){--chip-fg:var(--late-dark)}
+:root:not([data-chips="classic"]) :is(.task, .tcard, .preview-task) .meta > .deadline{--chip-fg:var(--deadline)}
+
+:root[data-chips="inherited"] :is(.task, .tcard, .preview-task) .meta > .at{
+  --chip-fg:var(--info);
+  --chip-bg:color-mix(in srgb, var(--info) 8%, var(--surface));
+}
+:root[data-chips="inherited"] :is(.task, .tcard, .preview-task) .meta > .late:not(.repeatdot){
+  --chip-bg:color-mix(in srgb, var(--late) 9%, var(--surface));
+}
+:root[data-chips="inherited"] :is(.task, .tcard, .preview-task) .meta > .deadline{
+  --chip-bg:color-mix(in srgb, var(--deadline) 9%, var(--surface));
+}
+:root[data-chips="inherited"] :is(.task, .tcard, .preview-task) .meta > :is(.proj, .tag){
+  --chip-fg:color-mix(in srgb, var(--marker, var(--muted)) 72%, var(--text));
+  --chip-bg:color-mix(in srgb, var(--marker, var(--muted)) 8%, var(--surface));
+}
+
+/* On a tinted callout a grey chip needs a surface of its own to be seen: the
+   duration always, and every chip when the colours are off. Inherited chips
+   are already mixed into the surface, so they read there as they are. */
+:root:not([data-chips="classic"]) :is(.group.accent-late, .group.accent-quick, .group.accent-dust, .preview-callout) :is(.task, .preview-task) .meta > :is(.est, .sect){
+  --chip-bg:var(--surface);
+}
+:root[data-chips="neutral"] :is(.group.accent-late, .group.accent-quick, .group.accent-dust, .preview-callout) :is(.task, .preview-task) .meta > :is(.at, .late:not(.repeatdot), .deadline, .proj, .tag){
+  --chip-bg:var(--surface);
+}
+
+/* The two samples in the chip choice show their own mode whatever the page's is. */
+/* One more class than the page-wide rules above, so these win. */
+:root .chipssample[data-chips="neutral"] .task .meta > :is(.at, .proj, .tag){
+  --chip-fg:var(--muted);--chip-bg:var(--subtle);
+}
+:root .chipssample[data-chips="inherited"] .task .meta > .at{
+  --chip-fg:var(--info);--chip-bg:color-mix(in srgb, var(--info) 8%, var(--surface));
+}
+:root .chipssample[data-chips="inherited"] .task .meta > :is(.proj, .tag){
+  --chip-fg:color-mix(in srgb, var(--marker, var(--muted)) 72%, var(--text));
+  --chip-bg:color-mix(in srgb, var(--marker, var(--muted)) 8%, var(--surface));
+}
+.chipssample .task{display:block;padding:0;background:none;border:0;min-height:0}
+.chipssample .meta{margin:0}
+
+/* The repeat marker is its own small badge: the chips above never reach it,
+   and nothing here may stretch, clip or tint it. */
+.meta > .repeatdot{
+  flex:0 0 auto;width:18px;height:18px;min-width:18px;padding:0;margin:0;
+  display:inline-grid;place-items:center;overflow:visible;
+}
+.meta > .repeatdot .ic{width:11px;height:11px;stroke-width:2}
+
+/* ---------- Project and view headers (#173) ----------
+   Under the title: how many tasks, how long they are estimated to take, and
+   I have time, all on the left. The duration is neutral text until 90% of the
+   capacity, amber to 99% and red from 100%; it is also the way into the
+   tasks that have no estimate. */
+.metrics{justify-content:flex-start;gap:8px}
+.summary-time{
+  display:inline-flex;align-items:center;gap:5px;padding:3px 2px;margin:0 -2px;
+  border:0;border-radius:var(--r-xs);background:none;color:var(--muted);
+  font:inherit;white-space:nowrap;
+}
+.summary-time b{color:var(--text)}
+.summary-time:not(:disabled):hover{color:var(--text);text-decoration:underline dotted;text-underline-offset:3px}
+.summary-time:disabled{cursor:default;opacity:1}
+.summary-time:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.summary-time.warn,.summary-time.warn b,.summary-time.warn .ic{color:var(--warn)}
+.summary-time.over,.summary-time.over b,.summary-time.over .ic{color:var(--late-dark)}
+
+/* ---------- Insights panel (#176) ----------
+   The panel keeps its size and its sections; its cards take the same quiet
+   grey as the dashboard's, and only Behind schedule keeps its red. */
+.side-sheet .icard{background:var(--subtle);border-color:transparent}
+.side-sheet .icard.late{background:var(--late-wash-deep)}
+.insights-scope{margin-top:6px;max-width:34ch;line-height:1.45}
+
+/* ---------- Dashboard (#174, #172) ----------
+   Separate quiet grey cards, compact summary tiles with the change beside the
+   figure, the dates of the period beside the title, and, while the layout is
+   being edited, a handle and two arrows on every card. */
+.dashboard-title-range{
+  margin-left:16px;font-size:var(--fs-12);font-weight:400;letter-spacing:normal;
+  color:var(--muted);vertical-align:middle;white-space:nowrap;
+}
+.dashboard-bento{gap:16px}
+.dashboard-bento .dashboard-group-label{margin:14px 0 2px;font-size:var(--fs-12);font-weight:600}
+.dashboard-bento .dashboard-group-label:first-child{margin-top:0}
+.dashboard-bento .card{position:relative;border:0;border-radius:var(--r-lg);padding:22px;background:var(--subtle)}
+.dashboard-bento .metric-card{
+  min-height:0;padding:16px 18px;border-radius:var(--r-md);
+  align-items:stretch;flex-direction:column;
+}
+.dashboard-bento .metric-icon{
+  top:16px;right:16px;width:16px;height:16px;padding:0;
+  border-radius:0;background:transparent;color:var(--faint);
+}
+.dashboard-bento .stat{display:flex;flex-direction:column;gap:7px;width:100%}
+.dashboard-bento .stat-topline{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;padding-right:64px}
+.dashboard-bento .stat-value{font-size:29px;line-height:1.1;font-weight:600;letter-spacing:-.025em}
+.dashboard-bento .stat-hint{margin:0}
+.dashboard-bento .stat-label{
+  font-size:var(--fs-11);font-weight:500;line-height:1.4;
+  color:var(--muted);text-transform:none;letter-spacing:0;
+}
+.dashboard-bento .metric-card .metric-comparison{display:inline-flex}
+.dashboard-bento .focus-metric .stat{padding-right:0}
+.dashboard-bento .focus-metric .split{margin:10px 0 0;padding:0;gap:4px}
+.dashboard-bento .focus-metric .splitbar{height:4px}
+.dashboard-bento .focus-metric .legend.inline{display:flex;flex-wrap:wrap;gap:3px 10px}
+.dashboard-bento .focus-metric .legend.inline li{font-size:var(--fs-11);gap:4px}
+.dashboard-bento .chead-row{margin-bottom:18px}
+.dashboard-bento .chead-row h3{font-size:var(--fs-14)}
+.dashboard-bento .chead-row .psub{font-size:var(--fs-11);line-height:1.5}
+
+/* More is green, less is red, no change is quiet: the direction, never a verdict. */
+.dashboard-bento .metric-card .stat .compare-delta,
+.dashboard-bento .compare-delta{
+  padding:3px 5px;border-radius:var(--r-xs);background:var(--surface);color:var(--muted);
+  font-size:var(--fs-11);line-height:1.2;letter-spacing:0;font-weight:600;white-space:nowrap;
+}
+.dashboard-bento .metric-card .stat .compare-delta.up,
+.dashboard-bento .compare-delta.up{background:color-mix(in srgb, var(--ok) 12%, var(--surface));color:var(--ok)}
+.dashboard-bento .metric-card .stat .compare-delta.down,
+.dashboard-bento .compare-delta.down{background:color-mix(in srgb, var(--late) 12%, var(--surface));color:var(--late-dark)}
+:root[data-theme="dark"] .dashboard-bento .metric-card .stat .compare-delta.up,
+.dashboard-bento .compare-delta.up{color:#a4dfaa}
+
+/* Editing the layout. */
+.dash-hint{margin:14px 0 6px;max-width:70ch}
+.dash-edit{
+  position:absolute;top:14px;right:14px;z-index:2;display:flex;gap:2px;width:fit-content;padding:2px;
+  border-radius:var(--r-sm);background:var(--surface);box-shadow:var(--sh-sm);
+}
+.dash-edit .iconbtn{width:28px;height:28px}
+.dashboard-bento[data-editing] .card{outline:1px dashed var(--border-strong);outline-offset:-1px}
+.dashboard-bento[data-editing] .metric-icon{display:none}
+.dashboard-bento .chead-row h3{padding-right:64px}
+.dashboard-bento .metric-card .dash-edit{top:14px;bottom:auto}
+@media (max-width:720px){.dash-edit .iconbtn{width:44px;height:44px}}
+
+/* A page keeps the room for its scrollbar whether it needs one yet or not. A
+   dashboard that empties to a "Loading…" line while a period is read has no
+   scrollbar for that moment, and the whole page used to slide right by its
+   width and back (#170). */
+.screen{scrollbar-gutter:stable}
+
+/* Settings: the section titles take the accent, and the rows of Appearance
+   are spaced by one rule, whatever stands above or below them, with no line
+   drawn between two of them. */
+.setsection h2{color:var(--accent)}
+#appearance .setrow-wide{padding-bottom:0;margin-top:var(--s5)}
+#appearance h2 + .setrow-wide{margin-top:0}
+#appearance .setrow-wide + .setrow{border-top:0}
+
+/* The dashboard's charts stand on a line, and the activity heatmap fills its
+   card: its weeks share the width, up to a size where a square stays a square
+   to look at, so a year is not half a card of small squares. */
+.dashboard-bento .chart-plot{border-bottom:1px solid var(--border-strong)}
+.dashboard-bento .contribution-grid{
+  grid-template-columns:repeat(var(--weeks, 53), minmax(8px, 24px));
+  grid-template-rows:repeat(7, auto);grid-auto-columns:auto;justify-content:space-between;
+}
+.dashboard-bento .contribution-grid > .contribution-day{width:100%;height:auto;aspect-ratio:1}
+
+/* ---------- Reviews (#180) ----------
+   The same steps, in the same order, as a strip of named steps in a quiet
+   callout, joined by a thin line. The line runs behind the markers and never
+   receives a click, so no step can be missed or covered by it; the tasks
+   below stay on the page itself, not in a box. */
+.reviewrail{
+  flex-wrap:nowrap;gap:0;margin:0 0 var(--s6, 28px);padding:12px 8px;
+  border-radius:var(--r-md);background:var(--subtle);overflow-x:auto;
+  scrollbar-width:none;
+}
+.reviewrail::-webkit-scrollbar{display:none}
+.reviewrail > li{position:relative;flex:1 0 88px;min-width:88px;text-align:center}
+.reviewrail > li:not(:last-child)::after{
+  content:"";position:absolute;z-index:0;pointer-events:none;
+  top:18px;left:calc(50% + 15px);width:calc(100% - 30px);height:1px;
+  background:var(--border-strong);
+}
+.reviewrail > li.seen:not(:last-child)::after{
+  background:color-mix(in srgb, var(--accent) 45%, var(--border-strong));
+}
+.reviewrail .reviewpip{
+  position:relative;z-index:1;width:100%;flex-direction:column;gap:6px;
+  min-height:58px;padding:8px 4px;border-radius:var(--r-sm);background:transparent;
+}
+.reviewrail .reviewpip:hover{background:transparent;color:var(--text)}
+.reviewrail .reviewpip-label{max-width:100%;overflow-wrap:anywhere;line-height:1.25}
+.reviewrail .reviewpip-dot{background:var(--surface)}
+.reviewrail .reviewpip.current{background:transparent;color:var(--text)}
+.reviewrail .reviewpip.current .reviewpip-label{font-weight:700}
+.reviewrail .reviewpip.current .reviewpip-dot{background:var(--accent);box-shadow:0 0 0 3px var(--subtle)}
+.reviewrail .reviewpip:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.reviewbody{background:transparent;padding:0;border-radius:0}
+
+/* ---------- Colour choices (#175, #177, #178) ---------- */
+.chipschoice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s3);margin-top:var(--s3)}
+.chipscard{
+  display:grid;gap:10px;min-width:0;padding:12px;text-align:left;
+  border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);
+}
+.chipscard:hover{border-color:var(--border-strong)}
+.chipscard.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.chipscard:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.chipssample{display:block;padding:10px;border-radius:var(--r-sm);background:var(--subtle);pointer-events:none}
+.chipssample .meta{display:flex;flex-wrap:wrap}
+.chipslabel{display:flex;align-items:center;gap:6px;font-size:var(--fs-12);font-weight:600}
+.chipslabel .ic{color:var(--accent)}
+
+.accentchoice-wrap{display:grid;gap:var(--s3)}
+.accentchoice-wrap .accentchoice{margin-top:var(--s3)}
+.custom-colour-editor{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 20px;font-size:var(--fs-12);color:var(--muted)}
+.custom-colour-editor label{display:flex;align-items:center;gap:8px}
+.custom-colour-editor input[type="color"]{
+  width:34px;height:30px;padding:2px;background:var(--surface);
+  border:1px solid var(--border-strong);border-radius:var(--r-sm);
+}
+.custom-colour-editor .accenthex{
+  width:96px;height:30px;padding:0 8px;border:1px solid var(--border-strong);
+  border-radius:var(--r-sm);background:var(--surface);color:var(--text);
+}
+.custom-colour-editor .accenthex[aria-invalid="true"]{border-color:var(--late)}
+.accenthex-error{flex-basis:100%;text-align:center;color:var(--late-dark);font-size:var(--fs-12)}
+
+/* ---------- The workspace preview (#177, #178) ----------
+   A picture, not a page: nothing in it takes the pointer or the focus. It is
+   built from the same tokens as the real thing, so the accent, the density and
+   the chip colours in it are the ones that are chosen. */
+.polish-preview{
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;
+  border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);
+  color:var(--text);pointer-events:none;user-select:none;
+}
+.preview-inline{max-width:640px;margin:12px 0 24px}
+.preview-inline .preview-workspace{flex:none;height:300px}
+.preview-stage-fill{width:100%;height:100%}
+.preview-workspace{display:grid;grid-template-columns:150px minmax(0,1fr);flex:1;min-height:0;overflow:hidden}
+.preview-sidebar{
+  display:flex;flex-direction:column;gap:3px;min-height:0;padding:10px;
+  background:var(--subtle);border-right:1px solid var(--border);font-size:10px;
+}
+.preview-sidebar .ic{width:12px;height:12px}
+.preview-person{display:flex;align-items:center;gap:7px;padding:2px 4px 8px;font-size:10px;font-weight:600}
+.preview-person b{
+  display:grid;place-items:center;width:22px;height:22px;border-radius:50%;
+  background:var(--accent);color:#fff;font-size:8px;
+}
+.preview-search,.preview-nav,.preview-add{
+  display:flex;align-items:center;gap:7px;min-height:26px;padding:3px 6px;
+  border-radius:var(--r-xs);color:var(--muted);font-size:10px;
+}
+.preview-search{margin-bottom:6px;background:var(--field,var(--surface));border:1px solid var(--border)}
+.preview-active{background:var(--accent-soft);color:var(--accent-dark);font-weight:600}
+.preview-projects{display:grid;gap:6px;margin-top:10px;padding-top:8px;border-top:1px solid var(--border-strong);font-size:10px}
+.preview-projects small{font-size:9px;color:var(--faint)}
+.preview-add{margin-top:auto;color:var(--accent);font-weight:600}
+.preview-content{min-height:0;overflow:hidden;padding:18px 22px;background:var(--surface)}
+.preview-pagehead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.preview-pagehead h3{margin:0;font-size:17px;font-weight:700;letter-spacing:-.015em;text-transform:none;color:var(--text)}
+.preview-pagehead > div{display:flex;gap:10px;color:var(--muted)}
+.preview-pagehead .ic{width:13px;height:13px}
+.preview-summary{margin-bottom:14px;font-size:9px;color:var(--muted)}
+.preview-group{margin-bottom:12px}
+.preview-group h4{
+  display:flex;justify-content:space-between;margin:0 0 4px;
+  font-size:10px;font-weight:700;color:var(--muted);
+}
+.preview-group h4 span{font-weight:400;color:var(--faint)}
+/* Quick Tasks is blue by its own token, never by the accent. */
+.preview-callout{padding:10px 12px 4px;border-radius:var(--r-md);background:var(--wash-quick)}
+.preview-callout h4{color:var(--p3)}
+.preview-task{display:flex;align-items:flex-start;gap:8px;padding:6px 0}
+.preview-task > .check{width:13px;height:13px;min-width:13px;margin-top:2px}
+.preview-task > div{min-width:0;flex:1}
+.preview-task strong{display:block;font-size:11px;line-height:1.4;font-weight:500}
+.preview-task small{
+  display:block;margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  font-size:9px;line-height:1.4;color:var(--muted);
+}
+.preview-task .meta{display:flex;flex-wrap:wrap;margin-top:4px}
+.preview-task .meta > *{font-size:var(--fs-11)}
+.preview-task .meta .ic{width:10px;height:10px}
+.preview-subtask{margin-left:22px}
+.polish-preview[data-density="compact"] .preview-task{padding-block:3px}
+.polish-preview[data-density="compact"] .preview-group{margin-bottom:8px}
+.preview-composer{
+  margin:6px 0;padding:14px;border:1px solid var(--border-strong);border-radius:var(--r-md);
+  background:var(--surface);font-size:12px;
+}
+.preview-composer p{margin:6px 0 12px;font-size:11px;color:var(--muted)}
+.preview-composer footer{
+  display:flex;justify-content:flex-end;align-items:center;gap:14px;
+  margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;
+}
+.preview-primary{padding:7px 14px;border-radius:var(--r-sm);background:var(--accent);color:#fff}
+.polish-preview[data-stage="accent"] .preview-summary{display:none}
+
+/* ---------- Settings (#177) ---------- */
+.setbody .setsubhead{margin-top:32px}
+.setgroup-hint{max-width:62ch;margin:-6px 0 14px;color:var(--muted);font-size:var(--fs-13);line-height:1.55}
+.capnote{margin:12px 0 0;color:var(--muted);font-size:var(--fs-13);line-height:1.5}
+.capnote strong{color:var(--text)}
+.capnote.override{padding:10px 12px;border-radius:var(--r-sm);background:var(--subtle)}
+.capalert{margin:8px 0 0;color:var(--late-dark);font-size:var(--fs-12)}
+
+/* ---------- Setup (#178) ----------
+   A compact neutral window about as wide as its content, the picture above and
+   the choice under it, with the same two buttons in the same place on every
+   screen. Choices are marked the same way everywhere, in the text colour
+   rather than the accent, so the accent in the picture is the only colour
+   that is being chosen. */
+.sheet:has(> .setup){width:min(940px,calc(100vw - 32px))}
+.setup{
+  display:grid;grid-template-rows:auto minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr);gap:18px;
+  width:100%;min-height:min(620px,92vh);padding:24px 28px 20px;background:var(--surface);color:var(--text);
+}
+.setup-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+.setup-head h2{margin:0;font-size:22px;font-weight:650;letter-spacing:-.025em}
+.setup-head p{margin:6px 0 0;max-width:60ch;color:var(--muted);font-size:var(--fs-13);line-height:1.5}
+.setup-skip{padding:5px 8px;border-radius:var(--r-sm);color:var(--muted);font-size:var(--fs-12);white-space:nowrap}
+.setup-skip:hover{background:var(--hover);color:var(--text)}
+.setup-body{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-height:0;align-content:start}
+.setup-controls .estimate-choice,.setup-controls .estimate-toggle{min-width:0}
+.setup-preview{height:clamp(190px,30vh,290px);padding:10px;border-radius:var(--r-md);background:var(--subtle)}
+.setup[data-step="estimates"] .setup-body{align-content:center;min-height:300px}
+.setup-controls{min-width:0}
+.setup-controls h3{margin:0 0 8px;font-size:var(--fs-12);font-weight:600;color:var(--muted);text-transform:none;letter-spacing:0}
+.setup-controls .themechoice,.setup-controls .denschoice,.setup-controls .chipschoice,
+.setup-controls .accentchoice{margin-top:0}
+.setup-controls .themechoice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.setup-controls .themecard{min-width:0;padding:8px;gap:8px;border-radius:var(--r-sm)}
+.setup-controls .themepreview{height:70px}
+.setup-controls .accentchoice{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.setup-controls .accentcard{min-width:0;min-height:62px;padding:8px;gap:6px;border-radius:var(--r-sm)}
+.setup-controls .accentpreview{height:28px;padding:6px;overflow:hidden}
+.setup-controls .accentpreview .accentrow:nth-child(2),.setup-controls .accentpreview .accentbtn{display:none}
+.setup-controls .accentlabel{font-size:var(--fs-11)}
+.setup-controls .denschoice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.setup-controls .denscard{min-width:0;padding:10px;border-radius:var(--r-sm)}
+.setup-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;align-items:start}
+.setup-pair > div{min-width:0}
+.setup-organise{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;align-items:center}
+.setup-layouts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.setup-layouts > button{
+  position:relative;display:grid;gap:4px;padding:10px;text-align:left;
+  border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);
+}
+.setup-layouts strong{font-size:var(--fs-12);font-weight:600;line-height:1.35}
+.setup-layouts small{font-size:var(--fs-11);line-height:1.4;color:var(--muted)}
+.setup-layouts .ic{position:absolute;right:8px;bottom:8px}
+.setup-layout-picture{display:grid;grid-template-columns:1fr;gap:5px;height:30px;margin-bottom:6px;padding:5px;border-radius:var(--r-xs);background:var(--subtle)}
+.setup-layout-picture i{display:block;border:1px solid var(--border);border-radius:3px;background:var(--surface)}
+.setup-layout-picture.unified i + i{display:none}
+.setup-layout-picture.split{grid-template-columns:1fr 1fr}
+.setup-switches{display:grid;gap:10px}
+.setup-switch{display:flex;align-items:center;gap:10px}
+.setup-switch > .ic{flex:0 0 auto;color:var(--muted)}
+.setup-switch > span{flex:1;min-width:0}
+.setup-switch strong{display:block;font-size:var(--fs-12);font-weight:600}
+.setup-switch small{display:block;margin-top:2px;font-size:var(--fs-11);line-height:1.4;color:var(--muted)}
+.setup-controls :is(.themecard, .accentcard, .denscard, .chipscard).selected,
+.setup-layouts > [aria-checked="true"],
+.setup-controls .estimate-toggle .selected{
+  border-color:var(--text);box-shadow:0 0 0 1px var(--text);background:var(--surface);
+}
+.setup-controls :is(.themecard, .accentcard, .denscard, .chipscard).selected :is(.themelabel, .accentlabel, .denslabel, .chipslabel) .ic{color:var(--text)}
+.setup-controls :is(.accentcard.selected, .themecard.selected, .denscard.selected) :is(.accentlabel, .themelabel, .denslabel){color:var(--text)}
+.setup button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.setup-foot{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:14px;border-top:1px solid var(--border)}
+.setup-progress{display:flex;gap:6px}
+.setup-progress button{display:grid;place-items:center;width:26px;height:28px}
+.setup-progress i{display:block;width:22px;height:4px;border-radius:3px;background:var(--border-strong)}
+.setup-progress button[aria-current="step"] i{background:var(--text)}
+.setup-actions{display:flex;align-items:center;gap:10px}
+@media (max-width:720px){
+  .setup{gap:12px;min-height:0;padding:16px 16px 14px}
+  .setup-head h2{font-size:19px}
+  .setup-preview{height:clamp(130px,20vh,180px);padding:6px}
+  .setup .preview-workspace{grid-template-columns:minmax(0,1fr)}
+  .setup .preview-sidebar{display:none}
+  .setup .preview-content{padding:12px 14px}
+  .setup-controls .themepreview{height:48px}
+  .setup-controls .accentchoice{gap:5px}
+  .setup-controls .accentcard{min-height:48px;padding:5px}
+  .setup-controls .accentpreview{height:16px;padding:3px}
+  .setup-controls .accentlabel{font-size:9px}
+  .setup-pair,.setup-organise{grid-template-columns:minmax(0,1fr);gap:12px}
+  .setup-layout-picture{height:20px}
+  .setup-skip{font-size:var(--fs-11)}
+  .setup-progress button{width:20px}
+  .setup-progress i{width:16px}
+  .setup-actions .btn{min-height:44px}
+  .setup-foot{flex-wrap:wrap;justify-content:center}
+  .setup-actions{width:100%}
+  .setup-actions .btn{flex:1;justify-content:center}
+}
+
+/* ---------- Checklist (#157) ----------
+   Task-list lines of a description as small rounded boxes, 14px with a 4px
+   radius: not the round box of a task and not the circle of a subtask. A done
+   item is struck through and muted. The real input is hidden but is the one
+   that takes the focus and Space. */
+.checklist{display:grid;gap:2px;margin:6px 0}
+.checkitem{position:relative;display:flex;align-items:flex-start;gap:8px;line-height:1.5;cursor:pointer}
+.checkitem input,.checkboxwrap input{position:absolute;z-index:1;left:0;top:3px;width:14px;height:14px;margin:0;opacity:0;cursor:pointer}
+.checkbox{
+  position:relative;flex:0 0 14px;display:grid;place-items:center;width:14px;height:14px;margin-top:4px;
+  border:1.5px solid var(--border-strong);border-radius:4px;background:var(--surface);color:transparent;
+}
+.checkbox .ic{width:10px;height:10px;stroke-width:3}
+:is(.checkitem, .checkboxwrap) input:checked + .checkbox{border-color:var(--accent);background:var(--accent);color:#fff}
+:is(.checkitem, .checkboxwrap) input:focus-visible + .checkbox{outline:2px solid var(--accent);outline-offset:2px}
+.checkitem.done .checktext{color:var(--muted);text-decoration:line-through}
+.checktext.empty{color:var(--faint);font-style:italic}
+.checktext a{position:relative;z-index:1}
+.checkprogress{display:inline-flex;align-items:center;gap:6px;margin:8px 0 0;color:var(--muted);font-size:var(--fs-12);font-variant-numeric:tabular-nums}
+.checkprogress .progressring.complete{color:var(--ok)}
+
+.descedit{
+  display:block;box-sizing:border-box;width:calc(100% + 12px);margin:var(--s2) 0 0 -6px;padding:4px 6px;
+  border:1px solid var(--border-strong);border-radius:var(--r-sm);background:var(--surface);color:var(--text);
+  font-size:var(--fs-14);line-height:1.6;
+}
+.descedit:focus-within{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.checkfull{margin:6px 0 2px;color:var(--late-dark);font-size:var(--fs-12)}
+/* The new task's own description: one quiet line under the name, as it was
+   before checklists, growing with what is written in it. */
+.descedit.composer{
+  width:100%;margin:-4px 0 var(--s3);padding:0 var(--s5);border:0;border-radius:0;background:transparent;
+  color:var(--muted);font-size:var(--fs-13);line-height:1.5;
+}
+.descedit.composer:focus-within{outline:none;color:var(--text)}
+
+/* ---------- The Markdown editor (#157, #158) ----------
+   One surface for descriptions. A line is drawn as what it
+   is: a heading is large, a task is a box, a list has a hanging indent; the
+   syntax is quiet on the line the caret is on and gone on the others. */
+.mdedit .cm-editor{background:transparent;color:inherit}
+.mdedit .cm-editor.cm-focused{outline:none}
+.mdedit .cm-scroller{font:inherit;line-height:inherit;overflow:visible}
+.mdedit .cm-content{padding:0;font:inherit;caret-color:var(--text)}
+.mdedit .cm-line{padding:0;overflow-wrap:anywhere}
+.mdedit .cm-placeholder{color:var(--faint)}
+.mdedit .cm-cursor{border-left:1.5px solid var(--text)}
+.mdedit .cm-editor .cm-selectionBackground,
+.mdedit .cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground{
+  background:color-mix(in srgb, var(--accent) 26%, transparent);
+}
+.mdedit .md-h1{font-size:20px;font-weight:700;letter-spacing:-.015em;line-height:1.35}
+.mdedit .md-h2{font-size:17px;font-weight:700;line-height:1.4}
+.mdedit .md-h3{font-weight:700}
+.mdedit .md-syntax{color:var(--faint);font-weight:400;font-style:normal;letter-spacing:0}
+.mdedit .md-strong{font-weight:700}
+.mdedit .md-em{font-style:italic}
+.mdedit .md-del{text-decoration:line-through;color:var(--muted)}
+.mdedit .md-code{padding:0 3px;border-radius:3px;background:var(--hover);font-family:var(--mono, ui-monospace, monospace);font-size:.92em}
+.mdedit .md-link{color:var(--info);text-decoration:underline}
+.mdedit .md-bullet,.mdedit .md-number,.mdedit .md-task{padding-left:1.7em;text-indent:-1.7em}
+.mdedit .md-num{display:inline-block;min-width:1.7em;color:var(--muted);text-indent:0}
+.mdedit .md-dot{display:inline-block;width:1.7em;text-indent:0;text-align:center;color:var(--muted)}
+.mdedit .md-check{
+  display:inline-flex;align-items:center;width:1.7em;height:1.6em;vertical-align:top;text-indent:0;cursor:pointer;
+}
+.mdedit .md-check .checkbox{margin:0}
+.mdedit .md-check[aria-checked="true"] .checkbox{border-color:var(--accent);background:var(--accent);color:#fff}
+.mdedit .md-done{color:var(--muted);text-decoration:line-through}
+.mdedit .md-task{position:relative;padding-right:28px}
+.mdedit .checkdel{
+  position:absolute;right:0;top:50%;transform:translateY(-50%);text-indent:0;
+  display:grid;place-items:center;width:24px;height:24px;border-radius:var(--r-sm);color:var(--faint);opacity:0;
+}
+.mdedit .checkdel .ic{width:14px;height:14px}
+.mdedit .md-task:hover .checkdel,.mdedit .md-task.md-active .checkdel,.mdedit .checkdel:focus-visible{opacity:1}
+.mdedit .checkdel:hover{background:var(--hover);color:var(--text)}
+@media (hover:none),(max-width:720px){.mdedit .checkdel{opacity:1;width:32px;height:32px}}
+
+
+/* Release 1.21: second review corrections. */
+.descedit.composer{padding:0;min-height:0;margin:0 0 var(--s3)}
+.mdedit.composer{min-height:22px;padding:0;font-size:inherit;line-height:inherit}
+.mdedit.detail{min-height:44px;cursor:text}
+.mdedit.detail .cm-content{min-height:44px}
+.titleline{align-items:center}
+.col .taskwrap .task ~ .task{border-top:0}
+.task[data-depth]{border-bottom:0}
+.dashboard-bento .card > :is(.donut,.ranked){margin-top:0;margin-bottom:auto}
+.dashboard-bento .card{justify-content:flex-start}
+.reviewrail{flex-wrap:wrap;overflow:visible;row-gap:12px}
+.reviewrail > li{flex:1 1 72px;min-width:64px}
+.reviewrail{overflow:hidden}
+.chipschoice{grid-template-columns:repeat(2,minmax(0,1fr))}
+:root[data-chips="minimal"] .task .meta{display:none}
+:root[data-chips="minimal"] .task{grid-template-columns:18px minmax(0,1fr) 0 auto}
+.minimal-date{font-size:var(--fs-12);color:var(--muted);white-space:nowrap;align-self:start;padding-top:2px}
+.minimal-date.late{color:var(--late-dark)}
+.chipssample[data-chips="minimal"] .meta > :not(.at){display:none}
+@media(max-width:720px){.chipschoice{grid-template-columns:1fr}}
+
+.subtasks{border-left:0}
+.subtasks .check,.composer-sub .check{border-style:solid}
+
+@media(max-width:720px){.setup-controls .chipschoice{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.setup-controls .chipssample{display:none}.setup-controls .chipscard{padding:8px;font-size:11px}}
+
+.descedit.composer{width:calc(100% - 2 * var(--s5));margin:0 var(--s5) var(--s3);padding:0}
+.mdedit.composer .md-toolbar{margin-top:4px}
+.mdedit.composer .md-toolbar button{min-height:24px;padding:2px 8px}
+
+.task[data-tour="subtasks"]{border-bottom:0}
+:root[data-chips="minimal"] .task .minimal-date{grid-column:4}
+:root[data-chips="minimal"] .preview-task .meta{display:none}
+:root[data-chips="minimal"] .chipssample .task .meta{display:flex}
+
+/* Each comparison is independent of the active page preference. */
+.chipssample .sample-title{display:block;margin-bottom:6px;font-weight:500;color:var(--text);text-align:left}
+:root .chipssample[data-chips="minimal"] .task .meta > :not(.at){display:none}
+:root .chipssample[data-chips="inherited"] .task .meta > .tag{--chip-fg:#299438;--chip-bg:color-mix(in srgb,#299438 8%,var(--surface))}
+:root .chipssample[data-chips="neutral"] .task .meta > .tag{--chip-fg:var(--muted);--chip-bg:var(--subtle)}
+
+.task.landing-before::after{top:-1px;bottom:auto}
+
+.mdedit .md-rule{border-bottom:1px solid var(--border);margin:12px 0;min-height:8px}
+.md hr{border:0;border-top:1px solid var(--border);margin:14px 0}
+
+
+/* Layout controls occupy the existing card header, without adding a row. */
+.dashboard-bento .card{position:relative}
+.dashboard-bento .chead-row{min-height:var(--dashboard-heading-height,auto)}
+:root .chipssample[data-chips="classic"] .task .meta > *{background:none;padding:0;border-radius:0;color:var(--muted)}
+:root .chipssample[data-chips="classic"] .task .meta > .at{color:var(--info)}
+:root .chipssample[data-chips="classic"] .task .meta > :is(.proj,.tag){color:var(--marker,var(--muted))}
+:root[data-chips="minimal"] .task .minimal-date{grid-column:4;grid-row:1;justify-self:end}
+:root[data-chips="minimal"] .task .trow-end{position:static;grid-column:3;grid-row:1;width:max-content;justify-self:end;align-self:start;margin-right:8px;background:none}
+:root[data-chips="minimal"] .task .tmain{padding-right:0}
+.md-toolbar{position:fixed;z-index:120;display:flex;align-items:center;gap:2px;padding:7px;border-radius:9px;background:#262626;color:#fff;box-shadow:var(--sh-lg);max-width:calc(100vw - 16px);overflow-x:auto;transform:translate(-50%,-100%)}
+.md-toolbar button{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:0 0 auto;min-width:32px;height:36px;padding:4px 7px;border-radius:5px;font-size:16px;white-space:nowrap}
+.md-toolbar button:hover,.md-toolbar button:focus-visible{background:#484848;outline:1px solid #aaa}
+.md-toolbar .md-link-button{border-left:1px solid #777;border-radius:0;padding-left:12px;margin-left:6px}
+.md-link-dialog{padding:24px;display:grid;gap:18px}
+.md-link-dialog label{display:grid;gap:8px;font-weight:600;font-size:var(--fs-14)}
+.md-link-dialog input{width:100%;padding:12px;border:1px solid var(--border-strong);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font:inherit;font-weight:400}
+.md-link-dialog input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.md-link-dialog footer{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--border);padding-top:18px}
+.mdedit .md-quote{border-left:3px solid var(--border-strong);padding-left:12px;color:var(--muted)}
+@media(max-width:720px){.dash-edit{top:10px;right:10px}.dashboard-bento .chead-row h3{padding-right:96px}.md-toolbar button{min-width:28px;padding:3px;font-size:14px}}
+
+/* The preview retains its scale when changing metadata style. */
+:root .preview-task .meta > *{font-size:11px;line-height:1.4}
+:root .preview-task .meta .ic{width:10px;height:10px}
+:root .chipssample .task .meta > *{font-size:12px;line-height:18px}
+/* A single action menu keeps the date at the edge without covering the title. */
+:root[data-chips="minimal"] .task{grid-template-columns:18px minmax(0,1fr) auto auto;align-items:start;--minimal-title-height:calc(var(--fs-14) * 1.4)}
+:root[data-chips="minimal"] .task .trow-end{align-self:start;margin-right:4px;margin-top:calc((var(--minimal-title-height) - 28px) / 2)}
+:root[data-chips="minimal"] .task .tmain{align-self:start}
+:root[data-chips="minimal"] .task .minimal-date{align-self:start;padding-top:0;line-height:var(--minimal-title-height)}
+:root[data-chips="minimal"] .task .titleline{display:flex;align-items:center;gap:6px;max-width:100%}
+:root[data-chips="minimal"] .task .titleline > .ic{width:14px;height:14px;flex:none;color:var(--muted)}
+.dashboard-card-content{display:flex;flex-direction:column;flex:1;min-width:0}
+.dashboard-bento .dashboard-card-content > .donut{flex:1;margin-block:0;align-items:center}
+:root[data-chips] .polish-preview .preview-task .meta > :is(.at,.late,.deadline,.est,.proj,.tag,.sect){font-size:11px;line-height:1.4}
+:root[data-chips] .polish-preview .preview-task .meta > :is(.at,.late,.deadline,.est,.proj,.tag,.sect) .ic{width:10px;height:10px}
+:root[data-chips="minimal"] .task > .check{align-self:start;margin-top:calc((var(--minimal-title-height) - 16px) / 2)}
+
+.dashboard-bento .stat-value{white-space:nowrap}
+
+/* Neutral metadata includes the recurrence badge, independently of its date. */
+:root[data-chips="neutral"] :is(.task,.tcard,.preview-task) .meta > .repeatdot{
+  color:var(--muted);background:var(--subtle);
+}

@@ -130,6 +130,8 @@ test('#146 Upcoming moves its range on at midnight, without leaving the page', a
 test('#124 a custom accent follows the device when it switches to dark', async ({ demo: page }) => {
   await go(page, '#/settings');
   await page.getByRole('radio', { name: /Automatic/ }).click();
+  // Custom is a card like the others; its two controls appear under the cards once it is chosen.
+  await page.getByRole('radio', { name: 'Custom' }).click();
   const hex = page.getByLabel('Colour, as a hex code');
   await hex.fill('#2e7d32');
   await hex.press('Enter');

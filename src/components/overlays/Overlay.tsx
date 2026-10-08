@@ -42,6 +42,40 @@ const FOCUSABLE = [
 ].join(',');
 
 /**
+ * How the page was last driven, the one thing `:focus-visible` is guessing at
+ * (#183). Giving a dialog's opener back the focus by script can draw the
+ * keyboard ring around a row or a button that was only clicked, and the ring
+ * then stays until the next click. The browsers disagree on when they do it,
+ * so the answer is kept here instead of left to them.
+ */
+let lastInput: 'pointer' | 'keyboard' = 'keyboard';
+if (typeof document !== 'undefined') {
+  document.addEventListener('pointerdown', () => { lastInput = 'pointer'; }, true);
+  document.addEventListener('keydown', (e) => {
+    if (!['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) lastInput = 'keyboard';
+  }, true);
+}
+
+/**
+ * Focus goes back to `el` for the keyboard (and the shortcuts that read it),
+ * without the ring when the dialog was opened with the mouse. The ring comes
+ * back with the first key pressed or when the element loses focus.
+ */
+function returnFocus(el: HTMLElement | null | undefined, byPointer: boolean) {
+  if (!el?.focus) return;
+  el.focus();
+  if (!byPointer || document.activeElement !== el) return;
+  el.setAttribute('data-pointer-focus', '');
+  const clear = () => {
+    el.removeAttribute('data-pointer-focus');
+    el.removeEventListener('blur', clear);
+    document.removeEventListener('keydown', clear, true);
+  };
+  el.addEventListener('blur', clear);
+  document.addEventListener('keydown', clear, true);
+}
+
+/**
  * The shell every dialog shares: a scrim that closes on click, Escape to
  * dismiss, focus moved inside on open, kept inside while it is up, returned to
  * where it came from on close, and the page behind held still throughout.
@@ -53,6 +87,18 @@ export function Overlay({
   const id = overlayId ?? ownId;
   const sheetRef = useRef<HTMLDivElement>(null);
   const restoreTo = useRef<HTMLElement | null>(null);
+  /* What had the keyboard the moment the dialog was asked for, read while it
+     renders: by the time its effect runs, a field inside it that grabs the
+     focus on its own (an estimate, a search) already has it, and "where it came
+     from" would be a field that is about to be gone. */
+  const wasOpen = useRef(false);
+  const opener = useRef<HTMLElement | null>(null);
+  const openedByPointer = useRef(false);
+  if (open && !wasOpen.current) {
+    opener.current = document.activeElement as HTMLElement | null;
+    openedByPointer.current = lastInput === 'pointer';
+  }
+  wasOpen.current = open;
 
   /* Escape has to reach whichever `onClose` is current, but the effect below
      must not be torn down and set up again merely because the caller passed a
@@ -70,7 +116,7 @@ export function Overlay({
   useEffect(() => {
     if (!open) return;
 
-    restoreTo.current = document.activeElement as HTMLElement | null;
+    restoreTo.current = opener.current;
     /* The first dialog to open remembers the scroll setting and the last one to
        close gives it back, whatever order they close in: a second dialog used
        to remember the "hidden" the first had just set. */
@@ -143,7 +189,7 @@ export function Overlay({
       document.removeEventListener('keydown', onKey);
       removeOverlay(id);
       if (overlayCount() === 0) document.body.style.overflow = scrollWas;
-      (returnRef.current?.() ?? restoreTo.current)?.focus?.();
+      returnFocus(returnRef.current?.() ?? restoreTo.current, openedByPointer.current);
     };
     /* `open` and nothing else. See closeRef above. */
   }, [open, id]);

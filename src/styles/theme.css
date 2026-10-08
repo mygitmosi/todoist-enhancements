@@ -159,6 +159,11 @@
    clicking one is not, and `:focus-visible` is exactly that distinction. */
 .task:focus-visible .ttitle{color:var(--text)}
 
+/* Focus handed back after a dialog the mouse opened (#183): kept for the
+   keyboard, not drawn. The first key pressed brings the ring back. */
+[data-pointer-focus]:focus-visible{outline:none}
+.task[data-pointer-focus]:focus-visible::after{content:none}
+
 .task.picked,
 .task.picked:hover{
   border-radius:var(--r-md);
@@ -1598,20 +1603,42 @@
   width:min(260px,100%);max-height:220px;overflow-y:auto;
 }
 
-/* A section's own grip and its delete, both quiet until the row is hovered. */
+/* A section's own grip, caret and menu button (#185). The grip and the caret
+   stand in the gutter, left of the content, so titles stay lined up with the
+   tasks; the three dots end the row. All quiet until the row is hovered or
+   has the keyboard, except the caret of a folded section, which is what says
+   there is something folded. */
 .sectiondrag,
-.gdelete{
+.gcaret,
+.gmore{
   width:22px;height:22px;flex:0 0 auto;display:grid;place-items:center;
   border-radius:var(--r-xs);color:var(--faint);
   opacity:0;transition:opacity .12s ease-out;
 }
-.sectiondrag{margin-left:-24px;cursor:grab;position:absolute;left:0}
+.sectiondrag{margin-left:-48px;cursor:grab;position:absolute;left:0}
+.gcaret{margin-left:-24px;position:absolute;left:0}
+.gcaret .ic{transition:transform .15s ease}
+.gcaret[aria-expanded="false"] .ic{transform:rotate(-90deg)}
+.gcaret[aria-expanded="false"]{opacity:1}
+.gcaret:hover,.gmore:hover{background:var(--hover);color:var(--text)}
 .ghead{position:relative}
 .gheadblock:hover .sectiondrag,
-.gheadblock:hover .gdelete,
+.gheadblock:hover .gcaret,
+.gheadblock:hover .gmore,
 .gheadblock:focus-within .sectiondrag,
-.gheadblock:focus-within .gdelete{opacity:1}
-.gdelete:hover{background:var(--accent-tint);color:var(--accent)}
+.gheadblock:focus-within .gcaret,
+.gheadblock:focus-within .gmore,
+.gmore[aria-expanded="true"]{opacity:1}
+.gmore{margin-left:auto}
+.sectionmenu .opt.danger{color:var(--late-dark)}
+.sectionmenu .opt.danger .ic{color:var(--late-dark)}
+.sectionmenu .opt.danger:hover{background:var(--late-wash)}
+.sectionmenu .menuhint{margin:4px 12px 6px;font-size:var(--fs-12);color:var(--muted)}
+@media (hover:none),(max-width:720px){
+  .sectiondrag,.gcaret,.gmore{opacity:1}
+  .sectiondrag,.gcaret{position:static;margin-left:0}
+  .ghead{flex-wrap:nowrap}
+}
 .sectiondrag:active{cursor:grabbing}
 
 /* The preview of a section in flight. */
@@ -1622,8 +1649,10 @@
    accent colour on a section or column, and the accent on a sidebar item. */
 .navitem.dropping{outline:2px dotted var(--accent);outline-offset:-2px}
 /* The ring stands a little off the rows rather than cutting through them. */
-.group.dropping{outline:2px solid var(--accent);outline-offset:8px;border-radius:var(--r-lg)}
-.col.dropping{box-shadow:inset 0 0 0 2px var(--accent);border-color:var(--accent)}
+/* A section a task is over has no border of its own (#184): the line where
+   the task would land says it, the same one the rows draw. Zero net height,
+   so nothing under it moves while the task is carried. */
+.dropbar{height:2px;margin:-1px 0;border-radius:1px;background:var(--accent);pointer-events:none}
 
 /* ==========================================================================
    Project actions
@@ -1770,7 +1799,7 @@
 /* ---------- The page frame ---------- */
 [data-density="compact"] .page,
 [data-density="compact"] .page.wide{padding:22px 40px 72px}
-[data-density="compact"] .ptitle{font-size:var(--fs-22)}
+[data-density="compact"] .ptitle{font-size:var(--fs-22,var(--fs-26))}
 [data-density="compact"] .phead{margin-bottom:2px}
 [data-density="compact"] .metrics{margin-bottom:var(--s3);gap:6px}
 

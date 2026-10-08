@@ -90,3 +90,37 @@ export function nextOccurrence(item: Pick<Item, 'due'>, now = new Date()): Date 
   const named = list ? namedDays(list[1]) : null;
   return named ? nextOf(base, named) : null;
 }
+
+/**
+ * A repeat rule that is plain enough to be laid out in time, read once.
+ *
+ * The same narrow set `nextOccurrence` reads, for the one other thing that
+ * needs it: the streak of a habit (#155), which has to know on which days a
+ * rule fell. Anything else is null, and so is a rule counted from the
+ * completion (`every!`) other than "every day", because the days it fell on
+ * depend on the days it was completed, which a rule alone does not say.
+ */
+export type PlainRule =
+  | { kind: 'day' }
+  | { kind: 'weekday' }
+  | { kind: 'days'; days: number[] }
+  /** Every `n` days, counted from the date the task stands on. */
+  | { kind: 'step'; n: number };
+
+export function plainRule(due: { string: string; is_recurring: boolean } | null | undefined): PlainRule | null {
+  if (!due?.is_recurring) return null;
+  const rule = fold(due.string);
+  const fromCompletion = /^(?:every|each|tous les|toutes les|tous le|chaque)!|!/.test(rule);
+  const text = rule.replace('!', '');
+  if (DAILY.test(text)) return { kind: 'day' };
+  if (fromCompletion) return null;
+  if (WEEKLY.test(text)) return { kind: 'step', n: 7 };
+  const days = EVERY_N_DAYS.exec(text);
+  if (days) return { kind: 'step', n: Number(days[1]) };
+  const weeks = EVERY_N_WEEKS.exec(text);
+  if (weeks) return { kind: 'step', n: 7 * Number(weeks[1]) };
+  if (WORKDAYS.test(text)) return { kind: 'weekday' };
+  const list = WEEKDAY_LIST.exec(text);
+  const named = list ? namedDays(list[1]) : null;
+  return named ? { kind: 'days', days: named } : null;
+}

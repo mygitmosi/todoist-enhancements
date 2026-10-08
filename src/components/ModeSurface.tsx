@@ -306,6 +306,7 @@ function BoardSurface(props: ModeSurfaceProps) {
                 surface="card"
               />
             ))}
+            {isOver && <div className="dropbar" aria-hidden="true" />}
             {column.items.length === 0 && <p className="empty">{t('group.empty')}</p>}
             {/* Not a card: a card is a task, and the thing that makes one is
                 the end of the column rather than something sitting in it. */}

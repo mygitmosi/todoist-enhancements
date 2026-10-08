@@ -2,11 +2,11 @@ import type { CSSProperties } from 'react';
 import {
   ArrowLeft, ArrowRight, ArrowUpDown, BarChart3, Bell, Calendar, CalendarClock,
   CalendarDays, Check, ChevronDown, ChevronUp, Clock, Coffee, CornerDownRight,
-  ExternalLink, Filter, Flag, Folder, GripVertical, Group, Inbox,
+  ExternalLink, Filter, Flag, Flame, Folder, GripVertical, Group, Inbox,
   Kanban, Layers, LayoutDashboard, Lightbulb, Link, List, LogOut, Mail, Menu,
   MessageSquare, MoreHorizontal, PanelLeft, PanelTop, Pencil, Plus, Repeat,
   Search, Settings, SlidersHorizontal, Star, Tag, Target, TrendingUp,
-  TriangleAlert, Upload, X, ListChecks,
+  TriangleAlert, Upload, X, ListChecks, Bold, Italic, Strikethrough, Heading1, Heading2, Quote, Code, ListOrdered,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -15,14 +15,16 @@ export type IconName =
   | 'arrow-left' | 'arrow-right' | 'bars' | 'bell' | 'board' | 'calendar'
   | 'caret' | 'caret-up' | 'check' | 'clock' | 'close' | 'coffee' | 'comment'
   | 'dashboard' | 'deadline' | 'drag' | 'edit' | 'export' | 'external'
-  | 'filter' | 'flag' | 'group' | 'inbox' | 'link' | 'list' | 'logout' | 'mail' | 'menu' | 'more'
+  | 'filter' | 'flag' | 'flame' | 'group' | 'inbox' | 'link' | 'list' | 'logout' | 'mail' | 'menu' | 'more'
   | 'plus' | 'project' | 'repeat' | 'search' | 'settings' | 'sidebar'
   | 'section' | 'sliders' | 'someday' | 'sort' | 'stack' | 'star' | 'subtask'
   | 'tag' | 'tasks'
-  | 'trend' | 'upcoming' | 'warning' | 'week';
+  | 'trend' | 'upcoming' | 'warning' | 'week'
+  | 'bold' | 'italic' | 'strike' | 'heading1' | 'heading2' | 'quote' | 'code' | 'list-ordered';
 
 /** Lucide (MIT, lucide.dev) — chosen to replace the app's hand-drawn sprite. */
 const ICONS: Record<IconName, LucideIcon> = {
+  bold: Bold, italic: Italic, strike: Strikethrough, heading1: Heading1, heading2: Heading2, quote: Quote, code: Code, 'list-ordered': ListOrdered,
   'arrow-left': ArrowLeft,
   'arrow-right': ArrowRight,
   bars: BarChart3,
@@ -55,6 +57,7 @@ const ICONS: Record<IconName, LucideIcon> = {
   plus: Plus,
   project: Folder,
   repeat: Repeat,
+  flame: Flame,
   search: Search,
   settings: Settings,
   sidebar: PanelLeft,

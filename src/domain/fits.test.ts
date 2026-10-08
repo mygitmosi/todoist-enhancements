@@ -33,9 +33,9 @@ describe('what fits in the time you have', () => {
     expect(allIds(fitsIn(all, 5, childrenOf, NOW))).toEqual([]);
   });
 
-  it("uses a parent's own estimate over its subtasks", () => {
+  it("uses a parent's own estimate while a subtask has none", () => {
     const parent = item({ id: 'parent', labels: ['est-30'] });
-    const children = [item({ id: 'a', parent_id: 'parent', labels: ['est-5'] })];
+    const children = [item({ id: 'a', parent_id: 'parent', labels: ['est-5'] }), item({ id: 'b', parent_id: 'parent' })];
     const childrenOf = (id: string) => (id === 'parent' ? children : []);
     expect(allIds(fitsIn([parent, ...children], 15, childrenOf, NOW))).toEqual([]);
     expect(allIds(fitsIn([parent, ...children], 30, childrenOf, NOW))).toEqual(['parent']);

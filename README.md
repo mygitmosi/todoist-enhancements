@@ -76,7 +76,9 @@ untouched, because it never lived anywhere else.
   how much time they add up to, and what share of the capacity you set for
   that day or week. That last figure is a load pill: green, amber, over. A day
   filled to 140% says so before you start it, not at six in the evening. A
-  parent with no estimate of its own sums its subtasks, and anything still
+  parent whose open subtasks all have a duration takes their sum, written to
+  the task so Todoist shows it too; with one missing it keeps its own, or shows
+  the partial sum as computed. Anything still
   unestimated is counted separately and listed in one place so you can fill a
   page of them in one pass. A duration set in Todoist's own field counts too,
   with the source chosen in Settings taking priority when both are present.
@@ -99,6 +101,15 @@ untouched, because it never lived anywhere else.
   (it counts them, and offers to estimate them), and leaves the page behind it
   exactly as it was. Nothing is changed and nothing is remembered after a
   reload.
+
+- **Checklists:** lines like `- [ ] item` in a task's description show as small
+  checkboxes in the task panel, with "3 of 7" beside the description. Ticking
+  one changes only that line, so the same text still reads fine in Todoist's
+  own apps (which may show the lines as plain text). Editing is by rows rather
+  than syntax: Enter adds the next item, Enter on an empty one leaves the
+  list, Backspace at its start makes it plain text, and `[]` and a space starts
+  a list, in the panel and in the new task window. Task rows never show the
+  checklist lines.
 
 - **Folders:** group projects inside a folder the way Todoist's own apps do —
   a collapsible row you can expand or collapse on its own, in your personal
@@ -131,7 +142,9 @@ untouched, because it never lived anywhere else.
 
 - **Dashboard:** a board that changes with the period you pick. A day shows
   the hours you finished things in, a week adds its shape and a comparison
-  with the one before, a year reads month by month. The focus score weights
+  with the one before, a quarter and a year read month by month. Edit layout
+  lets you put the cards in the order you want, with the mouse or the keyboard,
+  and Reset to default puts them back. The focus score weights
   what you finished by its priority — the only question worth asking about a
   finished week: whether the effort went where it mattered, or into whatever
   was easiest to close.
@@ -179,7 +192,9 @@ untouched, because it never lived anywhere else.
   handed to Todoist to resolve rather than guessed at here.
 
 - **Projects, sections, tags and favourites:** a page for each, nested and
-  ordered by dragging, with the Inbox and Upcoming where you expect them.
+  ordered by dragging, with the Inbox and Upcoming where you expect them. A
+  section has a menu: edit, move to another project, duplicate with its tasks,
+  copy its link, archive or delete.
 
 - **Search:** `⌘K`, or just start typing. It covers tasks, projects, sections,
   tags and every view in the app, which makes it the fastest way to anywhere.

@@ -1,5 +1,5 @@
 import { SYSTEM_LABELS, estimateStorage, weekLabel, type Item } from './types';
-import { readEstimate, estimateOf } from './estimates';
+import { readEstimate, estimateOf, childrenSum } from './estimates';
 import { hasLabel, QUICK_THRESHOLD_MINUTES } from './views';
 
 /**
@@ -138,7 +138,9 @@ export function detectConflicts(
       }
     }
 
-    if (settings.parentAndChildren && estimateOf(item) !== null) {
+    /* When every open subtask has an estimate their sum wins and is written to
+       the parent (#187), so there is nothing left to choose between. */
+    if (settings.parentAndChildren && estimateOf(item) !== null && childrenSum(item, childrenOf) === null) {
       const estimatedChildren = childrenOf(item.id).filter(
         (c) => !c.checked && !c.is_deleted && estimateOf(c) !== null,
       );

@@ -23,7 +23,7 @@ const switchOf = (page: Page, name: string) => page.getByRole('switch', { name }
 
 test('#154 a project leads with one Quick group, and its tasks are not listed twice', async ({ demo: page }) => {
   await go(page, '#/project/site');
-  const quick = group(page, 'Quick');
+  const quick = group(page, 'Quick Tasks');
   await expect(page.locator('.screen.active .group.accent-quick')).toHaveCount(1);
   // The group is first on the page, above every section.
   await expect(page.locator('.screen.active .group').first()).toHaveClass(/accent-quick/);
@@ -50,7 +50,7 @@ test('#154 a project with nothing quick has no Quick group', async ({ demo: page
 
 test('#154 a quick task dated next week stays in its section', async ({ demo: page }) => {
   await go(page, '#/project/site');
-  await expect(group(page, 'Quick').locator('[data-task-id]').filter({ hasText: 'thank-you' })).toHaveCount(0);
+  await expect(group(page, 'Quick Tasks').locator('[data-task-id]').filter({ hasText: 'thank-you' })).toHaveCount(0);
   // A section's name is a field, so it is found by the id the field carries.
   const section = page.locator('.screen.active .group').filter({ has: page.locator('[data-section-name="s-todo"]') });
   await expect(section.locator('[data-task-id]').filter({ hasText: 'Send the thank-you note' })).toHaveCount(1);
@@ -64,20 +64,22 @@ test('#154 the Inbox, a tag and Someday lead with their quick tasks, saying wher
   await page.locator('.composer-name').fill('Pay the parking ticket (2)');
   await page.getByRole('dialog', { name: 'Add task' }).getByRole('button', { name: 'Add task' }).click();
   await expect(page.locator('.composerbox')).toHaveCount(0);
-  await expect(titlesIn(group(page, 'Quick'))).resolves.toEqual(['Pay the parking ticket']);
+  await expect(titlesIn(group(page, 'Quick Tasks'))).resolves.toEqual(['Pay the parking ticket']);
 
   await go(page, '#/label/quick');
-  const tagged = group(page, 'Quick');
+  const tagged = group(page, 'Quick Tasks');
   await expect(tagged.locator('[data-task-id]').filter({ hasText: 'Renew the library card' })).toHaveCount(1);
   await expect(tagged.locator('[data-task-id]').filter({ hasText: 'Renew the library card' }).locator('.proj'))
     .toContainText('Home');
 
   await go(page, '#/someday');
-  const someday = group(page, 'Quick');
+  const someday = group(page, 'Quick Tasks');
   await expect(someday.locator('[data-task-id]').filter({ hasText: 'Reply to the printer' }).locator('.proj'))
     .toContainText('Website');
-  await expect(someday.locator('[data-task-id]').filter({ hasText: 'Pay the parking ticket' }).locator('.proj'))
-    .toContainText('Home');
+  /* Two tasks have that name, the demo's in Home and the one typed above in the
+     Inbox, which now names itself too (#175): the Home one is among them. */
+  await expect(someday.locator('[data-task-id]').filter({ hasText: 'Pay the parking ticket' }).locator('.proj', { hasText: 'Home' }))
+    .toHaveCount(1);
   await expect(someday.locator('[data-task-id]').filter({ hasText: 'Reply to the printer' }).locator('.sect'))
     .toHaveText('To do');
   // An old quick task is listed here, not under Gathering dust.
@@ -91,7 +93,7 @@ test('#154 a board leads with a blue read-only Quick column, and My week looks a
   const before = await page.locator('.screen.active .group').evaluateAll(
     (groups) => groups.map((g) => g.querySelector('.gname')?.textContent ?? ''),
   );
-  expect(before.slice(0, 3)).toEqual(['Behind schedule', 'Quick', 'Today']);
+  expect(before.slice(0, 3)).toEqual(['Behind schedule', 'Quick Tasks', 'Today']);
 
   await go(page, '#/project/site');
   await page.getByRole('button', { name: 'Display' }).click();
@@ -103,7 +105,7 @@ test('#154 a board leads with a blue read-only Quick column, and My week looks a
   const quick = board.locator('.col.accent-quick');
   await expect(quick).toHaveCount(1);
   await expect(board.locator('.col').first()).toHaveClass(/accent-quick/);
-  await expect(quick.locator('.chead strong')).toHaveText('Quick');
+  await expect(quick.locator('.chead strong')).toHaveText('Quick Tasks');
   await expect(quick.locator('.sect').first()).toBeVisible();
   // Listed once, and not somewhere to drop or add a task.
   await expect(board.locator('.col').filter({ hasText: 'Reply to the printer' })).toHaveCount(1);
@@ -168,7 +170,7 @@ test('#154 the switch in Settings turns the Quick group off everywhere', async (
 
 test('#154 the keyboard walks through the Quick group and on into the next group', async ({ demo: page }) => {
   await go(page, '#/project/site');
-  const quick = group(page, 'Quick');
+  const quick = group(page, 'Quick Tasks');
   const count = await quick.locator('[data-task-id]').count();
   expect(count).toBeGreaterThan(1);
 
@@ -186,7 +188,7 @@ test('#154 in French the group and the settings hint say where it appears', asyn
   await page.getByRole('button', { name: 'Language' }).click();
   await page.getByRole('option', { name: 'Français' }).click();
   await go(page, '#/project/site');
-  await expect(page.locator('.screen.active .group.accent-quick .gname')).toHaveText('Rapide');
+  await expect(page.locator('.screen.active .group.accent-quick .gname')).toHaveText('Tâches rapides');
   await expect(page.locator('.screen.active .group.accent-quick .sect').first()).toBeVisible();
 });
 
@@ -330,17 +332,16 @@ test('#159 the pill follows the load figure on the pages that list tasks, and is
     await expect(pill(page), hash).toHaveCount(1);
     await expect(pill(page), hash).toContainText('I have time');
   }
-  // Right after the load pill, and before the unestimated link.
+  // Right after the duration, which is the last thing on the line before it (#173).
   await go(page, '#/week');
   const metrics = await page.locator('.screen.active .metrics > *').evaluateAll(
     (nodes) => nodes.map((node) => node.className),
   );
-  const loadAt = metrics.findIndex((name) => name.includes('loadpill'));
+  const durationAt = metrics.findIndex((name) => name.includes('summary-time'));
   const pillAt = metrics.findIndex((name) => name.includes('timepill'));
-  const linkAt = metrics.findIndex((name) => name.includes('metric-link'));
-  expect(loadAt).toBeGreaterThanOrEqual(0);
-  expect(pillAt).toBeGreaterThan(loadAt);
-  expect(linkAt).toBeGreaterThan(pillAt);
+  expect(durationAt).toBeGreaterThanOrEqual(0);
+  expect(pillAt).toBeGreaterThan(durationAt);
+  expect(metrics.some((name) => name.includes('loadpill') || name.includes('metric-link'))).toBe(false);
 
   for (const hash of ['#/upcoming', '#/insights', '#/review']) {
     await go(page, hash);
@@ -589,7 +590,7 @@ test('#154 a task in the Quick group opens, and completing the last one removes 
   await page.keyboard.press('q');
   await page.locator('.composer-name').fill('Pay the parking ticket (2)');
   await page.getByRole('dialog', { name: 'Add task' }).getByRole('button', { name: 'Add task' }).click();
-  const quick = group(page, 'Quick');
+  const quick = group(page, 'Quick Tasks');
   await quick.locator('.ttitle').first().click();
   await expect(page.locator('.detail-headline')).toBeVisible();
   await page.keyboard.press('Escape');

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Icon } from './Icon';
 import { useT } from '@/hooks/useT';
 import { formatDuration } from '@/domain/estimates';
-import type { LoadSummary } from '@/domain/load';
+import { loadTone, type LoadSummary } from '@/domain/load';
 
 /** The "I have time" pill (#159): the page offers it by passing this. */
 export interface TimePillProps {
@@ -29,14 +29,26 @@ interface PageHeaderProps {
 }
 
 /**
- * The line every page shares: what this page is, how much is on it, and
- * whether that fits. The percentage only appears where capacity means
- * something, which the caller decides by passing it or not.
+ * The line every page shares: what this page is, how many tasks and how much
+ * estimated time are on it, and whether that fits. The duration turns amber
+ * from 90% of the capacity and red from 100% where capacity means something,
+ * which the caller decides by passing it or not (#173).
  */
 export function PageHeader({
   title, subtitle, actions, load, onOpenUnestimated, time,
 }: PageHeaderProps) {
   const { t, locale } = useT();
+
+  /* What the duration stands for, in words: how much is estimated, how many
+     tasks have no estimate, and the capacity it is measured against. */
+  const durationLabel = [
+    load.estimatedMinutes > 0
+      ? `${formatDuration(load.estimatedMinutes, locale)} ${t('metrics.estimatedWord')}`
+      : t('metrics.noEstimates'),
+    load.unestimatedCount > 0 ? t('metrics.unestimatedFull', { count: load.unestimatedCount }) : null,
+    load.percentage !== null ? t('metrics.capacityBasis', { percent: load.percentage }) : null,
+    onOpenUnestimated && load.unestimatedCount > 0 ? t('metrics.estimateThem') : null,
+  ].filter(Boolean).join(' · ');
 
   return (
     <>
@@ -56,33 +68,32 @@ export function PageHeader({
           <b>{load.taskCount}</b> {t('metrics.taskWord', { count: load.taskCount })}
         </span>
 
-        {load.estimatedMinutes > 0 && (
+        {(load.estimatedMinutes > 0 || load.unestimatedCount > 0) && (
           <>
             <span className="sep">·</span>
-            <span className="metric">
-              <Icon name="clock" size="sm" />
-              <b>{formatDuration(load.estimatedMinutes, locale)}</b>{' '}
-              {t('metrics.estimatedWord')}
-            </span>
-          </>
-        )}
-
-        {load.percentage !== null && (
-          <>
-            <span className="sep">·</span>
-            <span
-              className={`loadpill ${load.level === 'ok' ? 'ok' : load.level === 'tight' ? 'warn' : 'over'}`}
-              title={t('metrics.loadTooltip')}
+            {/* The duration is also the way into the tasks that have none (#173):
+                one control where there used to be a duration, a percentage and a
+                count. Its colour says how full the capacity is, and the same
+                facts are in words for whoever cannot see the colour. */}
+            <button
+              className={`metric summary-time ${loadTone(load.percentage)}`}
+              disabled={!onOpenUnestimated || load.unestimatedCount === 0}
+              onClick={() => onOpenUnestimated?.()}
+              aria-label={durationLabel}
+              title={durationLabel}
             >
-              {load.percentage}%
-            </span>
+              <Icon name="clock" size="sm" />
+              {load.estimatedMinutes > 0
+                ? <><b>{formatDuration(load.estimatedMinutes, locale)}</b> {t('metrics.estimatedWord')}</>
+                : t('metrics.noEstimates')}
+            </button>
           </>
         )}
 
         {time && (
           <>
             <span className="sep">·</span>
-            {/* Right after the load pill: the same line, the same question —
+            {/* Right after the duration: the same line, the same question —
                 how much room there is — asked the other way round. */}
             <span className={`timepill${time.minutes !== null && time.open ? ' on' : ''}`} data-tour="time">
               <button
@@ -107,25 +118,6 @@ export function PageHeader({
                 </button>
               )}
             </span>
-          </>
-        )}
-
-        {load.unestimatedCount > 0 && (
-          <>
-            <span className="sep">·</span>
-            {onOpenUnestimated ? (
-              <button
-                className="metric metric-link"
-                onClick={() => onOpenUnestimated()}
-                title={t('issues.toComplete')}
-              >
-                {t('metrics.unestimated', { count: load.unestimatedCount })}
-              </button>
-            ) : (
-              <span className="metric" style={{ color: 'var(--faint)' }}>
-                {t('metrics.unestimated', { count: load.unestimatedCount })}
-              </span>
-            )}
           </>
         )}
       </div>

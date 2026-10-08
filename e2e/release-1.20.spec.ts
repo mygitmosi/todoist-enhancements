@@ -1,5 +1,6 @@
 import { test as accountTest } from '@playwright/test';
 import { item } from '../src/test/items';
+import { VERSION } from '../src/app-info';
 import { test, expect, go, row } from './demo';
 
 test('estimate conversion previews, converts and becomes idempotent in both directions', async ({ demo: page }) => {
@@ -102,15 +103,15 @@ accountTest('initial choice offers conversion, with verified and pending rows sc
     } else await route.fulfill({ json: { results: [], next_cursor: null } });
   });
   await page.goto('/');
-  await page.evaluate(async () => {
+  await page.evaluate(async (version) => {
     localStorage.setItem('tde.token', 'fictitious-test-token-only');
     localStorage.setItem('onboarded', JSON.stringify(['account-test']));
     const db = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open('todoist-enhancements', 1); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
     const tx = db.transaction('prefs', 'readwrite');
-    tx.objectStore('prefs').put({ locale: 'en', onboarded: true, seenVersion: '1.20.0', estimateStorage: null }, 'preferences');
+    tx.objectStore('prefs').put({ locale: 'en', onboarded: true, seenVersion: version, estimateStorage: null }, 'preferences');
     await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); });
     db.close();
-  });
+  }, VERSION);
   await page.reload();
   const choice = page.getByRole('dialog', { name: 'Where to store estimates', exact: true });
   await expect(choice).toBeVisible();

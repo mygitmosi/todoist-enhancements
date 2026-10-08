@@ -53,6 +53,7 @@ export function LabelsView() {
           <h1 className="ptitle">{t('nav.labels')}</h1>
           {labels.length > 1 && <p className="psub">{t('labels.orderHint')}</p>}
         </div>
+
       </div>
 
       {/* A tag is a name and nothing else, so making one is a line to type in

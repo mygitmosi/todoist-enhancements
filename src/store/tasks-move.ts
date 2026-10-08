@@ -1,8 +1,9 @@
 /** Tasks going somewhere: sent to a place, moved, and changed many at a time. */
-import { type Command, moveItem, updateItem } from '@/api/commands';
-import type { Snapshot } from '@/domain/types';
+import { type Command, moveItem, reorderItems, updateItem } from '@/api/commands';
+import type { Item, Snapshot } from '@/domain/types';
 import { translate } from '@/i18n';
-import { dropMutation, moveArgs } from '@/domain/dnd';
+import { descendantsOf, dropMutation, moveArgs, planNestMany } from '@/domain/dnd';
+import { byChildOrder, keysInOrder } from '@/domain/orderKey';
 import { patchItem } from './helpers';
 import type { Slice, TasksMoveSlice } from './types';
 
@@ -207,6 +208,123 @@ export const createTasksMoveSlice: Slice<TasksMoveSlice> = (_set, get) => ({
         patchAll((change) => change.before as unknown as Record<string, unknown>),
       ),
     );
+  },
+  /**
+   * A selection, dropped inside one task.
+   *
+   * Every picked task becomes a direct subtask of the target, in the order it
+   * was given, as one batch with one toast and one undo. The moves and the
+   * numbering that fixes their order go out together, and if Todoist refuses
+   * any of the moves the ones it accepted are put back: the drop looked like
+   * one act, so it never stays half done.
+   */
+  async nestMany(ids, parentId) {
+    const { snapshot } = get();
+    const parent = snapshot.items[parentId];
+    const plan = planNestMany(snapshot.items, ids, parentId);
+    const locale = get().prefs.locale;
+    if (!parent || !plan.ok) {
+      if (parent && !plan.ok && (plan.reason === 'inside-itself' || plan.reason === 'too-deep')) {
+        get().toast(
+          translate(locale, 'drop.cannotNest', { name: parent.content }), undefined, { tone: 'error' },
+        );
+      }
+      return false;
+    }
+
+    const moving = plan.ids;
+    const movingSet = new Set(moving);
+    const siblings = Object.values(snapshot.items)
+      .filter((other) => other.parent_id === parentId && !other.is_deleted && !movingSet.has(other.id))
+      .sort(byChildOrder)
+      .map((other) => other.id);
+    const arranged = [...siblings, ...moving];
+    const keys = keysInOrder(arranged.length);
+    const numbered = arranged.map((id, index) => ({ id, child_order: index + 1 }));
+
+    // Everything the numbering touches, so the undo can put it back exactly.
+    const was = (id: string) => {
+      const task = snapshot.items[id];
+      return {
+        id, parent_id: task.parent_id, project_id: task.project_id, section_id: task.section_id,
+        child_order: task.child_order, order_key: task.order_key ?? null,
+      };
+    };
+    const before = arranged.map(was);
+
+    const below = moving.flatMap((id) => descendantsOf(snapshot.items, id));
+    const place = (current: Snapshot): Snapshot => {
+      const items = { ...current.items };
+      moving.forEach((id) => {
+        if (items[id]) {
+          items[id] = {
+            ...items[id], parent_id: parentId,
+            project_id: parent.project_id, section_id: parent.section_id,
+          } as Item;
+        }
+      });
+      for (const id of below) {
+        if (items[id]) items[id] = { ...items[id], project_id: parent.project_id, section_id: parent.section_id } as Item;
+      }
+      arranged.forEach((id, index) => {
+        if (items[id]) items[id] = { ...items[id], child_order: index + 1, order_key: keys[index] };
+      });
+      return { ...current, items };
+    };
+    const restore = (only: string[]) => (current: Snapshot): Snapshot => {
+      const items = { ...current.items };
+      const keep = new Set(only);
+      for (const entry of before) {
+        if (!keep.has(entry.id) && !siblings.includes(entry.id)) continue;
+        if (!items[entry.id]) continue;
+        items[entry.id] = {
+          ...items[entry.id],
+          parent_id: entry.parent_id, project_id: entry.project_id, section_id: entry.section_id,
+          child_order: entry.child_order, order_key: entry.order_key,
+        } as Item;
+      }
+      for (const id of below) {
+        const owner = snapshot.items[id];
+        if (items[id] && owner) {
+          items[id] = { ...items[id], project_id: owner.project_id, section_id: owner.section_id } as Item;
+        }
+      }
+      return { ...current, items };
+    };
+    const back = (entry: ReturnType<typeof was>): Command => {
+      const home = entry.parent_id && get().snapshot.items[entry.parent_id];
+      return home
+        ? moveItem(entry.id, { parent_id: entry.parent_id! })
+        : moveItem(entry.id, moveArgs({ project_id: entry.project_id, section_id: entry.section_id }));
+    };
+    const renumber = () => reorderItems(before.map(({ id, child_order }) => ({ id, child_order })));
+
+    await get().apply(
+      [...moving.map((id) => moveItem(id, { parent_id: parentId })), reorderItems(numbered)],
+      place,
+    );
+
+    const now = get().snapshot.items;
+    const stuck = moving.filter((id) => now[id]?.parent_id === parentId);
+    if (stuck.length !== moving.length) {
+      if (stuck.length > 0) {
+        await get().apply(
+          [...before.filter((entry) => stuck.includes(entry.id)).map(back), renumber()],
+          restore(stuck),
+        );
+      }
+      get().toast(translate(locale, 'drop.nestFailed', { name: parent.content }), undefined, { tone: 'error' });
+      return false;
+    }
+
+    get().toast(
+      translate(locale, 'drop.nestedMany', { count: moving.length, name: parent.content }),
+      () => void get().apply(
+        [...before.filter((entry) => movingSet.has(entry.id)).map(back), renumber()],
+        restore(moving),
+      ),
+    );
+    return true;
   },
   /**
    * Sends a task to one place.

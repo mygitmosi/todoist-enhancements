@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, Fragment } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { SubtasksProvider } from '@/components/TaskRow';
 import { DisplayMenu } from '@/components/DisplayMenu';
@@ -18,6 +18,7 @@ import type { TaskPlacement } from '@/domain/dnd';
 import { useData } from '@/hooks/useData';
 import type { Item } from '@/domain/types';
 import { useStore } from '@/store/store';
+import { newUuid } from '@/api/commands';
 import { viewPrefs } from '@/store/prefs';
 import { applyFilters, pullQuick, rootItems, sortItems } from '@/store/selectors';
 import { summariseLoad } from '@/domain/load';
@@ -66,6 +67,15 @@ function ProjectBody({
   const updateProjectFields = useStore((s) => s.updateProjectFields);
   const updateSectionFields = useStore((s) => s.updateSectionFields);
   const createSection = useStore((s) => s.createSection);
+  /* A section made here is drawn under a temporary id until Todoist answers.
+     Keyed by the id it was born with, it stays the same element when the real
+     one arrives: the field the name is being typed in is not rebuilt under the
+     cursor (#186). */
+  const resolvedIds = useStore((s) => s.resolvedIds);
+  const bornAs = useMemo(
+    () => Object.fromEntries(Object.entries(resolvedIds).map(([temp, real]) => [real, temp])),
+    [resolvedIds],
+  );
   const removeSection = useStore((s) => s.removeSection);
   const confirm = useConfirm();
 
@@ -86,15 +96,30 @@ function ProjectBody({
     if (ok) await removeSection(group.id);
   };
 
+  /* Two clicks in a row on the same seam must not leave two unnamed sections
+     with the cursor in neither (#186). */
+  const lastAdded = useRef(0);
   const addSection = async (index: number) => {
-    const id = await createSection(projectId, index);
+    const now = Date.now();
+    if (now - lastAdded.current < 700) return;
+    lastAdded.current = now;
+
+    /* The id is chosen here, before Todoist is asked: creating the section
+       only answers after the round trip, by which time the section already
+       has its real id and nothing is called by the temporary one. */
+    const id = newUuid();
+    const created = createSection(projectId, index, undefined, id);
 
     /* The field does not exist until React has rendered the new section, and
-       one frame is not always enough — the store updates, then the view
-       re-renders. Poll briefly rather than guess a delay. */
+       one frame is not always enough. Poll briefly rather than guess a delay.
+       The section may be asked for by its temporary id or, if Todoist has
+       answered meanwhile, by the real one. */
     let tries = 0;
     const focus = () => {
-      const field = document.querySelector<HTMLInputElement>(`[data-section-name="${id}"]`);
+      const real = useStore.getState().resolvedIds[id];
+      const field = document.querySelector<HTMLInputElement>(
+        `[data-section-name="${id}"], [data-section-name="${real ?? id}"]`,
+      );
       field?.focus();
       field?.select();
       // The click that created the section also re-renders the list around it,
@@ -102,6 +127,7 @@ function ProjectBody({
       if (document.activeElement !== field && tries++ < 30) setTimeout(focus, 30);
     };
     setTimeout(focus, 30);
+    await created;
   };
   const viewKey = `project:${projectId}`;
   const current = viewPrefs(prefs, viewKey);
@@ -383,7 +409,7 @@ function ProjectBody({
             keepWhenEmpty
           />
           {sectionGroups.map((group, index) => (
-            <Fragment key={group.id}>
+            <Fragment key={bornAs[group.id] ?? group.id}>
             <AddSectionLine
               label={t('section.add')}
               slotId={String(index)}
@@ -392,6 +418,7 @@ function ProjectBody({
             <TaskGroup
               title={group.title}
               sectionId={group.id}
+              projectId={projectId}
               onRename={(name) => void updateSectionFields(group.id, { name })}
               onDelete={() => void deleteSection(group)}
               items={group.items}

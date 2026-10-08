@@ -87,6 +87,67 @@ describe('sortItems by priority (#98 follow-up)', () => {
   });
 });
 
+describe('sortItems in a list drawn from several projects (#182)', () => {
+  const today = due('2026-10-08');
+  const ids = (list: ReturnType<typeof item>[], sort: 'priority' | 'due' | 'alphabetical' = 'priority') =>
+    sortItems(list, sort, () => [], 'day', snapshot, true).map((i) => i.id);
+
+  it('puts the project listed higher in the sidebar first at equal priority and date', () => {
+    const list = [
+      item({ id: 'work', project_id: 'work', priority: 3, due: today, added_at: '2026-01-01T00:00:00Z' }),
+      item({ id: 'home', project_id: 'home', priority: 3, due: today, added_at: '2026-02-01T00:00:00Z' }),
+      item({ id: 'inbox', project_id: 'inbox', priority: 3, due: today, added_at: '2026-03-01T00:00:00Z' }),
+      item({ id: 'site', project_id: 'site', priority: 3, due: today, added_at: '2026-04-01T00:00:00Z' }),
+    ];
+    // Inbox leads, then the sidebar from top to bottom, a nested project right after its folder.
+    expect(ids(list)).toEqual(['inbox', 'home', 'site', 'work']);
+    expect(ids(list, 'due')).toEqual(['inbox', 'home', 'site', 'work']);
+  });
+
+  it('keeps priority and date ahead of the project', () => {
+    const list = [
+      item({ id: 'home-p3', project_id: 'home', priority: 3, due: today }),
+      item({ id: 'work-p4', project_id: 'work', priority: 4, due: today }),
+      item({ id: 'work-sooner', project_id: 'work', priority: 3, due: due('2026-10-07') }),
+    ];
+    expect(ids(list)).toEqual(['work-p4', 'work-sooner', 'home-p3']);
+  });
+
+  it('keeps a hand-made order ahead of the project', () => {
+    const list = [
+      item({ id: 'home', project_id: 'home', priority: 3, due: today }),
+      item({ id: 'work', project_id: 'work', priority: 3, due: today, day_order: 1 }),
+    ];
+    expect(ids(list)).toEqual(['work', 'home']);
+  });
+
+  it('keeps the order within one project, and other sorts untouched', () => {
+    const list = [
+      item({ id: 'b', content: 'b', project_id: 'work', priority: 3, due: today, added_at: '2026-02-01T00:00:00Z' }),
+      item({ id: 'a', content: 'a', project_id: 'home', priority: 3, due: today, added_at: '2026-03-01T00:00:00Z' }),
+      item({ id: 'c', content: 'c', project_id: 'home', priority: 3, due: today, added_at: '2026-01-01T00:00:00Z' }),
+    ];
+    expect(ids(list)).toEqual(['c', 'a', 'b']);
+    expect(ids(list, 'alphabetical')).toEqual(['a', 'b', 'c']);
+  });
+
+  it('leaves the order of arrival alone when the page does not ask for projects', () => {
+    const list = [
+      item({ id: 'work', project_id: 'work', priority: 3, due: today, added_at: '2026-01-01T00:00:00Z' }),
+      item({ id: 'home', project_id: 'home', priority: 3, due: today, added_at: '2026-02-01T00:00:00Z' }),
+    ];
+    expect(sortItems(list, 'priority', () => [], 'day', snapshot).map((i) => i.id)).toEqual(['work', 'home']);
+  });
+
+  it('puts a project that is not in the sidebar after the others', () => {
+    const list = [
+      item({ id: 'ghost', project_id: 'gone', priority: 3, due: today }),
+      item({ id: 'work', project_id: 'work', priority: 3, due: today }),
+    ];
+    expect(ids(list)).toEqual(['work', 'ghost']);
+  });
+});
+
 describe('pullQuick (#154)', () => {
   const now = new Date(2026, 9, 7, 12, 0, 0);
   const none = () => [];

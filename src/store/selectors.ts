@@ -44,6 +44,9 @@ export function openItems(snapshot: Snapshot): Item[] {
   return Object.values(snapshot.items).filter((item) => {
     if (item.content === PREFERENCES_TASK_CONTENT) return false;
     if (!isOpen(item)) return false;
+    /* An archived section takes its tasks out of sight with it (#185). */
+    const section = item.section_id ? snapshot.sections[item.section_id] : undefined;
+    if (section?.is_archived) return false;
     const project = snapshot.projects[item.project_id];
     return !project || (!project.is_archived && !project.is_deleted);
   });
@@ -106,12 +109,40 @@ const dayRank = (item: Item): number =>
   (item.day_order > 0 ? item.day_order : Number.MAX_SAFE_INTEGER);
 
 /** The hand-made order that is meaningful on the surface being rendered. */
-const manualCompare = (a: Item, b: Item, order: RowOrder): number =>
+const manualCompare = (
+  a: Item, b: Item, order: RowOrder,
+  /* Where each project sits in the sidebar (#182). Given, it settles a tie
+     between two tasks nobody placed by hand, before falling back to who was
+     added first. */
+  projectRanks?: Map<string, number>,
+): number =>
   order === 'day'
     ? dayRank(a) - dayRank(b)
+      || projectRankOf(projectRanks, a) - projectRankOf(projectRanks, b)
       || (a.added_at ?? '').localeCompare(b.added_at ?? '')
       || a.id.localeCompare(b.id)
     : byChildOrder(a, b) || a.id.localeCompare(b.id);
+
+const projectRankOf = (ranks: Map<string, number> | undefined, item: Item): number =>
+  ranks?.get(item.project_id) ?? Number.MAX_SAFE_INTEGER;
+
+/**
+ * Every project's place in the sidebar, top to bottom, nested ones right
+ * after their parent. The Inbox leads, as it does in Todoist. An archived
+ * project is not in the sidebar, so it has no rank and sorts after the rest.
+ */
+export function projectRanks(snapshot: Snapshot): Map<string, number> {
+  const ranks = new Map<string, number>();
+  for (const project of Object.values(snapshot.projects)) {
+    if (project.inbox_project) ranks.set(project.id, -1);
+  }
+  const visit = (node: ProjectNode) => {
+    ranks.set(node.project.id, ranks.size);
+    node.children.forEach(visit);
+  };
+  for (const group of projectTree(snapshot)) group.roots.forEach(visit);
+  return ranks;
+}
 
 /**
  * A date sort's own order: the sooner date first, an undated task always
@@ -150,12 +181,21 @@ export function sortItems(
      `day_order`, and a task never put in place by hand has neither. */
   order: RowOrder = 'project',
   snapshot?: Snapshot,
+  /* Ties broken by the project's place in the sidebar (#182). Only the pages
+     that read like Todoist's Today ask for it: elsewhere (Gathering dust, a
+     tag) the order of arrival is the meaningful tiebreak. */
+  byProject = false,
 ): Item[] {
   const copy = [...items];
   const estimate = (i: Item) => effectiveEstimate(i, childrenOf).minutes;
 
   // Only the label sort needs this, and needs it built once rather than
   // once per comparison.
+  /* Same for the project ranks: only the two sorts that read like Todoist's
+     Today use them, and only on a list drawn from several projects. */
+  const ranks = byProject && snapshot && order === 'day' && (sort === 'priority' || sort === 'due')
+    ? projectRanks(snapshot)
+    : undefined;
   const labelPositions = snapshot ? labelOrderByName(snapshot) : new Map<string, number>();
   const labelRank = (item: Item): [bucket: number, position: number, unknown: string] => {
     const labels = item.labels.filter((label) => !label.toLowerCase().startsWith('est-'));
@@ -173,9 +213,9 @@ export function sortItems(
         // Todoist stores 4 as the most urgent, so the higher number comes first.
         // Same priority, then the sooner date: two P1s read in the order
         // they are due, not in whatever order they happen to sit in.
-        return b.priority - a.priority || compareDue(a, b) || manualCompare(a, b, order);
+        return b.priority - a.priority || compareDue(a, b) || manualCompare(a, b, order, ranks);
       case 'due':
-        return compareDue(a, b) || manualCompare(a, b, order);
+        return compareDue(a, b) || manualCompare(a, b, order, ranks);
       case 'added-asc':
       case 'added-desc': {
         const direction = sort === 'added-asc' ? 1 : -1;
