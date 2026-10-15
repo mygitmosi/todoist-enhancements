@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Overlay } from './Overlay';
 import { Icon } from '../Icon';
+import { Select } from '../Select';
 import { useT } from '@/hooks/useT';
 import { renderTitle } from '@/domain/markdown';
 import {
   localisedReleases, parseChangelog, type ChangeKind, type Release,
 } from '@/domain/changelog';
 import { tourStops } from '@/domain/tour';
-import { COFFEE_URL, GITHUB_URL, VERSION } from '@/app-info';
+import { COFFEE_URL } from '@/app-info';
 import type { TranslationKey } from '@/i18n';
 
 /**
@@ -69,11 +70,10 @@ const anchorOf = (version: string) => `whatsnew-${version.replace(/\./g, '-')}`;
  * release has been translated. The title and the buttons hold still while
  * the list scrolls between them.
  *
- * After an update the title names the version, and a single release is its
- * list and nothing else: a heading repeating the version and a paragraph
- * summing up the list below it were two ways of saying the title again. The
- * whole history, from Settings, keeps a heading per release and a row of
- * pills to jump from one to the next.
+ * After an update the title says "since your last visit" and every release
+ * keeps its own heading, a single one included: with several releases a
+ * title naming only the latest was misleading (#227). The whole history, from
+ * Settings, adds a row of pills to jump from one release to the next.
  */
 export function WhatsNew({ scope, onClose, onShowMe }: WhatsNewProps) {
   const { t, locale } = useT();
@@ -93,11 +93,7 @@ export function WhatsNew({ scope, onClose, onShowMe }: WhatsNewProps) {
      can point at: the history has no "since you last looked". */
   const showable = scope !== null && scope !== 'all' && onShowMe !== undefined
     && tourStops(scope.versions).length > 0;
-  /* One release after an update: no heading of its own, the title says it. */
-  const headings = history || shown.length > 1;
-  const titleText = history
-    ? t('whatsNew.historyTitle')
-    : t('whatsNew.title', { version: VERSION });
+  const titleText = history ? t('whatsNew.historyTitle') : t('whatsNew.title');
 
   /* The pill of the release being read follows the scroll. */
   useEffect(() => {
@@ -118,15 +114,6 @@ export function WhatsNew({ scope, onClose, onShowMe }: WhatsNewProps) {
     return () => body.removeEventListener('scroll', onScroll);
   }, [history, shown]);
 
-  /* The pill of the release being read stays in the row's view. */
-  const pillsRef = useRef<HTMLElement>(null);
-  useEffect(() => {
-    if (!current) return;
-    pillsRef.current
-      ?.querySelector<HTMLElement>('[aria-current="true"]')
-      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }, [current]);
-
   const jump = (version: string) => {
     const body = bodyRef.current;
     const section = body?.querySelector<HTMLElement>(`#${anchorOf(version)}`);
@@ -143,6 +130,17 @@ export function WhatsNew({ scope, onClose, onShowMe }: WhatsNewProps) {
       <div className="whatsnew">
         <div className="sheet-head whatsnew-head">
           <h2>{titleText}</h2>
+          {history && shown.length > 1 && (
+            <Select
+              value={current ?? shown[0].version}
+              ariaLabel={t('whatsNew.versions')}
+              onChange={jump}
+              options={shown.map((release) => ({
+                value: release.version,
+                label: t('whatsNew.version', { version: release.version }),
+              }))}
+            />
+          )}
           <button
             className="iconbtn"
             aria-label={t('common.close')}
@@ -153,22 +151,6 @@ export function WhatsNew({ scope, onClose, onShowMe }: WhatsNewProps) {
           </button>
         </div>
 
-        {history && shown.length > 1 && (
-          <nav className="whatsnew-pills" ref={pillsRef} aria-label={t('whatsNew.versions')}>
-            {shown.map((release) => (
-              <button
-                key={release.version}
-                type="button"
-                className="whatsnew-pill"
-                aria-current={current === release.version ? 'true' : undefined}
-                onClick={() => jump(release.version)}
-              >
-                {release.version}
-              </button>
-            ))}
-          </nav>
-        )}
-
         <div className="whatsnew-body" ref={bodyRef}>
           {all === null && <p className="whatsnew-loading">{t('common.loading')}</p>}
           {shown.map((release) => (
@@ -178,15 +160,14 @@ export function WhatsNew({ scope, onClose, onShowMe }: WhatsNewProps) {
               id={anchorOf(release.version)}
               aria-label={t('whatsNew.version', { version: release.version })}
             >
-              {headings && (
-                <h3>
-                  {t('whatsNew.version', { version: release.version })}
-                  {release.untranslated && (
-                    <small className="whatsnew-lang">{t('whatsNew.untranslated')}</small>
-                  )}
-                </h3>
-              )}
-              {history && release.intro && <p className="whatsnew-intro">{release.intro}</p>}
+              <h3>
+                {t('whatsNew.version', { version: release.version })}
+                {/* How much is in the release, before reading it. */}
+                <small className="whatsnew-count">{t('whatsNew.changes', { count: release.changes.length })}</small>
+                {release.untranslated && (
+                  <small className="whatsnew-lang">{t('whatsNew.untranslated')}</small>
+                )}
+              </h3>
               <ul>
                 {release.changes.map((change, at) => (
                   <li className={`whatsnew-change ${change.kind}`} key={at}>
@@ -198,37 +179,46 @@ export function WhatsNew({ scope, onClose, onShowMe }: WhatsNewProps) {
                     >
                       {change.mark}
                     </span>
-                    {/* The file is ours, and the renderer escapes it before
-                        adding the few inline tags it knows. */}
-                    <span dangerouslySetInnerHTML={{ __html: renderTitle(change.text) }} />
+                    <span className="whatsnew-badge" aria-hidden="true">{t(KIND_LABEL[change.kind])}</span>
+                    {/* A bold lead is the title; what follows it is the one paragraph that explains.
+                        The file is ours, and the renderer escapes it before adding the few inline tags it knows. */}
+                    {(() => {
+                      const lead = /^\*\*(.+?)\*\*\s*([\s\S]*)$/.exec(change.text.trim());
+                      return lead ? (
+                        <span className="whatsnew-text">
+                          <strong className="whatsnew-title" dangerouslySetInnerHTML={{ __html: renderTitle(lead[1].replace(/[.:]$/, '')) }} />
+                          {lead[2] && <span className="whatsnew-para" dangerouslySetInnerHTML={{ __html: renderTitle(lead[2]) }} />}
+                        </span>
+                      ) : (
+                        <span className="whatsnew-text">
+                          <span className="whatsnew-para" dangerouslySetInnerHTML={{ __html: renderTitle(change.text) }} />
+                        </span>
+                      );
+                    })()}
                   </li>
                 ))}
               </ul>
             </section>
           ))}
-          {history && all !== null && (
-            <p className="whatsnew-more">
-              <a href={`${GITHUB_URL}/blob/main/CHANGELOG.md`} target="_blank" rel="noreferrer noopener">
-                <Icon name="external" size="sm" />
-                {t('whatsNew.onGitHub')}
-              </a>
-            </p>
-          )}
         </div>
 
         <div className="sheet-foot whatsnew-foot">
-          <a className="btn coffee" href={COFFEE_URL} target="_blank" rel="noreferrer noopener">
-            <Icon name="coffee" size="sm" />
-            {t('coffee.offer')}
-          </a>
+          {/* Only when this update changed what the tour shows. The whole tour is one click away in Settings. */}
           {showable && (
-            <button className="btn" onClick={() => onShowMe(scope.versions)}>
+            <button className="btn soft" onClick={() => onShowMe(scope.versions)}>
+              <Icon name="week" size="sm" />
               {t('whatsNew.showMe')}
             </button>
           )}
-          <button className="btn primary" data-autofocus onClick={onClose}>
-            {t('whatsNew.continue')}
-          </button>
+          <span className="whatsnew-end">
+            <a className="btn coffee" href={COFFEE_URL} target="_blank" rel="noreferrer noopener">
+              <Icon name="coffee" size="sm" />
+              {t('coffee.offer')}
+            </a>
+            <button className="btn primary" data-autofocus onClick={onClose}>
+              {t('whatsNew.continue')}
+            </button>
+          </span>
         </div>
       </div>
     </Overlay>

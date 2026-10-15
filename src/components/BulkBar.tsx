@@ -210,7 +210,7 @@ function BulkEstimateEditor({ onSave, onClose }: { onSave: (minutes: number | nu
     }
   }}>
     <p className="menuhint">{t('estimates.inputHint')}</p>
-    <EstimateField minutes={null} placeholder="25, 1h15, 90 min" unitLabel="min / h" inputMode="text" autoFocus onChange={setMinutes} onCommit={setMinutes} onCancel={onClose} />
+    <EstimateField minutes={null} placeholder={t('task.estimatePlaceholder')} unitLabel="min / h" inputMode="text" autoFocus onChange={setMinutes} onCommit={setMinutes} onCancel={onClose} />
     <button className="btn primary" disabled={minutes === null} onClick={() => { onSave(minutes); onClose(); }}>{t('estimates.applySelection')}</button>
     <button className="opt" onClick={() => { onSave(null); onClose(); }}>{t('estimates.clear')}</button>
   </div>;
@@ -411,6 +411,9 @@ export function BulkBar() {
             value=""
             label={t('task.schedule')}
             withTime
+            /* A time is typed with its day here ("tomorrow 9am"): the Time
+               button would give every selected task today's date (#202). */
+            timeButton={false}
             onEscape={close}
             onPick={(iso) => {
               close();

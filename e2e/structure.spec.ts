@@ -9,7 +9,7 @@ test('create a section, then rename it (#79)', async ({ demo: page }) => {
   await field.press('Enter');
   // Held by its section id, which stays put while the name changes.
   const id = await field.getAttribute('data-section-name');
-  const name = page.locator(`.screen.active input[data-section-name="${id}"]`);
+  const name = page.locator(`.screen.active textarea[data-section-name="${id}"]`);
   await expect(name).toHaveValue('Garage');
 
   await name.fill('Garage and tools');
@@ -27,6 +27,7 @@ test('drag a selection onto a project moves every task in it (#81)', async ({ de
   await row(page, picked[1]).hover();
   const from = (await handle.boundingBox())!;
   const target = page.locator('.sidebar').getByRole('button', { name: '# Home', exact: true }).first();
+  await target.scrollIntoViewIfNeeded();
 
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();

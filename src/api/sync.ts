@@ -1,13 +1,14 @@
 import { request } from './client';
 import type {
-  Collaborator, Item, Label, Note, Project, Reminder,
+  Collaborator, CollaboratorState, Filter, Folder, Item, Label, LiveNotification, Note, Project, Reminder,
   Section, Snapshot, TodoistUser, Workspace,
 } from '@/domain/types';
 
 /** The resource types the app reads. Anything else Todoist offers is ignored. */
 export const SYNC_RESOURCE_TYPES = [
   'items', 'projects', 'sections', 'labels', 'notes', 'project_notes',
-  'reminders', 'user', 'collaborators', 'workspaces',
+  'reminders', 'user', 'collaborators', 'workspaces', 'live_notifications',
+  'filters',
 ] as const;
 
 export interface SyncResponse {
@@ -17,12 +18,19 @@ export interface SyncResponse {
   projects?: Project[];
   sections?: Section[];
   labels?: Label[];
+  filters?: Filter[];
+  folders?: Folder[];
+  /** Complete REST folder collections read alongside this response. */
+  refreshedFolderWorkspaces?: string[];
   notes?: Note[];
   /** Comments on projects rather than tasks; kept in the same collection as task comments. */
   project_notes?: Note[];
   reminders?: Reminder[];
   collaborators?: Collaborator[];
   workspaces?: Workspace[];
+  live_notifications?: LiveNotification[];
+  collaborator_states?: CollaboratorState[];
+  collaborators_states?: CollaboratorState[];
   user?: TodoistUser;
   temp_id_mapping?: Record<string, string>;
   sync_status?: Record<string, 'ok' | { error_code: number; error: string }>;
@@ -37,8 +45,8 @@ export interface SyncResponse {
 /** A full sync of a large account is a big download; it gets longer than the usual deadline. */
 const FULL_SYNC_TIMEOUT_MS = 60_000;
 
-export async function sync(syncToken: string, signal?: AbortSignal): Promise<SyncResponse> {
-  return request<SyncResponse>('/sync', {
+export async function sync(syncToken: string, signal?: AbortSignal, knownWorkspaces: Record<string, Workspace> = {}): Promise<SyncResponse> {
+  const response = await request<SyncResponse>('/sync', {
     method: 'POST',
     form: {
       sync_token: syncToken,
@@ -47,6 +55,24 @@ export async function sync(syncToken: string, signal?: AbortSignal): Promise<Syn
     signal,
     timeoutMs: syncToken === '*' ? FULL_SYNC_TIMEOUT_MS : undefined,
   });
+  // Folders have a separate REST resource. Read each team's complete collection
+  // so renames, deletions and existing folders reach incremental clients too.
+  const workspaces = Object.values(mergeCollection(knownWorkspaces, response.workspaces, response.full_sync));
+  const teams = workspaces.filter((w) => !w.is_deleted && !w.is_archived);
+  const folders = await Promise.all(teams.map(async (workspace) => {
+    const all: Folder[] = [];
+    let cursor: string | null = null;
+    do {
+      const query = new URLSearchParams({ workspace_id: workspace.id, limit: '200' });
+      if (cursor) query.set('cursor', cursor);
+      const page = await request<{ results: Folder[]; next_cursor: string | null }>(`/folders?${query}`, { signal });
+      all.push(...page.results);
+      cursor = page.next_cursor;
+    } while (cursor);
+    return all;
+  }));
+  return { ...response, folders: [...(response.folders ?? []), ...folders.flat()], refreshedFolderWorkspaces: [...new Set([...Object.keys(knownWorkspaces), ...workspaces.map((w) => w.id)])] };
+
 }
 
 type Keyed = { id: string; is_deleted?: boolean };
@@ -72,13 +98,30 @@ function mergeCollection<T extends Keyed>(
   return next;
 }
 
+/** One state per person per project; a full sync replaces the lot. */
+function mergeStates(
+  current: CollaboratorState[], incoming: CollaboratorState[] | undefined, fullSync: boolean,
+): CollaboratorState[] {
+  if (!incoming) return fullSync ? [] : current;
+  const key = (state: CollaboratorState) => `${state.project_id}:${state.user_id}`;
+  const next = new Map((fullSync ? [] : current).map((state) => [key(state), state]));
+  for (const state of incoming) {
+    if (state.is_deleted) next.delete(key(state));
+    else next.set(key(state), state);
+  }
+  return [...next.values()];
+}
+
 export function applySync(snapshot: Snapshot, response: SyncResponse): Snapshot {
   const full = response.full_sync;
   return {
+    folders: mergeCollection(Object.fromEntries(Object.entries(snapshot.folders ?? {}).filter(([, folder]) =>
+      !response.refreshedFolderWorkspaces?.includes(folder.workspace_id))), response.folders, full),
     items: mergeCollection(snapshot.items, response.items, full),
     projects: mergeCollection(snapshot.projects, response.projects, full),
     sections: mergeCollection(snapshot.sections, response.sections, full),
     labels: mergeCollection(snapshot.labels, response.labels, full),
+    filters: mergeCollection(snapshot.filters ?? {}, response.filters, full),
     /* Task comments and project comments are one collection here, told apart
        by `item_id` / `project_id`. A full sync rebuilds it from both. */
     notes: mergeCollection(
@@ -89,6 +132,8 @@ export function applySync(snapshot: Snapshot, response: SyncResponse): Snapshot 
     reminders: mergeCollection(snapshot.reminders, response.reminders, full),
     collaborators: mergeCollection(snapshot.collaborators, response.collaborators, full),
     workspaces: mergeCollection(snapshot.workspaces, response.workspaces, full),
+    notifications: mergeCollection(snapshot.notifications ?? {}, response.live_notifications, full),
+    collaboratorStates: mergeStates(snapshot.collaboratorStates ?? [], response.collaborator_states ?? response.collaborators_states, full),
     user: response.user ?? snapshot.user,
     syncToken: response.sync_token,
     syncedAt: Date.now(),
@@ -144,6 +189,7 @@ export function resolveTempIds(snapshot: Snapshot, mapping: Record<string, strin
     return project === section.project_id ? section : { ...section, project_id: project };
   });
   const labels = settle(snapshot.labels, (label) => label);
+  const filters = snapshot.filters ? settle(snapshot.filters, (filter) => filter) : undefined;
   const notes = settle(snapshot.notes, (note) => {
     const item = real(note.item_id);
     const project = real(note.project_id);
@@ -152,7 +198,7 @@ export function resolveTempIds(snapshot: Snapshot, mapping: Record<string, strin
       : { ...note, item_id: item, project_id: project };
   });
 
-  return { ...snapshot, items, projects, sections, labels, notes };
+  return { ...snapshot, items, projects, sections, labels, notes, ...(filters ? { filters } : {}) };
 }
 
 /**

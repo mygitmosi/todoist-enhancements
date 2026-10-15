@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core';
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { ProgressRing } from './ProgressRing';
 import { ProjectIcon } from './ProjectIconPicker';
@@ -19,9 +19,10 @@ import { useRowGesture } from '@/hooks/useRowGesture';
 import { useStore } from '@/store/store';
 import { displayTaskContent, isUncompletable, toDisplayPriority, type Item } from '@/domain/types';
 import { effectiveEstimate, formatDuration } from '@/domain/estimates';
-import { deadlineDate, dueDate, formatRelativeDay, formatTime, hasTime, isOverdue, isToday, overdueBy } from '@/domain/dates';
+import { dateTone, deadlineDate, dueDate, formatRelativeDay, formatTime, hasTime, isOverdue, isToday, overdueBy } from '@/domain/dates';
 import { markerStyle } from '@/domain/colors';
 import { renderInlineMarkdown, renderTitle } from '@/domain/markdown';
+import type { DetailChip } from '@/domain/taskDetails';
 
 /**
  * Whether rows draw the subtasks nested under them.
@@ -75,7 +76,7 @@ export function TaskRow({
   item, childrenOf, onOpen, depth = 0, showProject = true, showSection = false, dust = false, dragHandleProps,
   nestable = false, dragRef, lifted = false,
 }: TaskRowProps) {
-  const { setRowRef, nestOver, landing, landingBefore } = useRowTarget(item.id, { nestable });
+  const { setRowRef, nestOver, landing, landingBefore } = useRowTarget(item.id, { nestable, disabled: !!item.projection });
   const list = useRowList();
   const rowEl = useRef<HTMLDivElement | null>(null);
 
@@ -147,7 +148,6 @@ export function TaskRow({
   }, [item.id, item.parent_id, list, childrenOf]);
   const { t, locale } = useT();
   const snapshot = useStore((s) => s.snapshot);
-  const minimal = useStore((s) => s.prefs.taskChips === 'minimal');
   const hour12 = useStore((s) => s.prefs.hour12);
   const toggleTask = useStore((s) => s.toggleTask);
   const keepInSomeday = useStore((s) => s.keepInSomeday);
@@ -156,12 +156,14 @@ export function TaskRow({
   const selectionAnchor = useStore((s) => s.selectionAnchor);
   const setSelectionAnchor = useStore((s) => s.setSelectionAnchor);
   const selectRange = useStore((s) => s.selectRange);
-  const showSubtasks = useContext(ShowSubtasks);
+  const showSubtasks = useContext(ShowSubtasks) && !item.projection;
+  const fields = useStore((s) => s.prefs.taskFields);
+  const detailOrder = useStore((s) => s.prefs.detailOrder);
 
   const phone = usePhoneBehaviour();
   /* The two gestures a phone has in place of a pointer hovering over the row:
      pull it aside for its buttons, hold it down for their names. */
-  const gesture = useRowGesture(phone);
+  const gesture = useRowGesture(phone && !item.projection);
 
   const [expanded, setExpanded] = useState(true);
   /** Ticked here, not yet ticked at Todoist: the pause between the two. */
@@ -174,6 +176,7 @@ export function TaskRow({
      completing direction waits. A second click while it is waiting is ignored
      rather than queueing a second toggle that would undo the first. */
   const complete = () => {
+    if (item.projection) return;
     if (item.checked) { void toggleTask(item.id); return; }
     if (settling) return;
     setSettling(true);
@@ -236,16 +239,105 @@ export function TaskRow({
     return byName;
   }, [snapshot.labels]);
 
+  /* Each chip under the title, keyed so the row can draw them in any order. */
+  const chips: Record<DetailChip, React.ReactNode> = {
+    /* On a phone the pill leaves the title line, where it would push the title
+       onto a second line, and stands first here (#155). */
+    date: (
+      <Fragment key="date">
+        {due && (
+          <span className={late ? 'late' : `at tone-${dateTone(item) ?? 'later'}`}>
+            {!late && <Icon name="calendar" />}
+            {formatRelativeDay(due, locale)}
+            {hasTime(item.due) && ` ${formatTime(due, locale, hour12)}`}
+            {/* How many days late is said in words for whoever cannot see the
+                colour, not drawn on the chip (#175). */}
+            {late && overdueBy(item) > 0 && (
+              <span className="sr">{`, ${t('task.overdueBy', { count: overdueBy(item) })}`}</span>
+            )}
+          </span>
+        )}
+        {item.due?.is_recurring && (
+          <span
+            className={`repeatdot ${late ? 'late' : isToday(item) ? 'today' : 'future'}`}
+            title={item.due.string}
+          >
+            <Icon name="repeat" size="sm" />
+          </span>
+        )}
+      </Fragment>
+    ),
+    estimate: minutes !== null && (
+      <span className="est" key="estimate" title={computed ? t('task.computedEstimate') : undefined}>
+        <Icon name="clock" />
+        {formatDuration(minutes, locale)}
+        {computed && '*'}
+      </span>
+    ),
+    deadline: deadline && (
+      <span className="deadline" key="deadline">
+        <Icon name="deadline" />
+        {formatRelativeDay(deadline, locale)}
+      </span>
+    ),
+    project: showProject && project && (
+      <span className="proj" key="project" style={markerStyle(project.color)}>
+        {project.inbox_project
+          ? <Icon name="inbox" size="sm" />
+          : projectIcon ? <ProjectIcon iconId={projectIcon} size="sm" /> : '#'}
+        {project.name}
+      </span>
+    ),
+    labels: (
+      <Fragment key="labels">
+        {visibleLabels.map((label) => (
+          <span className="tag" key={label} style={markerStyle(labelColours.get(label))}>
+            <Icon name="tag" size="sm" />
+            {label}
+          </span>
+        ))}
+      </Fragment>
+    ),
+  };
+
+  const subtaskPill = children.length > 0 ? (
+    showSubtasks && openChildren.length > 0 ? (
+      /* The progress pill is also how the subtasks fold: the thing that tells
+         you there are some is the thing you press to put them away. */
+      <button
+        key="subtasks"
+        className="subprog foldable"
+        aria-expanded={expanded}
+        aria-label={t('detail.subtasks')}
+        title={t('detail.subtasks')}
+        onClick={(e) => {
+          e.stopPropagation();
+          setExpanded((v) => !v);
+        }}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        <ProgressRing done={doneChildren} total={children.length} />
+        {t('task.subtaskProgress', { done: doneChildren, total: children.length })}
+      </button>
+    ) : (
+      <span className="subprog" key="subtasks">
+        <ProgressRing done={doneChildren} total={children.length} />
+        {t('task.subtaskProgress', { done: doneChildren, total: children.length })}
+      </span>
+    )
+  ) : null;
+
   return (
     <>
       <div
         ref={(node) => { rowEl.current = node; setRowRef(node); dragRef?.(node); }}
         className={`task${item.checked || settling ? ' done' : ''}${settling ? ' settling' : ''}${picked ? ' picked' : ''}${nestOver ? ' nesttarget' : ''}${landing ? ` landing${landingBefore ? ' landing-before' : ''}` : ''}${lifted ? ' dragging' : ''}${gesture.className}`}
         role="button"
-        tabIndex={0}
+        tabIndex={item.projection ? 0 : -1}
         /* The row the keyboard is on is the row that has focus, so the walk
            needs nothing but a way to recognise a task row in the document. */
-        data-task-id={item.id}
+        data-task-id={item.projection ? undefined : item.id}
+        data-projection-id={item.projection ? item.id : undefined}
         /* Shift+K keeps it, and only a row in that group answers. */
         data-dust={dust ? '' : undefined}
         {...gesture.handlers}
@@ -274,6 +366,7 @@ export function TaskRow({
           /* A link in the title or the description is followed, in a new
              tab; it does not also open the task (#101). */
           if ((e.target as Element).closest('a[href]')) return;
+          if (item.projection) { onOpen(item.projection.sourceId); return; }
           if (e.shiftKey) {
             e.preventDefault();
             e.currentTarget.focus({ preventScroll: true });
@@ -298,6 +391,9 @@ export function TaskRow({
              of its options — is that control's own press, not a request to
              open the task. */
           if (e.target !== e.currentTarget) return;
+          if (item.projection && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault(); onOpen(item.projection.sourceId); return;
+          }
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             if (e.shiftKey) { pickRange(e.metaKey || e.ctrlKey); return; }
@@ -313,18 +409,20 @@ export function TaskRow({
           </span>
         )}
 
-        {uncompletable ? (
+        {item.projection ? (
+          <span className={`check forecast-check p${fields.priority ? priority : 4}`} role="checkbox" aria-checked="false" aria-disabled="true" aria-label={t('upcoming.projected')} onClick={(e) => e.stopPropagation()} />
+        ) : uncompletable ? (
           /* Todoist gives a "* " task no checkbox at all, so this one does
              not click, focus, or announce itself as one — it only holds the
              row's alignment. */
           <span className={`check p${priority} nocheck`} aria-hidden="true" />
         ) : (
           <span
-            className={`check p${priority}`}
+            className={`check p${fields.priority ? priority : 4}`}
             role="checkbox"
             aria-checked={item.checked || settling}
             aria-label={t('task.complete')}
-            tabIndex={0}
+            tabIndex={item.projection ? 0 : -1}
             onClick={(e) => {
               e.stopPropagation();
               complete();
@@ -343,22 +441,12 @@ export function TaskRow({
 
         <span className="tmain">
           {/* Formatted as Todoist formats a title: a link is a link. */}
-          {minimal && item.due?.is_recurring ? (
-            <span className="titleline">
-              <span
-                className="ttitle"
-                dangerouslySetInnerHTML={{ __html: renderTitle(displayTaskContent(item)) }}
-              />
-              <Icon name="repeat" size="sm" />
-            </span>
-          ) : (
-            <span
-              className="ttitle"
-              dangerouslySetInnerHTML={{ __html: renderTitle(displayTaskContent(item)) }}
-            />
-          )}
+          <span
+            className="ttitle"
+            dangerouslySetInnerHTML={{ __html: renderTitle(displayTaskContent(item)) }}
+          />
 
-          {preview && (
+          {preview && fields.description && (
             /* The row shows the formatted line, not the Markdown syntax, and
                never a checklist line: its boxes are in the task, not here (#157). */
             <span
@@ -368,60 +456,12 @@ export function TaskRow({
           )}
 
           <span className="meta">
-            {/* On a phone the pill leaves the title line, where it would push the
-                title onto a second line, and stands first here (#155). */}
-            {due && (
-              <span className={late ? 'late' : 'at'}>
-                {!late && <Icon name="calendar" />}
-                {formatRelativeDay(due, locale)}
-                {hasTime(item.due) && ` ${formatTime(due, locale, hour12)}`}
-                {/* How many days late is said in words for whoever cannot see
-                    the colour, not drawn on the chip (#175). */}
-                {late && overdueBy(item) > 0 && (
-                  <span className="sr">{`, ${t('task.overdueBy', { count: overdueBy(item) })}`}</span>
-                )}
-              </span>
-            )}
-
-            {item.due?.is_recurring && (
-              <span
-                className={`repeatdot ${late ? 'late' : isToday(item) ? 'today' : 'future'}`}
-                title={item.due.string}
-              >
-                <Icon name="repeat" size="sm" />
-              </span>
-            )}
-
-            {minutes !== null && (
-              <span className="est" title={computed ? t('task.computedEstimate') : undefined}>
-                <Icon name="clock" />
-                {formatDuration(minutes, locale)}
-                {computed && '*'}
-              </span>
-            )}
-
-            {deadline && (
-              <span className="deadline">
-                <Icon name="deadline" />
-                {formatRelativeDay(deadline, locale)}
-              </span>
-            )}
-
-            {showProject && project && (
-              <span className="proj" style={markerStyle(project.color)}>
-                {project.inbox_project
-                  ? <Icon name="inbox" size="sm" />
-                  : projectIcon ? <ProjectIcon iconId={projectIcon} size="sm" /> : '#'}
-                {project.name}
-              </span>
-            )}
-
-            {visibleLabels.map((label) => (
-              <span className="tag" key={label} style={markerStyle(labelColours.get(label))}>
-                <Icon name="tag" size="sm" />
-                {label}
-              </span>
-            ))}
+            {/* The chips in the user's order (Display → Show on each task). The
+                sub-task pill is not one of them: it follows the deadline. */}
+            {detailOrder.flatMap((chip) => [
+              fields[chip] ? chips[chip] : null,
+              chip === 'deadline' ? subtaskPill : null,
+            ])}
 
             {dust && <DustAge item={item} />}
 
@@ -432,45 +472,21 @@ export function TaskRow({
               </span>
             )}
 
-            {children.length > 0 && (
-              <span className="subprog">
-                <ProgressRing done={doneChildren} total={children.length} />
-                {t('task.subtaskProgress', { done: doneChildren, total: children.length })}
-              </span>
-            )}
-
             {dust && <DustActions item={item} />}
           </span>
         </span>
 
-        {minimal && (due || minutes !== null) && <span className={`minimal-date${late ? ' late' : ''}`}>
-          {[minutes !== null ? formatDuration(minutes, locale).replace(/\s+/g, '') : null, due ? formatRelativeDay(due, locale) + (hasTime(item.due) ? ` ${formatTime(due, locale, hour12)}` : '') : null].filter(Boolean).join(' · ')}
-        </span>}
-        <span className="trow-end">
-          {showSubtasks && openChildren.length > 0 && (
-            <button
-              className="iconbtn subcaret"
-              aria-expanded={expanded}
-              aria-label={t('detail.subtasks')}
-              title={t('detail.subtasks')}
-              onClick={(e) => {
-                e.stopPropagation();
-                setExpanded((v) => !v);
-              }}
-            >
-              <Icon name={expanded ? 'caret-up' : 'caret'} size="sm" />
-            </button>
-          )}
+        {!item.projection && <span className="trow-end">
           <TaskActions
             item={item}
             childrenOf={childrenOf}
             onOpen={onOpen}
             onKeep={dust ? () => keepInSomeday(item.id) : undefined}
           />
-        </span>
+        </span>}
       </div>
 
-      {showSubtasks && expanded && <RowListContext.Provider value={{ order: 'project', ids: openChildren.map((child) => child.id), viewKey: list?.viewKey }}>
+      {showSubtasks && expanded && !item.projection && <RowListContext.Provider value={{ order: 'project', ids: openChildren.map((child) => child.id), viewKey: list?.viewKey }}>
         {openChildren.map((child) => (
           <SubtaskRow
             key={child.id}

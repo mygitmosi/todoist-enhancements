@@ -8,11 +8,209 @@ Chaque ligne est marquée :
 - 🎨 ce qui existait et a été redessiné ou reformulé,
 - 🐛 un bug ou une régression corrigés.
 
+## 2.9.0
+
+🆕 **Assignez une tâche en tapant `+`.** Dans un projet partagé, `+` dans le titre du composeur liste les personnes du projet, avec leur photo. `+Anne` donne la tâche à Anne, la marque dans le titre et remplit la puce d’assignation.
+
+🆕 **Écrivez vos sous-tâches comme vos tâches.** Dans le panneau d’une tâche et dans le composeur, une ligne de sous-tâche comprend les dates, les répétitions, `p1`, les `@tags` et les durées comme `pendant 1h`. Un `#projet` reste du texte, car une sous-tâche vit toujours dans le projet de sa tâche parente. Modifier une sous-tâche existante les lit aussi.
+
+🆕 **Une fenêtre de partage plus complète.** Elle dit comment le projet est accessible, vous liste en premier, puis chacun avec photo, nom et e-mail. Dans un projet d’espace de travail, un administrateur du projet donne à chaque membre le rôle de collaborateur ou d’administrateur du projet, ou le retire du projet ; pour les autres, les rôles sont grisés. Le niveau d’accès (restreint, équipe ou public) s’ouvre en menu, avec l’image de l’espace pour Équipe. « Copier le lien » copie l’adresse du projet.
+
+🎨 **Renseignez les estimations manquantes depuis leur carte.** Dans Notifications, Conflits, une tâche sans estimation est une carte comme les autres, avec le champ Estimation à la place des boutons. L’estimation est enregistrée dès que vous la saisissez.
+
+🎨 **Des titres plus longs sur les cartes du tableau.** Une carte affiche jusqu’à trois lignes de titre et deux de description, comme la liste.
+
+🎨 **Les espaces de travail s’alignent dans la barre latérale.** L’image d’un espace de travail est dans la même colonne que les icônes de ses projets, et un espace sans image affiche son initiale.
+
+🐛 **Les tâches terminées s’affichent de nouveau dans un projet.** Avec « Afficher les tâches terminées », la page d’un projet liste ce que vous avez terminé depuis un an, et plus seulement ce que vous avez coché pendant la session.
+
+🐛 **Les tags qui commencent par un emoji sont appliqués.** `@🏡maison` dans un titre est marqué, appliqué et retiré du titre, comme n’importe quel autre tag.
+
+## 2.8.0
+
+🆕 **Voyez les prochaines répétitions dans Upcoming.** Les tâches récurrentes affichent leurs dates prévues et leur charge estimée. Les cases pointillées distinguent les prévisions ; un clic ouvre la tâche d’origine.
+
+🆕 **Retrouvez tous les résultats de recherche.** Entrée ouvre la page complète, sans limite de 30 tâches. Les flèches sélectionnent un résultat dans la palette ; les pastilles donnent accès aux projets, sections et étiquettes correspondants.
+
+🆕 **Renommez une étiquette depuis sa page.** Modifiez son titre et validez avec Entrée. Les tâches, favoris, résultats de recherche et préférences d’affichage suivent le nouveau nom.
+
+🆕 **Tapez une heure ou une échéance relative à l’ajout.** `20h30` donne aujourd’hui ou demain selon l’heure actuelle ; `dans deux heures` et `in two hours` calculent une échéance depuis maintenant. Une petite valeur seule comme `2h` reste une durée.
+
+🆕 **Écrivez les durées en toutes lettres.** `(deux heures)`, `(one hour thirty minutes)`, `for one hour` et `pendant une heure` définissent une estimation. La phrase reconnue est retirée du titre sans ajouter de date.
+
+🎨 **Voyez quand une durée est acceptée.** Entrée normalise la valeur et affiche une coche temporaire. L’attente ou l’échec sont indiqués discrètement, sans texte de statut visible.
+
+🎨 **Insights suit votre couleur d’accent.** Le bouton arrondi reprend une teinte douce de l’accent choisi en clair et en sombre. Il reste immobile au clic.
+
+🎨 **Choisissez si Ma semaine inclut aujourd’hui.** Show Today tasks fonctionne indépendamment de Today dans la barre latérale. Masquer les tâches du jour garde les retards précédents et met à jour le compteur.
+
+🎨 **Partagez l’app avec un aperçu actualisé.** Les liens utilisent une nouvelle capture de démonstration et des métadonnées explicites.
+
+🐛 **Les contrôles du composeur fonctionnent avec Q et Quick Add.** Correction d’une régression qui affichait « Nobody » sans fond pour les tâches d’Inbox. Le menu des projets garde une largeur limitée et les résultats d’étiquettes se parcourent avec les flèches et Entrée.
+
+🐛 **Les dossiers natifs d’équipe apparaissent dans la barre latérale.** Correction de la régression signalée qui affichait les projets hors de leurs dossiers Todoist. Le fonctionnement des dossiers personnels est conservé.
+
+🐛 **Les listes et tableaux ont la même largeur.** Correction de la régression signalée sur la largeur des listes. Les propriétés de tâche gardent leurs arrondis et un survol discret.
+
+🐛 **Les nouveautés déjà lues restent fermées.** Une synchronisation avec d’anciens réglages ne fait plus revenir une version déjà acquittée sur cet appareil. L’historique reste accessible dans les Réglages.
+
+## 2.7.0
+
+Vos tâches d'abord, les projets partagés ensemble.
+
+🆕 **Les tâches assignées aux autres sont masquées par défaut.** Aujourd'hui, Ma semaine, Prochainement, Un jour, Revue, la matrice, les tags et le Dashboard affichent les tâches qui vous sont assignées et les tâches non assignées. Affichage permet d'inclure vos collègues ou de choisir Tout le monde. Les projets affichent toujours tout le monde ; la recherche et les filtres enregistrés gardent leur propre périmètre.
+
+🆕 **Assignez une tâche à quelqu’un.** Choisissez une personne depuis la ligne de tâche, la tâche ouverte ou le composeur dans un projet partagé. Groupez et triez un projet par responsable ; l'ajout depuis un groupe de personnes préremplit le responsable.
+
+🎨 **Filtrez vos espaces de travail.** Le menu Workspace permet de combiner projets personnels et espaces d'équipe, avec un retour clair à Tous. Cette sélection se combine avec le filtre Responsable.
+
+🎨 **Voyez qui est assigné à une tâche dans la liste.** Les tâches assignées affichent une photo ou des initiales, avec le menu Responsable avant le menu à trois points. Sans photo, les espaces affichent une initiale colorée. Les menus restent dans l'écran sans pousser le contenu vers le bas.
+
+🎨 **Des contrôles plus nets dans Revue, Dashboard et les tâches.** Revue place son filtre Responsable à côté de Quotidienne et Hebdomadaire. Le Dashboard réunit Modifier la disposition, Affichage et Journal. Les champs d'une tâche ouverte sont arrondis, avec un survol plus discret.
+
+🐛 **Prochainement propose plus de jours seulement s'il reste du travail.** Le bouton disparaît lorsqu'aucune tâche correspondant aux filtres ne se trouve au-delà des dates visibles.
+
+🐛 **Meilleure reconnaissance des dates dans les composeurs.** « Dans un mois », « dans 2 mois » et « in a month » sont reconnus à l'ajout d'une tâche, même depuis une section datée. Les mois calendaires utilisent le dernier jour valide si nécessaire.
+
+## 2.6.0
+
+Finitions rapides.
+
+🎨 **Les propriétés de date reprennent les couleurs de Todoist.** Rouge en retard, vert pour aujourd'hui, orange pour demain, violet pour les sept jours suivants, aucune couleur au-delà.
+
+🎨 **Les titres de section longs passent à la ligne.** Le nom d'une section s'étale sur plusieurs lignes au lieu de dépasser de la page.
+
+🎨 **Les titres de tâche longs passent à la ligne à l'ajout.** Le champ grandit avec le titre, et la date, le #projet et l'@étiquette restent surlignés.
+
+🎨 **Q ajoute la tâche là où vous êtes.** Depuis Aujourd'hui elle est pour aujourd'hui, depuis Ma semaine elle reçoit l’étiquette de la semaine, depuis un projet elle va dans ce projet, depuis une page de tag elle reçoit ce tag.
+
+🎨 **Des pastilles colorées à l'ajout d'une tâche.** La date, l’échéance, la priorité, le projet et les tags prennent leur couleur.
+
+🎨 **Des lignes de tâche plus nettes.** La case est alignée sur le titre, et le titre est un peu plus marqué.
+
+🎨 **Liens LinkedIn, X et GitHub dans Réglages, À propos.**
+
+🐛 **Les pastilles colorées étaient grises.** Avec les pastilles « héritées » dans les Réglages, dates, projets et tags retrouvent leur couleur.
+
+🐛 **Passer la visite ouvrait la configuration.** Ce n'est plus le cas.
+
+🐛 **« Ajouter la tâche » ne faisait rien sans titre.** Quand tout le texte est lu comme une date, un projet ou un tag, le bouton est grisé et explique pourquoi.
+
+## 2.5.0
+
+Qui a accès à un projet, l'app Mac à portée de main, et une barre latérale qui défile jusqu'au bout.
+
+🆕 **Choisissez qui a accès à un projet.** Dans Nouveau projet et Modifier le projet, choisissez un accès Restreint, Équipe ou Public lorsque Todoist le permet. Les nouveaux projets et ceux déplacés dans un autre espace prennent son réglage par défaut ; un accès existant change seulement si vous le demandez. En cas de refus, un message explique le problème et l’ancien accès est conservé.
+
+🆕 **Les Réglages proposent un lien vers l’app Mac.** Réglages, À propos propose un lien vers l’app Mac, ses étapes d’installation et le téléchargement adapté à Apple silicon ou Intel. L’app offre une fenêtre dédiée et l’ajout rapide avec Option + Espace. Le téléchargement apparaît sur Mac dans le navigateur, avec un lien également disponible depuis l’écran de connexion.
+
+🎨 **La fenêtre de mise à jour ne propose la visite que s'il y a du nouveau à montrer.** Après une mise à jour, « Me montrer » n'apparaît que si la version a ajouté quelque chose que la visite peut désigner. Sinon, pas de bouton de visite : la visite complète reste dans Réglages, À propos.
+
+🐛 **Tous les projets sont accessibles dans la barre latérale.** La zone « Ajouter une tâche » en bas grandit avec la ligne de synchronisation et les boutons qu'elle porte, et elle cachait les derniers projets de la liste, impossibles à faire défiler jusqu'à l'écran. La liste garde maintenant exactement la place que prend cette zone, quelle que soit la hauteur de la fenêtre.
+
+## 2.4.0
+
+Des petits détails qui gênaient.
+
+🆕 **Mettez un filtre ou un tag en favori depuis sa carte.** Sur les pages Filtres et Tags, chaque carte a une étoile à droite, toujours visible. Un clic l'ajoute aux favoris ou l'en retire, dans l'app et dans Todoist. Il fallait passer par le menu à trois points.
+
+🎨 **« Nouveautés » dit « depuis votre dernière visite ».** Après une mise à jour, le titre de la fenêtre ne porte plus le numéro de la dernière version, trompeur quand plusieurs versions sont listées. Chaque version garde son propre titre.
+
+🐛 **Vous pouvez taper dès l'ouverture du sélecteur d'icônes.** Sur un projet ou un filtre, cliquez l'icône à côté du titre et commencez à écrire : les icônes se filtrent, au lieu d'ouvrir la recherche de l'app.
+
+## 2.3.0
+
+L'heure, la durée et la répétition, sans les taper.
+
+🆕 **Réglez l'heure, la durée et la répétition depuis le sélecteur de date.** Utilisez Heure, Durée et Répéter dans le composeur, le menu Planifier ou la tâche ouverte. Choisissez une récurrence courante ou personnalisez son intervalle, ses jours, sa date de fin et son calcul depuis l’achèvement. La règle est envoyée à Todoist dans votre langue.
+
+🎨 **Une tâche récurrente affiche son jour avec le signe de répétition.** Dans la fenêtre de nouvelle tâche et dans la tâche ouverte, une tâche qui se répète affiche « ↻ Demain 09:30 » plutôt que les mots de la règle, lisibles au survol. La tâche ouverte n'a plus de champ séparé pour taper la règle : tout est dans la date de début.
+
+🐛 **Changer de jour garde l'heure.** Une tâche réglée sur « aujourd'hui 12:00 » déplacée à demain reste à 12:00, et une heure choisie sans jour passe à demain quand elle est déjà passée aujourd'hui.
+
+🐛 **Donner une répétition à une tâche ne saute plus son premier jour.** « Chaque jour » donné à une tâche prévue aujourd'hui commence aujourd'hui, pas demain, et changer l'heure d'une tâche récurrente la garde le même jour.
+
+🐛 **Une répétition avec une fin tapée après une heure garde sa fin.** « Tous les lundis à 9h jusqu'au 31/12 » perdait « jusqu'au 31/12 ».
+
+## 2.2.0
+
+Vos filtres Todoist, et des tags dont on peut changer la couleur.
+
+🆕 **Vos filtres Todoist sont dans l'app.** Ouvrez Filtres dans la barre latérale pour retrouver vos filtres Todoist et leurs nombres de tâches, y compris les requêtes en plusieurs parties. Les filtres favoris apparaissent dans les Favoris. L’entrée peut être masquée depuis les Réglages.
+
+🆕 **Créez, modifiez et organisez vos filtres ici.** Créez un filtre avec sa requête, sa couleur, son icône et son statut favori, puis modifiez son nom et sa description sur sa page. Glissez les filtres pour les réordonner ou utilisez leur menu pour modifier, mettre en favori, copier le lien ou supprimer. Les changements sont enregistrés dans Todoist.
+
+🆕 **Changez la couleur d'un tag.** Sur la page Tags, « Nouveau tag » crée un tag avec sa couleur et son étoile, et le menu « ⋯ » de chaque tag change sa couleur, le met en favori, copie son lien ou le supprime.
+
+🎨 **La fenêtre Nouveautés est moins large,** de la même largeur que la recherche.
+
+## 2.1.1
+
+Une correction du menu « Déplacer vers un projet ».
+
+🐛 **Le menu « Déplacer vers un projet » garde une largeur raisonnable.** Avec un nom de projet ou de section très long, le menu s'étirait sur toute la fenêtre. Il reste maintenant étroit, coupe le nom trop long avec « … » et l'affiche en entier au survol.
+
+## 2.1.0
+
+Des corrections pour ce que vous avez signalé, une surbrillance plus claire à la saisie, et l'Inbox avec ses sections.
+
+🎨 **Ce que l'app a compris se voit mieux quand vous écrivez une tâche.** Dans la fenêtre de nouvelle tâche, la date, le projet, le tag, la priorité et la durée reconnus sont maintenant nettement surlignés au lieu de l'être à peine, en clair comme en sombre, sans gêner la lecture du texte.
+
+🎨 **Les réglages de la barre latérale disent si Cette semaine contient les tâches du jour.** Dans Réglages, Barre latérale, et dans la configuration, la ligne « Cette semaine » indique « Inclut les tâches du jour » tant qu'Aujourd'hui est décoché, et « N'inclut pas les tâches du jour » une fois coché, pour savoir ce que change cette case.
+
+🎨 **Affichage ne propose que les tags de la page où vous êtes.** Au lieu de tous vos tags, le filtre par tag liste ceux que portent les tâches de la page (sous-tâches comprises), il ne devient donc plus une longue liste coupée. Un tag déjà choisi reste affiché pour pouvoir le retirer.
+
+🎨 **Les compteurs des tags favoris s'alignent avec les autres.** Dans la barre latérale, le chiffre d'un tag était plus à gauche que celui d'un projet ; ils finissent maintenant sur la même ligne.
+
+🐛 **L'Inbox affiche ses sections.** Les sections créées dans l'Inbox depuis Todoist apparaissent dans l'app, et vous pouvez les ajouter, les renommer et les replier comme dans n'importe quel projet.
+
+🐛 **« Déplacer vers un projet » fonctionne sur une tâche sans section.** Choisir un projet depuis le menu d'une tâche ne faisait rien pour les tâches hors section, comme la plupart des tâches rapides et celles de l'Inbox. Elles se déplacent maintenant, avec le message et Annuler.
+
+🐛 **Un tag avec un emoji ou un accent ouvre ses tâches.** Ouvrir un tag comme 🏠Maison affichait 0 tâche parce que son nom se perdait dans l'adresse. La page le retrouve maintenant, y compris après un rechargement, et les noms avec une barre oblique ou un point d'interrogation fonctionnent aussi.
+
+## 2.0.0
+
+Un nouveau look, une configuration qui façonne la barre latérale et ce qu’affiche une tâche, un Tableau de bord et un Journal à part entière, et les premiers pas vers le travail à plusieurs.
+
+🆕 **Choisissez comment l’app se pose dans la fenêtre, et ce qu’il y a derrière.** Réglages, Apparence, propose deux dispositions (une barre latérale flottante sur une page pleine, ou une page flottante sur le fond) et deux fonds (neutre, ou un dégradé tiré de votre couleur). Le texte de la barre latérale reste lisible sur n’importe quelle couleur. Le rouge de Todoist s’appelle désormais Todoist, et Cacao et Graphite rejoignent les couleurs.
+
+🆕 **Composez la barre latérale.** Réglages, Barre latérale, permet de cocher ce qui s’affiche (Tableau de bord et Journal sont maintenant des entrées à part), de glisser les entrées dans l’ordre voulu, de masquer le champ de recherche et les compteurs, et de ranger « Mes projets » et vos espaces de travail dans l’ordre que vous aimez. Ce que vous masquez reste trouvable avec ⌘K.
+
+🆕 **Choisissez ce qu’affiche une tâche, et dans quel ordre.** Dans Affichage, « Afficher sur chaque tâche » liste les détails sous un titre (date, échéance, projet, tags, estimation). Cliquez-en un pour l’afficher ou le masquer, glissez-le, ou appuyez sur Alt et une flèche, pour fixer l’ordre dans toutes les listes.
+
+🆕 **Une configuration pour tout le monde, et une visite à la suite.** Après la mise à jour, et pour chaque nouveau compte, cinq courts écrans règlent le look, la barre latérale et les détails d’une tâche. Le dernier propose la visite, qui montre aussi le Tableau de bord, la matrice et les notifications.
+
+🆕 **Les notifications de Todoist.** La cloche ouvre une fenêtre avec ce que Todoist vous dit et, à côté, les conflits de votre planning. Marquez une notification ou toutes comme lues, acceptez ou refusez une invitation à un projet partagé. Pas encore essayé avec un second compte Todoist.
+
+🆕 **Partager un projet et assigner des tâches.** Le menu d’un projet propose Partager…, pour inviter par e-mail, voir qui a accès et retirer quelqu’un. Dans un projet partagé, une tâche a un champ « Assignée à ». Pas encore essayé avec un second compte Todoist.
+
+🆕 **Une vue par défaut pour chaque projet.** La fiche projet demande s’il s’ouvre en liste ou en tableau, et le dit aussi à Todoist. Il peut aussi être rangé sous un projet parent, avec les vingt couleurs de Todoist.
+
+🆕 **Créer un projet sans quitter la nouvelle tâche.** La liste des projets du composeur se termine par Nouveau projet…, et vous revenez avec lui choisi.
+
+🎨 **Un look plus calme partout.** Des angles plus arrondis, des boutons secondaires gris doux, des cases à cocher carrées, des barres de défilement fines qui n’apparaissent que sous le pointeur, une barre latérale qui glisse, et des panneaux qui flottent dans la marge de la page.
+
+🎨 **Ouvrir une tâche en fenêtre ou en panneau latéral.** Réglages, Listes, au choix. La priorité devient quatre pastilles douces, et la croix d’un tag est centrée.
+
+🎨 **Des listes dans l’ordre de Todoist.** Les groupes se replient depuis une flèche à leur gauche avec leur nombre après le titre, les sous-tâches se placent juste sous leur tâche et se replient avec leur pastille d’avancement, et les tableaux gardent des colonnes entières sur la page.
+
+🎨 **« J’ai du temps » est une seule liste.** Elle suit l’ordre choisi (la plus courte d’abord, ou la priorité d’abord) et dit l’échéance de chaque tâche, au lieu de regrouper par jour.
+
+🎨 **L’en-tête de page le dit en une ligne.** Le temps estimé passe en orange à partir de 95 % de votre capacité et en rouge au-delà, et un clic dessus ouvre les tâches sans estimation.
+
+🎨 **Tableau de bord et Journal sont deux pages.** Une ligne de contrôles choisit la période (Jour, Semaine, Mois, Trimestre, Année ou Personnalisée, où les dates apparaissent). Le Journal groupe par jour, mois, projet ou priorité, trie par date de fin ou priorité, et additionne le temps de chaque groupe. L’agencement des cartes du Tableau de bord ne se modifie plus.
+
+🎨 **Les Réglages dans un nouvel ordre.** Compte, Général, Apparence, Barre latérale, Listes, Fonctionnalités et organisation, Détection des conflits, À propos. La carte de soutien reste visible, et le début de semaine est lu dans Todoist avec un lien pour le changer là-bas.
+
+🎨 **Un nouvel écran de connexion et un journal des modifications plus large.** La connexion montre à quoi sert l’app à côté du formulaire. Le journal a un sélecteur de version, marque chaque ligne Nouveauté, Design ou Correction, et lance la visite depuis son pied.
+
+🎨 **Les revues.** Les choix d’une ligne forment un seul contrôle segmenté rempli de votre couleur, et les étapes sont reliées par une ligne qui se remplit jusqu’à celle où vous êtes.
+
 ## 1.22.0
 
 Un menu sur chaque section, des durées qui suivent les sous-tâches et Cette semaine dans le même ordre que l'Aujourd'hui de Todoist.
 
-🆕 **Un menu sur chaque section d’un projet.** Les trois points à droite du titre d’une section remplacent la corbeille et ouvrent Modifier (le nom est sélectionné, prêt à être remplacé), Déplacer vers… (choisissez un autre projet), Dupliquer (une copie juste en dessous, avec ses tâches ouvertes et leurs sous-tâches), Copier le lien de la section, Archiver et, à part en bas et en rouge, Supprimer, qui demande toujours confirmation. Archiver masque la section et ses tâches, avec Annuler dans le message. Le menu se commande au clavier : Entrée ou Espace l’ouvre, les flèches se déplacent, Échap le ferme et vous ramène sur le bouton. Les sections En retard, Tâches rapides et les autres construites par l’app gardent leur en-tête.
+🆕 **Un menu sur chaque section d’un projet.** Le menu à trois points permet de renommer, déplacer, dupliquer, copier le lien, archiver ou supprimer une section. La duplication inclut les tâches ouvertes et leurs sous-tâches ; l’archivage propose Annuler et la suppression demande confirmation. Naviguez avec les flèches, Entrée et Échap.
 
 🆕 **La durée d’un parent suit ses sous-tâches.** Quand chaque sous-tâche ouverte d’une tâche a une durée, leur somme remplace celle du parent, dans l’app comme dans Todoist : l’app l’écrit pour vous, et la met à jour quand la durée d’une sous-tâche change ou qu’une sous-tâche est ajoutée, cochée, supprimée ou déplacée. Si une sous-tâche ouverte n’a pas de durée, rien ne change et le parent garde la sienne. Les totaux, J’ai du temps, la charge et les analyses comptent chaque tâche une seule fois, et l’élément « le parent et ses sous-tâches ont chacun une durée » n’apparaît plus dans Éléments à régler quand la somme s’applique.
 
@@ -30,15 +228,15 @@ Un menu sur chaque section, des durées qui suivent les sous-tâches et Cette se
 
 Des listes de contrôle dans la description des tâches, un rendu plus calme et plus abouti dans les Réglages, la configuration, le tableau de bord et les listes.
 
-🆕 **Écrivez des listes de contrôle dans la description d’une tâche et cochez-les sur place.** Les lignes « - [ ] élément » et « - [x] élément » s’affichent en petites cases dans le panneau de la tâche, avec « 3 sur 7 » à côté de la description. Cochez et seule cette ligne change ; le reste de la description reste exactement tel quel, donc le même texte se lit toujours dans Todoist. La modification se fait comme dans une note : Entrée ajoute l’élément suivant, Entrée sur un élément vide quitte la liste, Retour arrière en début d’élément en fait du texte, une × le retire et plusieurs lignes collées deviennent plusieurs éléments. Taper [] ou - [] puis une espace commence une liste, dans la description d’une tâche et dans la fenêtre de création. Les lignes des listes n’affichent jamais les lignes de la liste de contrôle. Sélectionnez des mots dans une description pour afficher sa barre de mise en forme ; Lien ouvre les champs de texte et d’adresse. Coller une adresse sur une sélection crée un lien, puis la frappe reprend en texte normal. Le composeur garde un champ discret, avec Markdown et raccourcis clavier.
+🆕 **Écrivez des listes de contrôle dans la description d’une tâche et cochez-les sur place.** Tapez `[]` ou `- [ ]` pour commencer une liste ; Entrée ajoute un élément, une ligne vide termine la liste et plusieurs lignes collées créent plusieurs éléments. Cochez dans la tâche ouverte pour mettre à jour la ligne Markdown dans Todoist, avec un compteur d’éléments terminés. Le texte sélectionné propose la mise en forme et les liens dans la tâche ouverte, tandis que le composeur accepte Markdown et les raccourcis clavier.
 
 🆕 **Réorganisez les cartes du tableau de bord.** Modifier la disposition donne à chaque carte deux flèches pour la déplacer, à la souris ou au clavier, chaque déplacement étant annoncé aux lecteurs d’écran. Les cartes restent dans leur section, rien n’est retiré, et Rétablir par défaut les remet. Votre ordre est conservé avec vos réglages et survit au changement de période.
 
 🆕 **Choisissez comment les pastilles d’une tâche sont colorées.** Un nouveau choix, Métadonnées des tâches, dans les Réglages et la configuration : Inspiré de Todoist (textes sans pastilles), Couleurs héritées dessine la date, le projet et chaque étiquette dans la couleur qu’ils ont dans Todoist, sur un fond très léger ; Neutre les garde gris. La durée est toujours grise, et une date en retard reste rouge. Minimaliste garde le titre et la description, avec la durée et la date tout à droite et la récurrence à côté du titre.
 
-🆕 **Glissez une sous-tâche au-dessus ou au-dessous de ses sœurs dans n’importe quelle liste.** Ma semaine, une étiquette ou Un jour réordonnent maintenant les sous-tâches comme le faisait déjà un projet : avec la ligne qui montre où elle atterrira, et rien d’écrit si elle est reposée à sa place. La ligne suit la moitié supérieure ou inférieure de la tâche survolée, et la sous-tâche atterrit à cet endroit. Déposée sous son propre parent, elle passe avant la première sous-tâche. Déposée entre les tâches d’un autre niveau, elle rejoint ce niveau. Un déplacement vers la droite la place sous la tâche visée ; plusieurs sous-tâches sélectionnées suivent ensemble. Un déplacement vers la gauche remonte d’un niveau. Chaque changement de parent propose Annuler.
+🆕 **Glissez une sous-tâche au-dessus ou au-dessous de ses sœurs dans n’importe quelle liste.** Réordonnez les sous-tâches dans Ma semaine, les étiquettes, Un jour et les projets grâce au repère de dépôt. Déplacez vers la droite pour imbriquer ou vers la gauche pour remonter d’un niveau ; les sous-tâches sélectionnées suivent ensemble et un changement de parent propose Annuler. Déposée sous son parent, une sous-tâche passe avant ses sœurs.
 
-🎨 **Les métadonnées proposent quatre styles.** Inspiré de Todoist conserve les textes sans pastilles ; Neutre et Couleurs héritées utilisent des pastilles légères ; Minimaliste place la durée et la date tout à droite. Le badge de récurrence est gris en mode Neutre et se place à côté du titre en mode Minimaliste. La barre complète d’actions apparaît au survol avant la date. Une tâche de la Boîte de réception la nomme désormais, et le nombre de jours de retard passe dans le texte pour lecteur d’écran.
+🎨 **Les métadonnées proposent quatre styles.** Choisissez des textes sans pastilles, des pastilles neutres ou aux couleurs héritées, ou une présentation minimaliste avec durée et date à droite. Le badge de récurrence suit ce style et les actions apparaissent au survol. La Boîte de réception est nommée sur ses tâches ; le nombre de jours de retard reste disponible pour les lecteurs d’écran.
 
 🎨 **La ligne sous le titre d’une page tient en une phrase.** Sous le titre de Ma semaine, d’un projet ou d’une étiquette : le nombre de tâches, leur durée et J’ai du temps, le tout à gauche. La durée est du texte simple jusqu’à 90 % de votre capacité, orange à partir de 90 %, rouge à partir de 100 %, et un clic dessus ouvre les tâches sans estimation. Le pourcentage et le nombre de tâches sans estimation sont passés dans son infobulle.
 
@@ -66,11 +264,11 @@ Des listes de contrôle dans la description des tâches, un rendu plus calme et 
 
 Choisissez où stocker les estimations et prévisualisez leur conversion entre étiquettes et durées Todoist.
 
-🆕 **Choisissez les étiquettes ou les durées Todoist dans les Réglages.** Les étiquettes restent le choix par défaut et préservent l’indépendance des blocs du calendrier. Le mode durée utilise le champ Todoist, retire les étiquettes d’estimation et modifie le bloc des tâches avec une heure. Les comptes gratuits utilisent les étiquettes, car Todoist ne conserve pas leurs durées. Chaque écriture de durée est contrôlée auprès de Todoist ; si elle est refusée ou perdue, l’estimation est récupérée en étiquette et un message explique le changement. Les abonnements inconnus sont autorisés avec le même contrôle.
+🆕 **Choisissez les étiquettes ou les durées Todoist dans les Réglages.** Utilisez les étiquettes d’estimation pour garder les blocs du calendrier indépendants, ou les durées Todoist pour modifier le bloc d’une tâche avec un horaire. Les comptes gratuits utilisent les étiquettes ; les écritures de durée des autres comptes sont vérifiées dans Todoist. Si une durée est refusée ou perdue, l’estimation est récupérée en étiquette et un message vous en informe.
 
-🆕 **Convertissez les estimations existantes avec une prévisualisation dans les Réglages.** L’aperçu compte les tâches ouvertes et les sous-tâches, identifie celles avec une heure et liste les exclusions : étiquettes invalides, estimations différentes et durées en jours. La conversion vers les étiquettes conserve les blocs horaires et efface les durées sans heure. Les tâches terminées et les étiquettes du compte sont préservées. Le bilan liste les tâches en échec ou indique les changements en attente de connexion.
+🆕 **Convertissez les estimations existantes avec une prévisualisation dans les Réglages.** Prévisualisez les tâches ouvertes et sous-tâches avant conversion, avec les tâches horaires, étiquettes invalides, valeurs différentes et durées en jours. La conversion vers les étiquettes garde les blocs horaires, retire les durées sans heure et préserve les tâches terminées et étiquettes du compte. Le bilan signale les échecs et changements en attente de connexion.
 
-🆕 **Réglez les estimations différentes dans les Conflits en mode durée.** Conservez la durée et retirez son étiquette d’estimation, ou utilisez l’étiquette comme durée. Ce second choix avertit lorsqu’un bloc du calendrier va changer. Les totaux et les Analyses privilégient la source choisie et utilisent l’autre en secours. Les comptes existants choisissent après les fenêtres de démarrage ; les nouveaux comptes choisissent pendant la configuration.
+🆕 **Réglez les estimations différentes dans les Conflits en mode durée.** Choisissez la durée ou l’étiquette d’estimation dans Conflits, avec un avertissement avant toute modification d’un bloc du calendrier. Les totaux et Analyses privilégient votre source choisie et utilisent l’autre en secours. Les comptes existants choisissent après le démarrage ; les nouveaux comptes choisissent pendant la configuration.
 
 🆕 **Estimez plusieurs tâches sélectionnées ensemble.** Sélectionnez les tâches, ouvrez Estimation dans la barre du bas et saisissez des minutes ou des heures comme 25, 1h15 ou 90 min pour appliquer une valeur commune, ou retirez leurs estimations. Le mode de stockage choisi s’applique à toute la sélection.
 
@@ -82,9 +280,9 @@ Choisissez où stocker les estimations et prévisualisez leur conversion entre �
 
 Un filtre de temps pour les minutes dont vous disposez, un groupe Elles prennent la poussière dans Un jour, le groupe Rapide sur toutes les listes, et une visite de ce que chaque mise à jour apporte.
 
-🆕 **Faire ce qui tient dans le temps dont vous disposez avec le nouveau bouton « J'ai du temps ».** Une pastille après la charge dans Cette semaine, les projets, les étiquettes, la boîte de réception et Un jour ouvre un panneau à droite. Choisissez 5, 10, 15 ou 30 minutes ou une heure, ou tapez une durée, et il liste les tâches qui tiennent, groupées en retard, aujourd'hui, demain, cette semaine et sans date, chacune avec son sous-total. Cherchez dans la page où vous êtes ou partout. Une tâche sans estimation n'est jamais devinée : le panneau les compte et propose de les estimer. La page derrière reste telle quelle, rien n'est modifié et rien n'est retenu après un rechargement. Ouvrir les Analyses le ferme.
+🆕 **Faire ce qui tient dans le temps dont vous disposez avec le nouveau bouton « J'ai du temps ».** Ouvrez « J’ai du temps » près du total de charge et choisissez une durée pour trouver les tâches qui tiennent, sur cette page ou dans tous les projets. Les résultats sont groupés par date avec leurs sous-totaux ; les tâches sans estimation sont comptées à part et peuvent être estimées. Le panneau ne modifie aucune tâche, se ferme avec les Analyses et se réinitialise au rechargement.
 
-🆕 **Un jour a un nouveau groupe « Elles prennent la poussière » pour les tâches en attente depuis des mois.** Les tâches qui y sont depuis 3 mois ou plus sont réunies en haut, sous Rapide, avec leur ancienneté. Chacune a trois boutons : Cette semaine, Garder et Supprimer. Garder laisse la tâche dans Un jour et ne la fait revenir qu'après un nouveau délai complet ; c'est retenu sur cet appareil seulement, et rien n'est écrit dans Todoist. Les Réglages ont un interrupteur pour le groupe et le délai (1, 2, 3, 6 ou 12 mois), compté depuis la création de la tâche car Todoist ne dit pas quand elle est arrivée dans Un jour. ⇧K garde la tâche sous le curseur.
+🆕 **Un jour a un nouveau groupe « Elles prennent la poussière » pour les tâches en attente depuis des mois.** Revoyez les anciennes tâches d’Un jour avec Cette semaine, Garder et Supprimer ; Maj + K garde la tâche sélectionnée. Les Réglages contrôlent le groupe et un délai de 1, 2, 3, 6 ou 12 mois, calculé depuis la création de la tâche. Garder reporte la prochaine revue sur cet appareil sans écrire dans Todoist.
 
 🆕 **Les tâches rapides ouvrent maintenant chaque projet, étiquette, la boîte de réception et Un jour.** Les projets, les étiquettes, la boîte de réception et Un jour commencent maintenant par les tâches rapides en retard, dues aujourd'hui ou sans date, et chaque ligne dit de quelle section ou de quel projet elle vient. Une tâche rapide due demain ou plus tard reste à sa place, aucune tâche n'est listée deux fois, et un tableau commence par une colonne Rapide bleue, à regarder et non pour y déposer des tâches (aussi dans Cette semaine, où déposer une tâche la rendait rapide). L'interrupteur Rapide des Réglages le coupe partout.
 

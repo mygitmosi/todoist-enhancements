@@ -1,3 +1,6 @@
+import { openItems } from './store/selectors';
+import { useLabelRenames } from './hooks/useLabelRenames';
+import { seesHireNote } from '@/domain/hireNote';
 import { EstimateConversion } from '@/components/overlays/EstimateConversion';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './components/Icon';
@@ -10,16 +13,20 @@ import { Issues } from './components/overlays/Issues';
 import { Search } from './components/overlays/Search';
 import { Shortcuts } from './components/overlays/Shortcuts';
 import { InsightsPanel } from './components/overlays/InsightsPanel';
+import { unreadCount } from './domain/notifications';
+import { ShareSheet } from './components/overlays/ShareSheet';
 import { ProjectSheet, type ProjectSheetTarget } from './components/overlays/ProjectSheet';
 import { Unestimated } from './components/overlays/Unestimated';
 import { ConfirmProvider } from './components/overlays/Confirm';
 import { Overlay } from './components/overlays/Overlay';
 import { QUICK_ADD, QuickAdd } from './QuickAdd';
 import { WeekView } from './views/WeekView';
+import { SearchView } from './views/SearchView';
 import { UpcomingView } from './views/UpcomingView';
 import { SimpleListView } from './views/SimpleListView';
 import { ProjectView } from './views/ProjectView';
 import { LabelsView } from './views/LabelsView';
+import { FiltersView } from './views/FiltersView';
 import { InsightsView } from './views/InsightsView';
 import { ReviewView } from './views/ReviewView';
 import { SettingsView } from './views/SettingsView';
@@ -29,12 +36,12 @@ import { EstimateStorageDialog } from './components/overlays/EstimateStorageDial
 import { Walkthrough } from './components/overlays/Walkthrough';
 import { Tour } from './components/overlays/Tour';
 import { WhatsNew, type WhatsNewScope } from './components/overlays/WhatsNew';
-import { hasChanges, parseChangelog, unseenReleases } from './domain/changelog';
+import { compareVersions, hasChanges, parseChangelog, unseenReleases } from './domain/changelog';
 import { VERSION } from './app-info';
 import { hasOnboarded, shouldAskEstimateStorage } from './domain/onboarding';
 import { useStore } from './store/store';
 import type { Accent, Theme } from './store/prefs';
-import { ACCENT_TOKENS, accentFamily, hexToHsl } from './domain/accent';
+import { ACCENT_TOKENS, accentFamily, backdropGradient, hexToHsl } from './domain/accent';
 import { useT } from './hooks/useT';
 import { useSelectionBlocks } from './hooks/useSelectionBlocks';
 import { useKeyboard } from './hooks/useKeyboard';
@@ -42,13 +49,15 @@ import { useData } from './hooks/useData';
 import { navigate, useRoute, type Route } from './hooks/useRoute';
 import { rootItems } from './store/selectors';
 import { detectConflicts } from './domain/conflicts';
+import { placementForPage } from './domain/dnd';
 import { useParentEstimates } from './hooks/useParentEstimates';
-import { anytimeItems, bucketOf, hasLabel, somedayItems, upcomingItems, weekItems } from './domain/views';
+import { bucketOf, hasLabel, somedayItems, upcomingItems, weekItems } from './domain/views';
 import { effectiveEstimate } from './domain/estimates';
 import type { Item } from './domain/types';
 import type { TranslationKey } from './i18n';
 
 export function App() {
+  useLabelRenames();
   const { t } = useT();
   const ready = useStore((s) => s.ready);
   const connected = useStore((s) => s.connected);
@@ -60,6 +69,8 @@ export function App() {
   const accent = useStore((s) => s.prefs.accent);
   const accentCustom = useStore((s) => s.prefs.accentCustom);
   const taskChips = useStore((s) => s.prefs.taskChips);
+  const layout = useStore((s) => s.prefs.layout);
+  const background = useStore((s) => s.prefs.background);
   const userId = useStore((s) => s.snapshot.user?.id);
   const demo = useStore((s) => s.demo);
   const walkthroughOpen = useStore((s) => s.walkthrough);
@@ -69,6 +80,8 @@ export function App() {
      first-run dialog after it. */
   const [tourVersions, setTourVersions] = useState<string[] | null>(null);
   const [onboardingStarted, setOnboardingStarted] = useState(false);
+  const setupDone = useStore((s) => s.prefs.setupDone);
+  const setupAsked = useRef(false);
   const setWalkthrough = useStore((s) => s.setWalkthrough);
   const beginTourPreview = useStore((s) => s.beginTourPreview);
   const endTourPreview = useStore((s) => s.endTourPreview);
@@ -98,6 +111,11 @@ export function App() {
   /* One right-hand panel at a time (Insights, I have time): which one is open
      is the store's to say, so opening one closes the other. */
   const insightsOpen = useStore((s) => s.sidePanel === 'insights');
+  // The page makes room for Insights when the layout puts the panel beside it.
+  useEffect(() => {
+    document.documentElement.classList.toggle('insights-open', insightsOpen);
+    return () => document.documentElement.classList.remove('insights-open');
+  }, [insightsOpen]);
   const openSidePanel = useStore((s) => s.openSidePanel);
   const closeSidePanel = useStore((s) => s.closeSidePanel);
   const setInsightsOpen = (open: boolean) =>
@@ -106,10 +124,26 @@ export function App() {
      that one — is carried by the open state itself. */
   const [projectSheet, setProjectSheet] = useState<ProjectSheetTarget>(null);
   const [unestimatedOpen, setUnestimatedOpen] = useState(false);
+  const [shareProject, setShareProject] = useState<string | null>(null);
+  useEffect(() => {
+    const open = (event: Event) =>
+      setShareProject((event as CustomEvent<{ projectId: string }>).detail.projectId);
+    window.addEventListener('enhanced:share', open);
+    return () => window.removeEventListener('enhanced:share', open);
+  }, []);
   /** The sidebar, shown as a page. There is no room for a column on a phone. */
   const [browseOpen, setBrowseOpen] = useState(false);
   /** Where a newly composed task should land, when it was added from a section. */
   const [placement, setPlacement] = useState<ComposerPlacement>({});
+
+  /* A task opened as a panel behaves like Insights: beside the page, which makes room for it, not
+     over it behind a veil. */
+  const taskAsPanel = useStore((s) => s.prefs.taskOpen === 'panel');
+  useEffect(() => {
+    const on = taskAsPanel && openTaskId !== null;
+    document.documentElement.classList.toggle('panel-open', on);
+    return () => document.documentElement.classList.remove('panel-open');
+  }, [taskAsPanel, openTaskId]);
 
   useEffect(() => { void init(); }, [init]);
   useParentEstimates();
@@ -154,16 +188,41 @@ export function App() {
      written depends on the scheme that ended up resolved. */
   useEffect(() => applyAccent(accent, accentCustom), [accent, accentCustom, scheme]);
   useEffect(() => { document.documentElement.dataset.chips = taskChips; }, [taskChips]);
+  /* The frame, written on <html> like the theme and for the same reason: the
+     stylesheet decides what each choice looks like, and theme-boot.js reads
+     the copy kept in storage so the first paint is already the right one. */
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.layout = layout;
+    root.dataset.background = background;
+    try {
+      localStorage.setItem('layout', layout);
+      localStorage.setItem('background', background);
+    } catch { /* storage may be blocked */ }
+  }, [layout, background]);
   useEffect(() => (connected ? startPolling() : undefined), [connected, startPolling]);
   useEffect(() => {
-    const replay = () => {
-      setWalkthrough(false);
+    const replay = () => setWalkthrough(true);
+    const tour = () => {
       navigate('week');
-      window.setTimeout(() => setTourOpen(true), 60);
+      /* Closed first, so asking again while one is somehow still up starts it afresh rather than doing nothing. */
+      setTourOpen(false);
+      window.setTimeout(() => { setTourVersions(null); setTourOpen(true); }, 60);
     };
     window.addEventListener('enhanced:replay-onboarding', replay);
-    return () => window.removeEventListener('enhanced:replay-onboarding', replay);
+    window.addEventListener('enhanced:tour', tour);
+    return () => {
+      window.removeEventListener('enhanced:replay-onboarding', replay);
+      window.removeEventListener('enhanced:tour', tour);
+    };
   }, [setWalkthrough]);
+
+  /* Signing out does not unmount this component, so what it remembered of the
+     last session would keep the next one — the demo again, or another account —
+     from getting its own first run (#6). */
+  useEffect(() => {
+    if (!connected && !demo) { setOnboardingStarted(false); setupAsked.current = false; }
+  }, [connected, demo]);
 
   /* The first run — for a real account that has not had one, and for the demo,
      which is where most people meet this app first and is exactly where a tour
@@ -172,15 +231,35 @@ export function App() {
      Opened here and closed by the dialog, so asking for it again from Settings
      goes through the same door. */
   useEffect(() => {
-    if (!QUICK_ADD && ready && (connected || demo) && !hasOnboarded(userId) && !onboardingStarted) {
+    /* Not while the tour runs: it swaps in the demo's snapshot, whose user
+       is nobody this browser has set up, and that looked like a first run (#4). */
+    /* The render that closes the tour still carries the demo's user, put back
+       by the time this runs: the store is asked, not the render (#212). */
+    const liveUserId = useStore.getState().snapshot.user?.id;
+    if (!QUICK_ADD && !tourOpen && ready && (connected || demo) && !hasOnboarded(liveUserId) && !onboardingStarted) {
       setOnboardingStarted(true);
       /* Somebody meeting the app for the first time is getting the tour; a
          list of what changed since a version they never used is not news. */
       if (!demo) setPrefs({ seenVersion: VERSION });
       navigate('week');
-      window.setTimeout(() => setTourOpen(true), 100);
+      setWalkthrough(true);
     }
-  }, [ready, connected, demo, userId, onboardingStarted, setPrefs]);
+  }, [ready, connected, demo, userId, tourOpen, onboardingStarted, setPrefs, setWalkthrough]);
+
+  /* An account set up before 2.0 is asked once for the choices that came with
+     it (the look, the sidebar, what a task shows). Not the demo, which only
+     ever has the first run, and not before the account's own settings have
+     been read, or a second browser would ask what the first already did. */
+  useEffect(() => {
+    /* Asked of the store, not the render: the render that closes the tour still
+       has the demo's user and the tour's settings, which looked like an account
+       that had never seen the Setup (#212). */
+    const live = useStore.getState();
+    if (QUICK_ADD || tourOpen || !ready || !connected || demo || !settled || !hasOnboarded(live.snapshot.user?.id)) return;
+    if (live.prefs.setupDone || setupAsked.current) return;
+    setupAsked.current = true;
+    setWalkthrough(true);
+  }, [ready, connected, demo, settled, userId, tourOpen, setupDone, setWalkthrough]);
 
   /* The first sync after loading is what brings the account's settings — and
      with them the version already seen on another device. Asked before it,
@@ -196,8 +275,8 @@ export function App() {
      remember having shown it. */
   useEffect(() => {
     if (QUICK_ADD || !ready || !connected || demo || !settled || !hasOnboarded(userId)) return;
-    if (tourOpen || walkthroughOpen || whatsNew) return;
-    if (seenVersion === VERSION) return;
+    if (tourOpen || walkthroughOpen || whatsNew || !setupDone) return;
+    if (seenVersion && compareVersions(seenVersion, VERSION) >= 0) return;
     let cancelled = false;
     void import('../CHANGELOG.md?raw').then(({ default: source }) => {
       if (cancelled) return;
@@ -211,7 +290,33 @@ export function App() {
     });
     return () => { cancelled = true; };
   }, [ready, connected, demo, settled, userId, tourOpen, walkthroughOpen, whatsNew,
-    seenVersion, whatsNewOn, setPrefs]);
+    seenVersion, whatsNewOn, setPrefs, setupDone]);
+
+  /* A note for Todoist's own people, once. Put up only when nothing else has
+     the page — no tour, no first run, no What's new — so it is not lost behind
+     them, and recorded on the account the moment it is shown. */
+  const userEmail = useStore((s) => s.snapshot.user?.email);
+  const hireNoteSeen = useStore((s) => s.prefs.hireNoteSeen);
+  const setHireNote = useStore((s) => s.setHireNote);
+  useEffect(() => {
+    if (QUICK_ADD || demo || !ready || !connected || !settled || !hasOnboarded(userId)) return;
+    if (tourOpen || walkthroughOpen || whatsNew || !setupDone || seenVersion !== VERSION) return;
+    if (hireNoteSeen || !seesHireNote(userEmail)) return;
+    setHireNote(true);
+    setPrefs({ hireNoteSeen: true });
+  }, [ready, connected, demo, settled, userId, tourOpen, walkthroughOpen, whatsNew, setupDone,
+    seenVersion, hireNoteSeen, userEmail, setHireNote, setPrefs]);
+
+  /* Development only: shows the note without a Todoist address or a fresh
+     account, whether it was seen already or not. Open the app with ?hire, or
+     from the console: window.dispatchEvent(new Event('enhanced:hire-note')). */
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const show = () => setHireNote(true);
+    if (new URLSearchParams(window.location.search).has('hire')) show();
+    window.addEventListener('enhanced:hire-note', show);
+    return () => window.removeEventListener('enhanced:hire-note', show);
+  }, [setHireNote]);
 
   const storageOpen = shouldAskEstimateStorage({
     ready: ready && connected && Boolean(userId), settled, demo, quickAdd: QUICK_ADD,
@@ -241,6 +346,21 @@ export function App() {
   }
 
   if (QUICK_ADD) return <QuickAdd />;
+
+  /* Until the first sync says whether this account still owes its Setup, a
+     neutral screen rather than the views, which the Setup would then cover a
+     few seconds later (#7). An account this browser already knows as set up
+     goes straight in; a failed sync shows the app and its error. */
+  const setupUnknown = !demo && !tourOpen && !settled && !walkthroughOpen && syncState !== 'error'
+    && (!userId || !hasOnboarded(userId) || !setupDone);
+  if (setupUnknown) {
+    return (
+      <div className="connect gettingready" role="status" aria-live="polite">
+        <p>{t('common.gettingReady')}</p>
+        <div className="readybar" aria-hidden="true"><span /></div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -278,17 +398,23 @@ export function App() {
           page behind it, which is the point of showing them here. */}
       <EstimateStorageDialog onConvert={(target) => setConversionRequest((previous) => ({ target, request: previous.request + 1 }))} open={storageOpen && !demo && !tourOpen && !walkthroughOpen && !whatsNew} onClose={() => { setStorageDismissed(userId ?? null); }} />
       <EstimateConversion target={conversionRequest.target} openRequest={conversionRequest.request} hideTrigger />
+      <ShareSheet projectId={shareProject} onClose={() => setShareProject(null)} />
       <Walkthrough
         open={walkthroughOpen}
         onDone={() => setWalkthrough(false)}
+        onTour={() => {
+          /* At once, in the same breath as the setup closing: a gap between the two is
+             where "What's new" used to slip in on top of the tour. */
+          navigate('week');
+          setTourVersions(null);
+          setTourOpen(true);
+        }}
       />
       <Tour
         open={tourOpen}
         versions={tourVersions}
         onDone={() => {
           setTourOpen(false);
-          // Only a first run goes on to the first-run choices.
-          if (tourVersions === null) setWalkthrough(true);
           setTourVersions(null);
         }}
       />
@@ -381,6 +507,7 @@ interface ShellProps {
 }
 
 export interface ComposerPlacement {
+  responsibleUid?: string | null;
   projectId?: string;
   sectionId?: string;
   date?: string;
@@ -447,7 +574,13 @@ function applyAccent(accent: Accent, custom: string): void {
     }
   }
 
+  /* The coloured background is drawn from whatever `--accent` ended up being,
+     read back off the page so named and custom colours go through one door. */
+  const backdrop = backdropGradient(getComputedStyle(root).getPropertyValue('--accent').trim());
+  root.style.setProperty('--back-gradient', backdrop);
+
   try {
+    localStorage.setItem('backdrop', backdrop);
     localStorage.setItem('accent', accent);
     localStorage.setItem('accentCustom', custom);
     /* Both schemes, because index.html has to write these before the first
@@ -492,19 +625,19 @@ function AppShell({
   placement, setPlacement,
 }: ShellProps) {
   const { t } = useT();
-  const { snapshot, items, childrenOf } = useData();
+  const { snapshot, items, childrenOf } = useData(route.view === 'project' ? `project:${route.id}` : route.view === 'label' ? `label:${route.id}` : route.view === 'filter' ? `filter:${route.id}` : route.view);
   const conflictSettings = useStore((s) => s.prefs.conflicts);
   const demo = useStore((s) => s.demo);
   const sidebarCollapsed = useStore((s) => s.prefs.sidebarCollapsed);
-  const weekLayout = useStore((s) => s.prefs.weekLayout);
   const density = useStore((s) => s.prefs.density);
   const leaveDemo = useStore((s) => s.disconnect);
   const clearSelection = useStore((s) => s.clearSelection);
 
   const roots = useMemo(() => rootItems(items), [items]);
+  const snapshotForBell = useStore((s) => s.snapshot);
   const conflictCount = useMemo(
-    () => detectConflicts(roots, childrenOf, conflictSettings).length,
-    [roots, childrenOf, conflictSettings],
+    () => detectConflicts(roots, childrenOf, conflictSettings).length + unreadCount(snapshotForBell),
+    [roots, childrenOf, conflictSettings, snapshotForBell],
   );
 
   /** Whatever the page in front is showing, so the dialogs never describe another one. */
@@ -526,7 +659,7 @@ function AppShell({
         return {
           /* The page's own scope, or the header and every dialog opened from
              it would describe a week this page is not showing. */
-          contextItems: weekLayout === 'split' ? anytimeItems(roots) : weekItems(roots),
+          contextItems: weekItems(roots),
           contextLabel: t('nav.week'),
         };
       case 'today': {
@@ -557,7 +690,7 @@ function AppShell({
       default:
         return { contextItems: roots, contextLabel: t(`nav.${route.view}` as TranslationKey) };
     }
-  }, [route, roots, snapshot.projects, snapshot.user?.inbox_project_id, t, weekLayout]);
+  }, [route, roots, snapshot.projects, snapshot.user?.inbox_project_id, t]);
 
   const unestimatedItems = useMemo(
     () => contextItems.filter((i) => effectiveEstimate(i, childrenOf).minutes === null),
@@ -582,7 +715,7 @@ function AppShell({
 
   /* A selection belongs to the page it was made on. Carrying it to the next
      one would leave a bar offering to delete tasks that are no longer shown. */
-  useEffect(() => clearSelection(), [route.view, route.id, route.sectionId, clearSelection]);
+  useEffect(() => clearSelection(), [route.view, route.id, route.sectionId, route.query, clearSelection]);
   useEffect(() => {
     const onBackground = (event: MouseEvent) => {
       if (document.querySelector('[role="dialog"]')) return;
@@ -624,7 +757,7 @@ function AppShell({
 
   const openTask = (id: string) => setOpenTaskId(id);
   const addTask = () => {
-    setPlacement(route.view === 'project' && route.id ? { projectId: route.id } : {});
+    setPlacement(placementForPage(route, snapshot.user?.inbox_project_id));
     setComposerOpen(true);
   };
 
@@ -700,16 +833,25 @@ function AppShell({
 
         <section className="screen active">
           {route.view === 'week' && (
-            <WeekView {...viewProps} scope={weekLayout === 'split' ? 'anytime' : 'all'} />
+            <WeekView {...viewProps} scope="all" />
           )}
           {route.view === 'today' && <WeekView {...viewProps} scope="today" />}
+          {route.view === 'search' && <SearchView query={route.query ?? ''} onOpen={openTask} />}
           {route.view === 'upcoming' && <UpcomingView {...viewProps} />}
           {route.view === 'someday' && <SimpleListView kind="someday" {...viewProps} />}
-          {route.view === 'inbox' && <SimpleListView kind="inbox" {...viewProps} />}
+          {/* The Inbox is a project like the others, with sections of its own
+             : it is drawn by the project page, which is what shows them. */}
+          {route.view === 'inbox' && (snapshot.user?.inbox_project_id
+            ? <ProjectView projectId={snapshot.user.inbox_project_id} {...viewProps} />
+            : <SimpleListView kind="inbox" {...viewProps} />)}
           {route.view === 'label' && route.id && (
             <SimpleListView kind="label" labelName={route.id} {...viewProps} />
           )}
           {route.view === 'labels' && <LabelsView />}
+          {route.view === 'filters' && <FiltersView />}
+          {route.view === 'filter' && route.id && (
+            <SimpleListView key={route.id} kind="filter" filterId={route.id} {...viewProps} />
+          )}
           {route.view === 'matrix' && (
             <EisenhowerView onOpen={openTask} onUnestimated={openUnestimated} />
           )}
@@ -770,6 +912,7 @@ function AppShell({
         defaultDate={placement.date}
         defaultLabels={placement.labels}
         defaultPriority={placement.priority}
+        defaultResponsibleUid={placement.responsibleUid}
       />
       <TaskDetail
         taskId={openTaskId}
@@ -825,10 +968,12 @@ function AppShell({
       <BulkBar />
 
       <InsightsPanel
+        projectId={route.view === 'project' ? route.id : undefined}
+        viewKey={route.view === 'project' ? undefined : route.view === 'label' ? `label:${route.id}` : route.view === 'filter' ? `filter:${route.id}` : route.view}
         open={insightsOpen}
         onClose={() => setInsightsOpen(false)}
         contextLabel={contextLabel}
-        items={contextItems}
+        items={route.view === 'project' ? rootItems(openItems(snapshot)).filter((item) => item.project_id === route.id) : contextItems}
         onOpenTask={openTask}
       />
     </div>

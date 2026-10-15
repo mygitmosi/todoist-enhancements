@@ -1,3 +1,6 @@
+import { useProjectPeople } from '@/hooks/useProjectPeople';
+import { AssigneeBadge } from '../AssigneeBadge';
+import { AssigneeField } from '../AssigneeField';
 import { useCreateTag } from '@/hooks/useCreateTag';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { copyText, isTemporaryId, todoistTaskUrl } from '@/api/links';
@@ -20,91 +23,19 @@ import {
 import {
   deadlineDate, dueDate, formatRelativeDay, hasTime, toApiDate, toApiDateTime,
 } from '@/domain/dates';
-import { plainTitle, renderMarkdown, titleLinks } from '@/domain/markdown';
-import { parseShorthand, savedRefusals, splitTrailingEstimate, type TextRange } from '@/domain/shorthand';
-import { dueForDate, readRecurrence } from '@/domain/recurrence';
+import { plainTitle, renderTitle, titleLinks } from '@/domain/markdown';
+import { parseShorthand, savedRefusals, type TextRange } from '@/domain/shorthand';
+import { dueForDate } from '@/domain/recurrence';
 import { EstimateField } from '../EstimateField';
 import { TaskNameField } from '../TaskNameField';
-import { Select } from '../Select';
 import { PlacementField } from '../PlacementField';
+import { CommentThread } from '../CommentThread';
 import { DateField } from '../DateField';
 import { markerStyle } from '@/domain/colors';
-import { displayTaskContent, isUncompletable, toDisplayPriority, toTodoistPriority, type DisplayPriority, type Item } from '@/domain/types';
+import { assignees } from '@/domain/sharing';
+import { displayTaskContent, isUncompletable, toDisplayPriority, toTodoistPriority, type Item } from '@/domain/types';
 import { matchesSearch } from '@/domain/search';
 import { byLabelOrder } from '@/domain/orderKey';
-
-/**
- * The repeat rule, as a rule rather than as a reading of one.
- *
- * What is typed here is handed to Todoist whole: it resolves the rule, and it
- * is the only thing that can, since where the next occurrence falls depends on
- * when this one is completed. The field's whole job is to refuse a phrase the
- * app cannot vouch for rather than send it and find out — a rule read wrongly
- * does not fail, it moves every future occurrence and says nothing.
- *
- * Emptying it stops the repeat without losing the date: the occurrence the
- * task is sitting on becomes its due date, once.
- */
-function RecurrenceField({ item }: { item: Item }) {
-  const { t } = useT();
-  const updateTask = useStore((s) => s.updateTask);
-  const setRecurrence = useStore((s) => s.setRecurrence);
-  const rule = item.due?.is_recurring ? item.due.string : '';
-  const [draft, setDraft] = useState(rule);
-  const [refused, setRefused] = useState(false);
-
-  // A rule Todoist rewrote on save — "every mon" comes back "every monday" —
-  // is the truth, so the field follows the task rather than the typing.
-  useEffect(() => { setDraft(rule); setRefused(false); }, [rule, item.id]);
-
-  function commit() {
-    const typed = draft.trim();
-    if (typed === rule.trim()) { setRefused(false); return; }
-
-    if (!typed) {
-      setRefused(false);
-      if (!item.due?.is_recurring) return;
-      // The occurrence it is on becomes the date it keeps.
-      const date = item.due.date;
-      void updateTask(item.id, {
-        due: { date, timezone: item.due.timezone, string: date, lang: item.due.lang, is_recurring: false },
-      });
-      return;
-    }
-
-    const read = readRecurrence(typed);
-    if (!read) { setRefused(true); return; }
-    setRefused(false);
-    void setRecurrence(item.id, read);
-  }
-
-  return (
-    <div className="repeatfield">
-      <span className="repeatinput">
-        <Icon name="repeat" size="sm" />
-        <input
-          value={draft}
-          onChange={(event) => { setDraft(event.target.value); setRefused(false); }}
-          onBlur={commit}
-          onKeyDown={(event) => {
-            /* Enter commits outright rather than blurring and letting the blur
-               commit: a refusal has to be able to keep the caret in the field
-               that is being refused, and blurring gives it away first. */
-            if (event.key === 'Enter') { event.preventDefault(); commit(); }
-            if (event.key === 'Escape') { setDraft(rule); setRefused(false); }
-          }}
-          placeholder={t('detail.recurringPlaceholder')}
-          aria-label={t('detail.recurring')}
-          aria-invalid={refused}
-        />
-      </span>
-      {refused && <small className="repeatrefused">{t('detail.recurringRefused')}</small>}
-      {!refused && item.due?.is_recurring && item.due.string.includes('!') && (
-        <small className="repeathint">{t('detail.recurringFromCompletion')}</small>
-      )}
-    </div>
-  );
-}
 
 interface TaskDetailProps {
   taskId: string | null;
@@ -148,13 +79,23 @@ function EditableSubtask({ child, onOpen }: { child: Item; onOpen: (id: string) 
   const toggleTask = useStore((s) => s.toggleTask);
   const removeTask = useStore((s) => s.removeTask);
   const confirm = useConfirm();
+  const setRecurrence = useStore((s) => s.setRecurrence);
+  const snapshot = useStore((s) => s.snapshot);
+  const naturalDates = useStore((s) => s.prefs.naturalDates);
+  const dateFormat = useStore((s) => s.prefs.dateFormat);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(child.content);
+  /* The words the title already had are not read again as an order (#117). */
+  const [refusals, setRefusals] = useState<TextRange[]>([]);
   const editRef = useRef<HTMLButtonElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
-    if (!editing) setDraft(child.content);
+    if (!editing) {
+      setDraft(child.content);
+      setRefusals(savedRefusals(child.content, snapshot, naturalDates, dateFormat));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-read only when the title or the mode changes.
   }, [child.content, editing]);
 
   const stopEditing = () => {
@@ -162,9 +103,23 @@ function EditableSubtask({ child, onOpen }: { child: Item; onOpen: (id: string) 
     requestAnimationFrame(() => editRef.current?.focus());
   };
   const save = () => {
-    const content = draft.trim();
+    /* Read as a title is (#264): a date, a repeat, `p1`, `@tag` and an
+       estimate apply to the subtask. A `#project` stays text, since a subtask
+       cannot live outside its parent's project. */
+    const first = parseShorthand(draft, snapshot, naturalDates, refusals, dateFormat);
+    const asText = first.ranges.filter((r) => r.kind === 'project').map(({ start, end }) => ({ start, end }));
+    const read = asText.length > 0
+      ? parseShorthand(draft, snapshot, naturalDates, [...refusals, ...asText], dateFormat) : first;
+    const content = read.content.trim();
     if (!content) { inputRef.current?.focus(); return; }
-    if (content !== child.content) void updateTask(child.id, { content });
+    const fields: Record<string, unknown> = {};
+    if (content !== child.content) fields.content = content;
+    if (read.date) fields.due = dueForDate(child.due, read.date);
+    if (read.priority) fields.priority = toTodoistPriority(read.priority);
+    if (read.labels.length > 0) fields.labels = [...new Set([...child.labels, ...read.labels])];
+    if (read.minutes !== null) fields.estimateMinutes = read.minutes;
+    if (Object.keys(fields).length > 0) void updateTask(child.id, fields);
+    if (read.recurrence) void setRecurrence(child.id, read.recurrence);
     stopEditing();
   };
   const deleteSubtask = async () => {
@@ -203,21 +158,24 @@ function EditableSubtask({ child, onOpen }: { child: Item; onOpen: (id: string) 
         ><Icon name="check" /></span>
       )}
       {editing ? (
-        <input
-          ref={inputRef}
-          className="textfield subtaskedit"
+        <TaskNameField
+          fieldRef={inputRef}
+          fieldClassName="textfield subtaskedit"
           autoFocus
           value={draft}
-          aria-label={t('detail.editSubtask')}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            event.stopPropagation();
-            if (event.key === 'Enter') { event.preventDefault(); save(); }
-            if (event.key === 'Escape') { event.preventDefault(); stopEditing(); }
-          }}
+          placeholder=""
+          ariaLabel={t('detail.editSubtask')}
+          onChange={setDraft}
+          onSubmit={save}
+          onCancel={stopEditing}
+          snapshot={snapshot}
+          naturalDates={naturalDates}
+          refusals={refusals}
+          onRefusals={setRefusals}
         />
       ) : (
         <button className="subtasktitle" onClick={() => onOpen(child.id)}>
+          <AssigneeBadge id={child.responsible_uid} />
           <span>{plainTitle(displayTaskContent(child))}</span>
         </button>
       )}
@@ -286,12 +244,15 @@ function PropLabel({ name, prop }: { name: string; prop: string }) {
 }
 
 export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
+  const pendingWrites = useStore((s) => s.pendingCount);
   const { t, locale } = useT();
   const { snapshot, childrenOf } = useData();
+  const assignTask = useStore((s) => s.assignTask);
   const updateTask = useStore((s) => s.updateTask);
   const toggleTask = useStore((s) => s.toggleTask);
   const removeTask = useStore((s) => s.removeTask);
   const createTask = useStore((s) => s.createTask);
+  const duplicateTask = useStore((s) => s.duplicateTask);
   const moveTask = useStore((s) => s.moveTask);
   const setRecurrence = useStore((s) => s.setRecurrence);
   const skipOccurrence = useStore((s) => s.skipOccurrence);
@@ -299,11 +260,14 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   const dateFormat = useStore((s) => s.prefs.dateFormat);
   const toast = useStore((s) => s.toast);
   const demo = useStore((s) => s.demo);
+  /* A window over the list, or a panel on the right (Settings → Open a task in). */
+  const variant = useStore((s) => s.prefs.taskOpen) === 'panel' ? 'side' : 'sheet';
   const confirm = useConfirm();
   /* Named, so the panel's own keys can tell whether it is the dialog in front. */
   const overlayId = useId();
 
   const item = taskId ? snapshot.items[taskId] : null;
+  useProjectPeople(item?.project_id);
   const loadTask = useStore((s) => s.loadTask);
   const logbookEntry = useStore((s) => s.logbookEntry);
   /* A task completed before the last sync is not in the snapshot: it is
@@ -345,12 +309,28 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [editingDescription, setEditingDescription] = useState(false);
+  /* A title that holds links is read as the words it shows; clicking it opens the Markdown as written. */
+  const [editingTitle, setEditingTitle] = useState(false);
   const [subtaskDraft, setSubtaskDraft] = useState('');
   /** Readings of the title turned down while editing it. */
   const [refusals, setRefusals] = useState<TextRange[]>([]);
+  const [subtaskRefusals, setSubtaskRefusals] = useState<TextRange[]>([]);
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
+  /* Escape puts the tag list away wherever the focus is in the panel — on a tag, on the search field, or
+     nowhere — rather than only from the search field, and the panel stays open behind it. */
+  useEffect(() => {
+    if (!tagPickerOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      event.preventDefault();
+      setTagPickerOpen(false);
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [tagPickerOpen]);
   const [tagQuery, setTagQuery] = useState('');
   const newTagChoice = useCreateTag(tagQuery);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -446,6 +426,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
     setTitle(item.content);
     setDescription(item.description);
     setEditingDescription(false);
+    setEditingTitle(false);
     setAddingSubtask(false);
     setSubtaskDraft('');
     /* The saved title is a name, not something being typed: nothing in it is
@@ -458,7 +439,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   if (!item) {
     if (!taskId || !missing) return null;
     return (
-      <Overlay open onClose={onClose} label={t('detail.title')} overlayId={overlayId}>
+      <Overlay open onClose={onClose} label={t('detail.title')} overlayId={overlayId} variant={variant}>
         <p className={`detail-missing${missing === 'loading' ? ' loading' : ''}`} role="status">
           {t(missing === 'loading' ? 'detail.loading' : missing === 'gone' ? 'detail.gone' : 'detail.offline')}
         </p>
@@ -496,9 +477,6 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
 
   const project = snapshot.projects[item.project_id];
   const section = item.section_id ? snapshot.sections[item.section_id] : null;
-  const comments = Object.values(snapshot.notes)
-    .filter((n) => n.item_id === item.id)
-    .sort((a, b) => a.posted_at.localeCompare(b.posted_at));
   const visibleLabels = item.labels.filter((l) => !l.toLowerCase().startsWith('est-'));
   const allTags = Object.values(snapshot.labels)
     .filter((l) => !l.is_deleted && !l.name.startsWith('est-'))
@@ -630,15 +608,29 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
       setAddingSubtask(false);
       return;
     }
-    /* An estimate that ends the line is read the way the composer reads it
-       (#163): `Draft outline (5)` is a subtask of 5 minutes. */
-    const { content: title, minutes: estimate } = splitTrailingEstimate(content);
+    /* Read the way the composer reads a title (#264): a date, a repeat, `p1`,
+       `@tag` and `(25)` in the line apply to the subtask. A `#project` does
+       not: a subtask lives in its parent's project, so that word stays text. */
+    const first = parseShorthand(content, snapshot, naturalDates, subtaskRefusals, dateFormat);
+    const keepAsText = first.ranges.filter((r) => r.kind === 'project').map(({ start, end }) => ({ start, end }));
+    const read = keepAsText.length > 0
+      ? parseShorthand(content, snapshot, naturalDates, [...subtaskRefusals, ...keepAsText], dateFormat)
+      : first;
+    const title = read.content.trim() || content;
     void createTask({
       content: title,
       project_id: item!.project_id,
       parent_id: item!.id,
-      ...(estimate === null ? {} : { estimateMinutes: estimate }),
+      ...(read.priority ? { priority: toTodoistPriority(read.priority) } : {}),
+      ...(read.labels.length > 0 ? { labels: read.labels } : {}),
+      ...(read.minutes === null ? {} : { estimateMinutes: read.minutes }),
+      ...(read.recurrence
+        ? { due: { string: read.recurrence.string, lang: read.recurrence.lang, is_recurring: true } }
+        : read.date
+          ? { due: { date: read.date, timezone: null, string: read.date, lang: 'en', is_recurring: false } }
+          : {}),
     });
+    setSubtaskRefusals([]);
     setSubtaskDraft('');
   }
 
@@ -648,6 +640,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
       onClose={onClose}
       label={t('detail.title')}
       overlayId={overlayId}
+      variant={variant}
       returnFocusTo={() => (walked.current && taskId
         ? document.querySelector<HTMLElement>(`.screen.active [data-task-id="${taskId}"]`)
         : null)}
@@ -752,6 +745,15 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                     <span><Icon name="link" size="sm" /> {t('task.copyLink')}</span>
                   </button>
                 )}
+                <button
+                  className="opt"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    void duplicateTask(item.id).then(() => toast(t('task.duplicated')));
+                  }}
+                >
+                  <span><Icon name="copy" size="sm" /> {t('task.duplicate')}</span>
+                </button>
                 <hr />
                 <button className="opt danger" onClick={askThenDelete}>
                   <span><Icon name="close" size="sm" /> {t('task.delete')}</span>
@@ -800,48 +802,48 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
             )}
 
             <div className="detail-content">
-              {/* The same field the composer uses, so a title edited here
-                  reads what a title typed there reads: a date, a repeat, a
-                  project, a tag, a priority — marked as you type and taken out
-                  of the name when it is saved. */}
-              <TaskNameField
-                value={title}
-                onChange={setTitle}
-                onSubmit={commitTitle}
-                onCancel={cancelTitle}
-                placeholder={t('detail.title')}
-                ariaLabel={t('detail.title')}
-                snapshot={snapshot}
-                naturalDates={naturalDates}
-                refusals={refusals}
-                onRefusals={setRefusals}
-                multiline
-                fieldClassName="titlefield"
-                fieldRef={titleRef}
-              />
-
-              {/*
-                * An edit to the title is finished on purpose.
-                *
-                * It used to save itself when the field lost the caret, which
-                * is fine for a name and wrong for a name that also carries a
-                * date, a project and a priority: clicking anywhere rewrote
-                * four things at once, and the panel on the right only caught
-                * up afterwards. Enter saves, Escape puts it back, and the two
-                * buttons say so for anyone who does neither.
-                */}
-              {/* The title is edited as written, so its links are kept
-                  under it, ready to follow, as Todoist shows them clickable
-                  in its task view (#101). */}
-              {!titleDirty && links.length > 0 && (
-                <div className="titlelinks">
-                  {links.map((link, at) => (
-                    <a key={`${link.href}-${at}`} href={link.href} target="_blank" rel="noopener noreferrer">
-                      <Icon name="link" size="sm" />
-                      <span>{link.label}</span>
-                    </a>
-                  ))}
-                </div>
+              {/* A title with a link in it reads as it does in the list, "Title (video)",
+                  and the Markdown is only shown once it is clicked to be edited. */}
+              {links.length > 0 && !editingTitle && !titleDirty ? (
+                <div
+                  className="titleview"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={t('detail.title')}
+                  onClick={(e) => {
+                    if ((e.target as Element).closest('a[href]')) return;
+                    setEditingTitle(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                      e.preventDefault();
+                      setEditingTitle(true);
+                    }
+                  }}
+                  dangerouslySetInnerHTML={{ __html: renderTitle(displayTaskContent(item)) }}
+                />
+              ) : (
+                /* The same field the composer uses, so a title edited here
+                   reads what a title typed there reads: a date, a repeat, a
+                   project, a tag, a priority — marked as you type and taken out
+                   of the name when it is saved. */
+                <TaskNameField
+                  value={title}
+                  onChange={setTitle}
+                  onSubmit={() => { commitTitle(); setEditingTitle(false); }}
+                  onCancel={() => { cancelTitle(); setEditingTitle(false); }}
+                  onBlur={() => setEditingTitle(false)}
+                  autoFocus={editingTitle}
+                  placeholder={t('detail.title')}
+                  ariaLabel={t('detail.title')}
+                  snapshot={snapshot}
+                  naturalDates={naturalDates}
+                  refusals={refusals}
+                  onRefusals={setRefusals}
+                  multiline
+                  fieldClassName="titlefield"
+                  fieldRef={titleRef}
+                />
               )}
 
               {titleDirty && (
@@ -936,7 +938,6 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
 
             {addingSubtask ? (
               <TaskNameField
-                estimateOnly
                 autoFocus
                 fieldClassName="textfield subtaskfield"
                 placeholder={t('detail.addSubtask')}
@@ -950,9 +951,9 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                   setAddingSubtask(false);
                 }}
                 snapshot={snapshot}
-                naturalDates={false}
-                refusals={[]}
-                onRefusals={() => {}}
+                naturalDates={naturalDates}
+                refusals={subtaskRefusals}
+                onRefusals={setSubtaskRefusals}
               />
             ) : (
               <button className="addline" onClick={() => setAddingSubtask(true)}>
@@ -963,19 +964,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
           </section>
 
 
-          <section className="detail-section boxed">
-            <h3 className="sectionlabel">{t('detail.comments')}</h3>
-            {comments.length === 0 ? (
-              <p className="psub">{t('detail.noComments')}</p>
-            ) : (
-              comments.map((note) => (
-                <article className="comment" key={note.id}>
-                  <div className="md" dangerouslySetInnerHTML={{ __html: renderMarkdown(note.content) }} />
-                  <time className="psub">{formatRelativeDay(new Date(note.posted_at), locale)}</time>
-                </article>
-              ))
-            )}
-          </section>
+          <CommentThread itemId={item.id} />
         </div>
 
         <aside className="detail-side">
@@ -987,6 +976,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
           <div className="prop" data-prop="project">
             <PropLabel name={t('detail.project')} prop="project" />
             <PlacementField
+              matchWidth
               ariaLabel={t('detail.project')}
               value={{ projectId: item.project_id, sectionId: item.section_id }}
               onChange={(place) => void moveTask(
@@ -1005,13 +995,25 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
               value={due ? (hasTime(item.due) ? toApiDateTime(due) : toApiDate(due)) : ''}
               label={t('detail.startDate')}
               placeholder={t('date.pick')}
-              onChange={(value) => {
+              onChange={(value, how) => {
                 /* Keeps the rule. Writing the date into `due.string` is what
                    ends a series, and picking a day in a calendar is never a
                    request to stop something repeating — the field below is. */
                 void updateTask(item.id, {
-                  due: value ? dueForDate(item.due, value) : null,
+                  due: value ? dueForDate(item.due, value, 'en', { dropTime: how?.clearTime }) : null,
                 });
+              }}
+              /* The rule has its own field below; the picker's Repeat builds
+                 one without typing it (#202). The field keeps showing the day. */
+              recurrence={item.due?.is_recurring ? item.due : null}
+              onRecurrence={(rule) => void setRecurrence(item.id, rule)}
+              duration={{
+                minutes: computed ? null : minutes,
+                onChange: (value) => void updateTask(item.id, { estimateMinutes: value }),
+              }}
+              onClearRecurrence={() => {
+                if (!item.due?.is_recurring) return;
+                void updateTask(item.id, { due: { ...item.due, string: item.due.date, is_recurring: false } });
               }}
             />
             {/* The row's own schedule menu has offered this for a while
@@ -1047,30 +1049,50 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                 the number instead of being left to the reader to infer. */}
             <EstimateField
               minutes={computed ? null : minutes}
+              pendingWrites={pendingWrites}
               placeholder={
                 computed && minutes !== null
                   ? `${formatDuration(minutes, locale)} · ${t('task.computedEstimate')}`
                   : t('task.estimatePlaceholder')
               }
-              onCommit={(value) =>
-                void updateTask(item.id, { estimateMinutes: value })}
+              onCommit={async (value) => {
+                await updateTask(item.id, { estimateMinutes: value });
+                const state = useStore.getState();
+                const saved = state.snapshot.items[item.id];
+                if (!saved || effectiveEstimate(saved, () => []).minutes !== value) return 'failed';
+                return state.pendingCount > 0 ? 'pending' : 'accepted';
+              }}
             />
           </div>
 
           <div className="prop" data-prop="priority">
             <PropLabel name={t('detail.priority')} prop="priority" />
-            <Select
-              value={String(priority)}
-              ariaLabel={t('detail.priority')}
-              onChange={(next) =>
-                void updateTask(item.id, {
-                  priority: toTodoistPriority(Number(next) as DisplayPriority),
-                })}
-              options={([1, 2, 3, 4] as const).map((p) => ({
-                value: String(p), label: `P${p}`,
-              }))}
-            />
+            <div className="priopills" role="radiogroup" aria-label={t('detail.priority')}>
+              {([1, 2, 3, 4] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  role="radio"
+                  aria-checked={priority === p}
+                  className={`priopill p${p}`}
+                  onClick={() => void updateTask(item.id, { priority: toTodoistPriority(p) })}
+                >
+                  <Icon name="flag" size="sm" />
+                  {`P${p}`}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* Only where somebody else is in the project: elsewhere there is
+              nobody to give it to. */}
+          {(assignees(snapshot, item.project_id).length > 0 || item.responsible_uid) && (
+            <div className="prop" data-prop="assignee">
+              <span className="proplabel">{t('detail.assignee')}</span>
+              <AssigneeField projectId={item.project_id} value={item.responsible_uid}
+                onChange={(next) => void assignTask(item.id, next)} />
+            </div>
+          )}
 
           <div className="prop" data-prop="tags">
             <span className="prophead">
@@ -1096,13 +1118,15 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                 return (
                   <button
                     key={label}
-                    className="pill"
+                    /* Drawn like a list row's tag (#25). */
+                    className="pill tagpill"
+                    style={markerStyle(known?.color)}
                     title={t('detail.labels')}
                     onClick={() =>
                       void updateTask(item.id, { labels: item.labels.filter((l) => l !== label) })
                     }
                   >
-                    <Icon name="tag" size="sm" className="taglabel" style={markerStyle(known?.color, false)} />
+                    <Icon name="tag" size="sm" />
                     <span>{label}</span>
                     <Icon name="close" size="sm" />
                   </button>
@@ -1158,10 +1182,6 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
             )}
           </div>
 
-          <div className="prop">
-            <span>{t('detail.recurring')}</span>
-            <RecurrenceField item={item} />
-          </div>
         </aside>
       </div>
     </Overlay>

@@ -79,6 +79,7 @@ const dueOn = (item: Item, date: Date, time?: string) =>
  * cannot mean one thing to a drop and another to a line.
  */
 export interface TaskPlacement {
+  responsibleUid?: string | null;
   projectId?: string;
   sectionId?: string;
   date?: string;
@@ -109,6 +110,34 @@ export function placementFor(target: DropTarget, now = new Date()): TaskPlacemen
         : { projectId: target.projectId };
     case 'label':
       return { labels: [target.label] };
+    default:
+      return {};
+  }
+}
+
+/**
+ * What a task created from a page with the Q shortcut starts with: the page's
+ * project, Today's date, the tag of a tag page, My week's label. The same as the page's own
+ * "Add task" line, so the two never disagree. Pages that fix nothing (Upcoming,
+ * a filter) give nothing.
+ */
+export function placementForPage(
+  page: { view: string; id?: string },
+  inboxId: string | undefined,
+  now = new Date(),
+): TaskPlacement {
+  switch (page.view) {
+    case 'project':
+      return page.id ? { projectId: page.id } : {};
+    case 'inbox':
+      return inboxId ? { projectId: inboxId } : {};
+    case 'today':
+      return placementFor({ kind: 'today' }, now);
+    /* My week's own "Add task" line puts a task in the week with its label. */
+    case 'week':
+      return placementFor({ kind: 'anytime' }, now);
+    case 'label':
+      return page.id ? { labels: [page.id] } : {};
     default:
       return {};
   }
@@ -151,7 +180,14 @@ export function dropMutation(item: Item, target: DropTarget): DropMutation | nul
       return { move: { project_id: target.projectId } };
 
     case 'section':
-      if (item.section_id === target.sectionId && !item.parent_id) return null;
+      /* A project is a section destination with no section, so "already there"
+         has to mean the same project as well: a task with no section compared
+         only by section reads as already in every project (#205). */
+      if (
+        item.project_id === target.projectId
+        && (item.section_id ?? null) === (target.sectionId ?? null)
+        && !item.parent_id
+      ) return null;
       return { move: { project_id: target.projectId, section_id: target.sectionId } };
 
     case 'label': {

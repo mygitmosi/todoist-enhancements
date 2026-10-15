@@ -1,3 +1,7 @@
+import { useProjectPeople } from '@/hooks/useProjectPeople';
+import { useProjectCompleted } from '@/hooks/useProjectCompleted';
+import { InsightsButton } from '@/components/InsightsButton';
+import { HireNote } from '@/components/HireNote';
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { SubtasksProvider } from '@/components/TaskRow';
@@ -11,6 +15,8 @@ import type { ProjectSheetTarget } from '@/components/overlays/ProjectSheet';
 import { AddSectionLine } from '@/components/AddSectionLine';
 import { useConfirm } from '@/components/overlays/Confirm';
 import { Icon } from '@/components/Icon';
+import { ProjectIcon, ProjectIconGrid } from '@/components/ProjectIconPicker';
+import { markerStyle } from '@/domain/colors';
 import { TimePanel } from '@/components/TimePanel';
 import { useT } from '@/hooks/useT';
 import { useTimePill } from '@/hooks/useTimePill';
@@ -60,9 +66,21 @@ function ProjectBody({
   projectId, revealSectionId, onOpen, onInsights, onUnestimated, onAddTaskTo, onProjectSheet,
 }: ProjectViewProps) {
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [iconOpen, setIconOpen] = useState(false);
+  useEffect(() => {
+    if (!iconOpen) return;
+    const away = (event: MouseEvent) => {
+      if (!(event.target as HTMLElement).closest('.ptitle-icon')) setIconOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setIconOpen(false); };
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('mousedown', away); document.removeEventListener('keydown', escape); };
+  }, [iconOpen]);
   const { t } = useT();
+  useProjectPeople(projectId);
   const timePill = useTimePill();
-  const { snapshot, items, childrenOf } = useData();
+  const { snapshot, items, childrenOf } = useData(`project:${projectId}`);
   const prefs = useStore((s) => s.prefs);
   const updateProjectFields = useStore((s) => s.updateProjectFields);
   const updateSectionFields = useStore((s) => s.updateSectionFields);
@@ -131,6 +149,9 @@ function ProjectBody({
   };
   const viewKey = `project:${projectId}`;
   const current = viewPrefs(prefs, viewKey);
+  const hireNoteOpen = useStore((s) => s.hireNote);
+  /* A row of the project's own tasks (or of the Scheduled list), under Quick; elsewhere under the header. */
+  const hireInList = current.mode === 'list';
 
   const project = snapshot.projects[projectId];
 
@@ -141,22 +162,25 @@ function ProjectBody({
    * So rather than a separate list, it's folded in here, upstream of every
    * grouping below, and comes out the other side sitting where it belongs.
    *
-   * Todoist keeps a completed task in `snapshot.items` (checked, but
+   * Todoist keeps a task ticked on this device in `snapshot.items` (checked, but
    * otherwise intact — see ReviewView's own DoneRow), which is what makes
-   * this possible without a second fetch.
+   * this possible for those; the older ones are fetched (#229).
    */
-  const scoped = useMemo(() => {
+  const history = useProjectCompleted(projectId, current.filters.showCompleted);
+  const pool0 = useMemo(() => {
     const openRoots = rootItems(items).filter((i) => i.project_id === projectId);
-    const roots = current.filters.showCompleted
-      ? [
-          ...openRoots,
-          ...Object.values(snapshot.items).filter(
-            (i) => i.project_id === projectId && i.checked && !i.is_deleted && !i.parent_id,
-          ),
-        ]
-      : openRoots;
-    return applyFilters(roots, current.filters, snapshot, childrenOf);
-  }, [items, projectId, current.filters, snapshot, childrenOf]);
+    if (!current.filters.showCompleted) return openRoots;
+    const ticked = Object.values(snapshot.items).filter(
+      (i) => i.project_id === projectId && i.checked && !i.is_deleted && !i.parent_id,
+    );
+    /* What the sync still holds wins over the history's copy of the same task. */
+    const known = new Set([...openRoots, ...ticked].map((i) => i.id));
+    return [...openRoots, ...ticked, ...history.filter((i) => !known.has(i.id) && !snapshot.items[i.id])];
+  }, [items, projectId, current.filters.showCompleted, snapshot, history]);
+  const scoped = useMemo(
+    () => applyFilters(pool0, current.filters, snapshot, childrenOf),
+    [pool0, current.filters, snapshot, childrenOf],
+  );
 
   const load = useMemo(() => summariseLoad(scoped, childrenOf, null), [scoped, childrenOf]);
 
@@ -252,8 +276,10 @@ function ProjectBody({
           onAddTask: () => onAddTaskTo(
             group.id === 'none' ? { projectId } : { projectId, sectionId: group.id },
           ),
+          onRename: group.id === 'none' ? undefined : (name: string) => void updateSectionFields(group.id, { name }),
         })),
     ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- updateSectionFields comes from the store and is stable.
     [sectionGroups, looseItems, projectId, t, onAddTaskTo, split.quick, current.mode],
   );
 
@@ -281,14 +307,62 @@ function ProjectBody({
   return (
     <div className="page">
       <PageHeader
+        hireNote={!hireInList}
         title={
-          <EditableTitle
-            value={project.name}
-            label={t('project.rename')}
-            onCommit={(next) => void updateProjectFields(projectId, { name: next })}
-          />
+          <span className="ptitle-row">
+            {/* The project's mark, in front of its name: pressing it opens the
+                same icon choice the project sheet has. */}
+            {project.inbox_project ? (
+              /* The Inbox is not yours to rename, recolour or give an icon. */
+              <span className="ptitle-icon">
+                <span className="ptitle-mark static" aria-hidden="true">
+                  <span className="hash" style={markerStyle(project.color)}><Icon name="inbox" /></span>
+                </span>
+              </span>
+            ) : (
+            <span className="ptitle-icon">
+              <button
+                type="button"
+                className="ptitle-mark"
+                aria-label={t('project.changeIcon')}
+                title={t('project.changeIcon')}
+                aria-expanded={iconOpen}
+                onClick={() => setIconOpen((open) => !open)}
+              >
+                <span className="hash" style={markerStyle(project.color)}>
+                  {readProjectIcon(project.description)
+                    ? <ProjectIcon iconId={readProjectIcon(project.description)!} style={{ color: 'inherit' }} />
+                    : '#'}
+                </span>
+              </button>
+              {iconOpen && (
+                <div className="popover ptitle-icons" role="dialog" aria-label={t('project.icon')}>
+                  <ProjectIconGrid
+                    focusSearch
+                    value={readProjectIcon(project.description)}
+                    onPick={(iconId) => {
+                      void updateProjectFields(projectId, {
+                        description: withProjectIcon(stripProjectIcon(project.description), iconId),
+                      });
+                      setIconOpen(false);
+                    }}
+                  />
+                </div>
+              )}
+            </span>
+            )}
+            {project.inbox_project ? (
+              <h1 className="titlefield static">{project.name}</h1>
+            ) : (
+              <EditableTitle
+                value={project.name}
+                label={t('project.rename')}
+                onCommit={(next) => void updateProjectFields(projectId, { name: next })}
+              />
+            )}
+          </span>
         }
-        subtitle={
+        subtitle={project.inbox_project ? undefined : (
           <EditableDescription
             value={stripProjectIcon(project.description)}
             placeholder={t('project.editDescription')}
@@ -299,20 +373,18 @@ function ProjectBody({
               description: withProjectIcon(next, readProjectIcon(project.description)),
             })}
           />
-        }
+        )}
         actions={
           <>
             <DisplayMenu
               viewKey={viewKey}
+              pageItems={pool0}
               modes={['list', 'board']}
-              groups={['none', 'scheduled', 'priority', 'label', 'estimate', 'day']}
+              groups={['none', 'assignee', 'scheduled', 'priority', 'label', 'estimate', 'day']}
               completedToggle
               showWorkspaces={false}
             />
-            <button className="btn accent" onClick={onInsights}>
-              <Icon name="trend" />
-              {t('toolbar.insights')}
-            </button>
+            <InsightsButton onClick={onInsights} />
             {/* The same menu the sidebar row carries, asked from the page it
                 is about. */}
             <span className="pmenu-wrap">
@@ -361,7 +433,7 @@ function ProjectBody({
           items={scoped}
           childrenOf={childrenOf}
           mode="board"
-          wide={current.wide}
+          viewKey={viewKey}
           group={current.group}
           sort={current.sort}
           onOpen={onOpen}
@@ -373,6 +445,7 @@ function ProjectBody({
             ? (name) => { void createSection(projectId, sections.length, name); }
             : undefined}
           addToGroup={(key) => {
+            if (current.group === 'assignee') return () => onAddTaskTo({ projectId, responsibleUid: key === 'none' ? null : key });
             if (current.group === 'day' && key !== 'none') {
               return () => onAddTaskTo({ projectId, date: key });
             }
@@ -393,6 +466,7 @@ function ProjectBody({
               project, not in a section that happens to be called nothing. */}
           <TaskGroup
             items={looseItems}
+            lead={hireNoteOpen ? <HireNote /> : undefined}
             childrenOf={childrenOf}
             onOpen={onOpen}
             showProject={false}
@@ -437,13 +511,14 @@ function ProjectBody({
             slotId={String(sections.length)}
             onAdd={() => void addSection(sections.length)}
           />
-          {scoped.length === 0 && <p className="empty">{t('task.noTasks')}</p>}
         </div>
       ) : current.mode === 'list' && current.group === 'scheduled' ? (
         <div className="mode">
           {quickGroup}
           <TaskGroup
             title={t('section.scheduled')}
+            lead={hireNoteOpen ? <HireNote /> : undefined}
+            keepWhenEmpty={hireNoteOpen}
             items={sorted(pool.filter((i) => i.due !== null))}
             childrenOf={childrenOf}
             onOpen={onOpen}
@@ -458,15 +533,22 @@ function ProjectBody({
             showProject={false}
             onAddTask={() => onAddTaskTo({ projectId })}
           />
-          {scoped.length === 0 && <p className="empty">{t('task.noTasks')}</p>}
+          {/* An empty project says so with the one thing to do about it. */}
+          {scoped.length === 0 && (
+            <button className="addline sectionadd" onClick={() => onAddTaskTo({ projectId })}>
+              <Icon name="plus" size="sm" />
+              {t('nav.addTaskHere')}
+            </button>
+          )}
         </div>
       ) : (
         <ModeSurface
           items={pool}
           lead={quickGroup}
+          firstGroupLead={hireNoteOpen ? <HireNote /> : undefined}
           childrenOf={childrenOf}
           mode={current.mode}
-          wide={current.wide}
+          viewKey={viewKey}
           group={current.group}
           sort={current.sort}
           onOpen={onOpen}
@@ -478,6 +560,7 @@ function ProjectBody({
              no sense on the one page where both halves of the answer are
              known. */
           addToGroup={(key) => {
+            if (current.group === 'assignee') return () => onAddTaskTo({ projectId, responsibleUid: key === 'none' ? null : key });
             if (current.group === 'day' && key !== 'none') {
               return () => onAddTaskTo({ projectId, date: key });
             }

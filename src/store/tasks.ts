@@ -1,10 +1,12 @@
+import { canAssign } from '@/domain/assignees';
 /** Tasks: creating, editing, ticking, recurring, deleting and restoring. */
 import { command, addItem, type Command, completeItem, deleteItem, newUuid, reorderItems, uncompleteItem, updateItem } from '@/api/commands';
 import * as idb from '@/db/idb';
-import { fetchComments, fetchTask, itemFromCompleted } from '@/api/tasks';
+import { fetchComments, fetchTask, itemFromCompleted, setCommentReaction } from '@/api/tasks';
 import { isUncompletable, toTodoistPriority, type Item, type Note, type Snapshot } from '@/domain/types';
 import { canStoreDurations, estimatePatch } from '@/domain/estimates';
 import { toApiDate } from '@/domain/dates';
+import { firstDayOfRule, ruleFromString } from '@/domain/repeatRule';
 import { readTime } from '@/domain/nlp';
 import { translate } from '@/i18n';
 import { byChildOrder, keyBetween, keysInOrder } from '@/domain/orderKey';
@@ -15,7 +17,10 @@ import {
 import type { Slice, TasksSlice } from './types';
 
 /** A subtask created with its parent: a title, and the labels it starts with. */
-interface NewSubtask { content: string; labels?: string[]; estimateMinutes?: number | null }
+interface NewSubtask {
+  content: string; labels?: string[]; estimateMinutes?: number | null;
+  priority?: 1 | 2 | 3 | 4; due?: Item['due'];
+}
 
 /**
  * One task as the screen draws it and the commands that create it.
@@ -82,7 +87,7 @@ function planTask(
     const { subtasks: _ignored, ...parentArgs } = args;
 
     const children = subtasks.map((subtask) => {
-      const { content, labels = [], estimateMinutes: minutes } = typeof subtask === 'string' ? { content: subtask } : subtask;
+      const { content, labels = [], estimateMinutes: minutes, priority, due } = typeof subtask === 'string' ? { content: subtask } as NewSubtask : subtask;
       const patch = minutes === undefined ? { labels } : estimatePatch({ labels }, minutes, storage);
       return {
         tempId: newUuid(),
@@ -91,6 +96,8 @@ function planTask(
           content,
           project_id: parentArgs.project_id,
           parent_id: tempId,
+          ...(priority ? { priority } : {}),
+          ...(due ? { due } : {}),
           ...patch,
         },
       };
@@ -104,8 +111,9 @@ function planTask(
         parent_id: tempId,
         content: String(child.args.content),
         description: '',
-        priority: 1,
-        due: null,
+        responsible_uid: null,
+        priority: (child.args.priority as 1 | 2 | 3 | 4 | undefined) ?? 1,
+        due: provisionalDue(child.args.due as Item['due']),
         deadline: null,
         labels: (child.args.labels as string[] | undefined) ?? [],
         duration: (child.args as Partial<Item>).duration ?? null,
@@ -238,6 +246,84 @@ export const createTasksSlice: Slice<TasksSlice> = (set, get) => ({
       return 'offline';
     }
   },
+  async addComment(itemId, content, attachment = null) {
+    const text = content.trim();
+    if ((!text && !attachment) || !get().snapshot.items[itemId]) return false;
+    const tempId = newUuid();
+    const mapping = await get().apply(
+      [{
+        type: 'note_add', uuid: newUuid(), temp_id: tempId,
+        args: { item_id: itemId, content: text, ...(attachment ? { file_attachment: attachment } : {}) },
+      }],
+      (snapshot) => ({
+        ...snapshot,
+        notes: {
+          ...snapshot.notes,
+          [tempId]: {
+            id: tempId, item_id: itemId, project_id: null, content: text,
+            posted_at: new Date().toISOString(), posted_uid: snapshot.user?.id ?? '',
+            is_deleted: false, file_attachment: attachment,
+          } as Note,
+        },
+      }),
+    );
+    /* A refused comment is taken off the screen (revertRefused): say so to
+       the field, which then gives the words back (#28). */
+    return Boolean(mapping[tempId] || get().snapshot.notes[tempId] || get().snapshot.notes[get().resolvedIds[tempId] ?? '']);
+  },
+  async updateComment(id, content) {
+    const note = get().snapshot.notes[id];
+    const text = content.trim();
+    if (!note || (!text && !note.file_attachment) || text === note.content) return;
+    await get().apply(
+      [command('note_update', { id, content: text })],
+      (snapshot) => ({ ...snapshot, notes: { ...snapshot.notes, [id]: { ...note, content: text } } }),
+    );
+  },
+  async deleteComment(id) {
+    const note = get().snapshot.notes[id];
+    if (!note) return;
+    await get().apply(
+      [command('note_delete', { id })],
+      (snapshot) => ({ ...snapshot, notes: { ...snapshot.notes, [id]: { ...note, is_deleted: true } } }),
+    );
+  },
+  /* Reactions have their own endpoints at Todoist (see `setCommentReaction`): the change shows at once,
+     is sent straight away rather than through the sync queue, and is rolled back with a word if Todoist
+     refuses it or cannot be reached. */
+  async toggleReaction(id, emoji) {
+    const note = get().snapshot.notes[id];
+    const me = get().snapshot.user?.id;
+    if (!note || !me) return;
+    const before = note.reactions ?? null;
+    const reactions = { ...(before ?? {}) };
+    const who = reactions[emoji] ?? [];
+    const on = !who.includes(me);
+    const next = on ? [...who, me] : who.filter((uid) => uid !== me);
+    if (next.length > 0) reactions[emoji] = next;
+    else delete reactions[emoji];
+    const put = (value: Note['reactions']) => set((state) => {
+      const current = state.snapshot.notes[id];
+      if (!current) return {};
+      return { snapshot: { ...state.snapshot, notes: { ...state.snapshot.notes, [id]: { ...current, reactions: value } } } };
+    });
+    put(reactions);
+    if (get().demo) return;
+    try {
+      const saved = await setCommentReaction(get().resolvedIds[id] ?? id, emoji, on);
+      if (saved !== undefined) put(saved);
+    } catch {
+      put(before);
+      get().toast(translate(get().prefs.locale, 'comment.reactionFailed'), undefined, { tone: 'error' });
+    }
+  },
+  async duplicateTask(id) {
+    const { snapshot } = get();
+    const item = snapshot.items[id];
+    if (!item) return;
+    const open = branchOf([id], snapshot.items).filter((entry) => !entry.checked || entry.id === id);
+    await get().restoreTasks(open.map((entry) => ({ ...entry, checked: false, completed_at: null })), []);
+  },
   async updateTask(id, args) {
     const item = get().snapshot.items[id];
     if (!item) return;
@@ -251,23 +337,34 @@ export const createTasksSlice: Slice<TasksSlice> = (set, get) => ({
   /**
    * Gives a task a repeat rule.
    *
-   * Two different objects, deliberately. What goes to Todoist is the rule and
-   * nothing else, because Todoist resolves where the rule lands and a date
-   * sent from here would pin the first occurrence to this device's guess at
-   * it. What goes into the local snapshot has to be a complete due all the
-   * same — every list in the app reads `due.date`, and one without it takes
-   * the page down — so it keeps the date the task is already sitting on until
-   * the sync response arrives with the one the rule really resolves to.
+   * Todoist resolves where the rule lands, but on a task that already has a
+   * date it counts from that date and skips it (#202, checked against the
+   * API): "every day" given to a task due today lands tomorrow, "every sat"
+   * turned into "every mon" lands a week late, and a time changed in the rule
+   * moves the task to the next occurrence. Worse, a rule with "starting …"
+   * sent as an update takes the date away altogether. So:
+   *
+   * - "starting …" never goes in an update; the day it named is the date;
+   * - the first day goes with the rule whenever it is known — worked out by
+   *   the Repeat panel, kept by a time change, or plain enough to predict
+   *   (days, workdays, weekdays) — and Todoist takes it as given;
+   * - otherwise the rule goes alone, as before.
+   *
+   * What goes into the local snapshot has to be a complete due all the same —
+   * every list in the app reads `due.date` — so it is that first day, or the
+   * date the task is already on until the sync response brings the real one.
    */
   async setRecurrence(id, rule) {
     const item = get().snapshot.items[id];
     if (!item) return;
 
-    const due = { string: rule.string, lang: rule.lang, is_recurring: true };
+    const string = withoutStart(rule.string);
+    const date = rule.date ?? predictableFirstDay(rule.string);
+    const due = { string, lang: rule.lang, is_recurring: true, ...(date ? { date } : {}) };
     const local = {
       due: {
         ...due,
-        date: item.due?.date ?? toApiDate(new Date()),
+        date: date ?? item.due?.date ?? toApiDate(new Date()),
         timezone: item.due?.timezone ?? null,
       },
     };
@@ -494,7 +591,7 @@ export const createTasksSlice: Slice<TasksSlice> = (set, get) => ({
     });
   },
   async createTask(args) {
-    await get().createTasks([args]);
+    return get().createTasks([args]);
   },
   /**
    * Several independent tasks, in one request (#152).
@@ -508,17 +605,24 @@ export const createTasksSlice: Slice<TasksSlice> = (set, get) => ({
   async createTasks(list) {
     const commands: Command[] = [];
     const created: Record<string, Item> = {};
+    const requested: string[] = [];
     for (const args of list) {
       const { snapshot } = get();
+      if (typeof args.responsible_uid === 'string' && !canAssign(snapshot, String(args.project_id ?? snapshot.user?.inbox_project_id ?? ''), args.responsible_uid)) {
+        get().toast(translate(get().prefs.locale, 'assignee.invalid'));
+        return false;
+      }
       const planned = planTask({ ...snapshot, items: { ...snapshot.items, ...created } }, args, get().prefs.estimateStorage === 'duration' && canStoreDurations(snapshot.user) ? 'duration' : 'tag');
+      requested.push(Object.keys(planned.items)[0]);
       commands.push(...planned.commands);
       Object.assign(created, planned.items);
     }
-    if (commands.length === 0) return;
-    await get().apply(commands, (current) => ({
+    if (commands.length === 0) return true;
+    const mapping = await get().apply(commands, (current) => ({
       ...current,
       items: { ...current.items, ...created },
     }));
+    return requested.some((id) => Boolean(get().snapshot.items[mapping[id] ?? id]));
   },
   async setTaskLabels(id, labels) {
     await get().updateTask(id, { labels });
@@ -581,3 +685,18 @@ export const createTasksSlice: Slice<TasksSlice> = (set, get) => ({
     });
   },
 });
+
+/* "starting 2026-10-20" / "à partir du 2026-10-20": fine when a task is
+   created, but an update carrying it comes back with no date at all. */
+const withoutStart = (rule: string): string =>
+  rule.replace(/\s+(?:starting|from|à partir du|a partir du)\s+\d{4}-\d{2}-\d{2}/i, '');
+
+/* The first day of a rule typed or chosen without the Repeat panel's own
+   reckoning: only where it is plain (days, workdays, weekdays), counted from
+   the start it names or from today. A month or a year is anchored on a day
+   this cannot know, and is left to Todoist. */
+function predictableFirstDay(rule: string): string | null {
+  const read = ruleFromString(rule);
+  if (!read || read.unit === 'month' || read.unit === 'year') return null;
+  return firstDayOfRule(rule);
+}

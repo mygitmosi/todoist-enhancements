@@ -1,3 +1,6 @@
+import { AssigneeField } from './AssigneeField';
+import { assignees } from '@/domain/sharing';
+import { useProjectPeople } from '@/hooks/useProjectPeople';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
@@ -161,6 +164,8 @@ interface TaskActionsProps {
  */
 export function TaskActions({ item, childrenOf, onOpen, onKeep }: TaskActionsProps) {
   const { t, locale } = useT();
+  const warmPeople = useProjectPeople(item.project_id, false);
+  const assignTask = useStore((state) => state.assignTask);
   const updateTask = useStore((s) => s.updateTask);
   const removeTask = useStore((s) => s.removeTask);
   const skipOccurrence = useStore((s) => s.skipOccurrence);
@@ -232,6 +237,8 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep }: TaskActionsPro
       if (sheetRef.current?.contains(target)) return;
       // The menu is drawn into the document, not into the row (#111).
       if (placement.ref.current?.contains(target)) return;
+      // The date picker's Custom repeat dialog is drawn over everything (#202).
+      if ((target as Element).closest?.('[data-picker-layer], .popover.listbox')) return;
       setMenu('none');
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu('none'); };
@@ -385,11 +392,11 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep }: TaskActionsPro
    * than resolves, so giving it a day takes the tag off — exactly as every
    * other way of dating a task here does.
    */
-  function commitDate(iso: string) {
+  function commitDate(iso: string, how?: { clearTime?: boolean }) {
     setMenu('none');
     const before = { due: item.due, labels: item.labels };
     const update = {
-      due: dueForDate(item.due, iso),
+      due: dueForDate(item.due, iso, 'en', { dropTime: how?.clearTime }),
       labels: item.labels.filter((l) => l.toLowerCase() !== weekLabel().toLowerCase()),
     };
     const patch = (fields: Record<string, unknown>) => (snap: Snapshot): Snapshot => ({
@@ -435,6 +442,26 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep }: TaskActionsPro
       toast(t('task.repeats', { rule: repeat.string }), () => {
         void apply([updateItem(item.id, before)], patch(before));
       });
+    });
+  }
+
+  /**
+   * "Stop repeating", from the picker's Repeat (#202): the occurrence the task
+   * is on becomes its date, once — the same as emptying the rule in the task
+   * panel.
+   */
+  function stopRepeating() {
+    if (!item.due?.is_recurring) return;
+    setMenu('none');
+    const before = { due: item.due };
+    const date = item.due.date;
+    const update = { due: { ...item.due, string: date, is_recurring: false } };
+    const patch = (fields: Record<string, unknown>) => (snap: Snapshot): Snapshot => ({
+      ...snap,
+      items: { ...snap.items, [item.id]: { ...snap.items[item.id], ...fields } as Item },
+    });
+    void apply([updateItem(item.id, update)], patch(update)).then(() => {
+      toast(t('task.repeatStopped'), () => { void apply([updateItem(item.id, before)], patch(before)); });
     });
   }
 
@@ -498,11 +525,17 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep }: TaskActionsPro
             {/* The one date picker (#110): the same field, choices and month
                 as the bulk bar's Date panel and every date field. */}
             <DatePicker
-              value={item.due?.date.slice(0, 10) ?? ''}
+              value={item.due?.date ?? ''}
               label={t('task.schedule')}
               withTime
               onPick={commitDate}
               onRecurrence={commitRecurrence}
+              recurrence={item.due?.is_recurring ? item.due : null}
+              onClearRecurrence={stopRepeating}
+              duration={{
+                minutes: computed ? null : minutes,
+                onChange: (value) => void updateTask(item.id, { estimateMinutes: value }),
+              }}
               onEscape={() => setMenu('none')}
               shortcuts={taskShortcuts(t, locale, {
                 today: () => void moveTo({ kind: 'today' }, t('common.today')),
@@ -598,7 +631,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep }: TaskActionsPro
                     ) : (
                       <span className="hash" style={markerStyle(destination.colour)}>#</span>
                     )}
-                    {destination.label}
+                    <span className="movelabel" title={destination.label}>{destination.label}</span>
                   </span>
                   {/* Only while filtering: in the full list the section sits
                       under its project and saying so twice is noise. */}
@@ -617,7 +650,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep }: TaskActionsPro
             ref={(node) => { placement.ref.current = node; moreKeys.current = node; }}
           >
             <button className="opt" onClick={() => { setMenu('none'); onOpen(item.id); }}>
-              <span><Icon name="edit" size="sm" /> {t('detail.title')}</span>
+              <span><Icon name="edit" size="sm" /> {t('task.edit')}</span>
             </button>
             {/* On a phone this sheet is what holding the row opens, and it has
                 to be the whole of what hovering one would have shown — the
@@ -693,14 +726,19 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep }: TaskActionsPro
   );
 
   return (
-    <span className="trow-actions" ref={ref} onClick={(e) => e.stopPropagation()}>
+    <span className="trow-actions" ref={ref} onPointerEnter={() => void warmPeople()} onClick={(e) => e.stopPropagation()}>
       {menu === 'estimate' && !phone ? (
+        /* Opens empty, with the current duration shown as the placeholder: the
+           point of the field is to type a new one, and Enter on nothing leaves
+           it as it was rather than clearing it. */
         <EstimateField
           autoFocus
-          minutes={computed ? null : minutes}
+          minutes={null}
+          placeholder={!computed && minutes !== null ? formatDuration(minutes, locale) : undefined}
           onCancel={() => setMenu('none')}
           onCommit={(value) => {
             setMenu('none');
+            if (value === null && !computed && minutes !== null) return;
             void updateTask(item.id, { estimateMinutes: value });
           }}
         />
@@ -712,8 +750,8 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep }: TaskActionsPro
               it should be a swipe rather than a trip through the panel. */}
           <button
             className="rowact-wide"
-            aria-label={t('detail.title')}
-            title={t('detail.title')}
+            aria-label={t('task.edit')}
+            title={t('task.edit')}
             onClick={() => onOpen(item.id)}
           >
             <Icon name="edit" size="sm" />
@@ -746,7 +784,13 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep }: TaskActionsPro
         <Icon name="project" size="sm" />
       </button>
 
-      <button
+      {(assignees(snapshot, item.project_id).length > 0 || item.responsible_uid) && (
+        <span className={`row-assignee${item.responsible_uid ? ' assigned' : ''}`}>
+          <AssigneeField projectId={item.project_id} value={item.responsible_uid}
+            onChange={(next) => void assignTask(item.id, next)} iconOnly />
+        </span>
+      )}
+      <button className="row-more"
         aria-label={t('task.moreActions')}
         title={t('task.moreActions')}
         aria-expanded={menu === 'more'}

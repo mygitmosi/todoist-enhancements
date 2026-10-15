@@ -4,6 +4,7 @@ import type {
 } from '@/domain/types';
 import { emptySnapshot } from '@/domain/types';
 import type { Locale } from '@/i18n';
+import { demoFilterRecords } from './demoFilters';
 
 /**
  * A made-up account, so the product can be shown or tried without connecting
@@ -412,7 +413,28 @@ export function buildDemoSnapshot(locale: Locale = 'en', seed = 20260914): Snaps
     projects,
     sections,
     labels,
+    filters: demoFilterRecords(locale),
     workspaces,
+    collaborators: {
+      'demo-alex': { id: 'demo-alex', email: 'alex@demo.test', full_name: 'Alex Martin', image_id: null },
+    },
+    collaboratorStates: [
+      { project_id: 'site', user_id: 'demo-user', state: 'active' },
+      { project_id: 'site', user_id: 'demo-alex', state: 'active' },
+      /* Alex owns "Logement" and shares it: the one demo project that can be left (#35). */
+      { project_id: 'home', user_id: 'demo-alex', state: 'active', role: 'CREATOR' },
+      { project_id: 'home', user_id: 'demo-user', state: 'active', role: 'READ_WRITE' },
+    ],
+    notifications: {
+      'demo-n1': {
+        id: 'demo-n1', notification_type: 'item_assigned', from_uid: 'demo-alex', project_id: 'site',
+        is_unread: true, created_at: new Date(Date.now() - 3_600_000).toISOString(),
+      },
+      'demo-n2': {
+        id: 'demo-n2', notification_type: 'note_added', from_uid: 'demo-alex', project_id: 'site',
+        is_unread: false, created_at: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+      },
+    },
     user,
     syncToken: 'demo',
     syncedAt: Date.now(),

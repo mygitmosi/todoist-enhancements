@@ -1,7 +1,10 @@
+import { InsightsButton } from '@/components/InsightsButton';
+import { HireNote } from '@/components/HireNote';
 import { useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { SubtasksProvider } from '@/components/TaskRow';
 import { DisplayMenu } from '@/components/DisplayMenu';
+import { PageMenu } from '@/components/PageMenu';
 import { TaskGroup } from '@/components/TaskGroup';
 import { ModeSurface } from '@/components/ModeSurface';
 import { Icon } from '@/components/Icon';
@@ -11,8 +14,9 @@ import type { TaskPlacement } from '@/domain/dnd';
 import { useData } from '@/hooks/useData';
 import { useStore } from '@/store/store';
 import { viewPrefs } from '@/store/prefs';
-import { applyFilters, rootItems, sortItems } from '@/store/selectors';
+import { applyFilters, datedRoots, sortItems } from '@/store/selectors';
 import { upcomingItems } from '@/domain/views';
+import { projectOccurrences } from '@/domain/projectOccurrences';
 import type { GroupKey } from '@/domain/types';
 import { summariseLoad } from '@/domain/load';
 import { dueDate, daysBetween, formatRelativeDay, toApiDate } from '@/domain/dates';
@@ -21,7 +25,7 @@ import { addDays, startOfDay } from 'date-fns';
 interface UpcomingViewProps {
   onOpen: (id: string) => void;
   onInsights: () => void;
-  onUnestimated: () => void;
+  onUnestimated: (items?: import('@/domain/types').Item[]) => void;
   onAddTaskTo: (placement: TaskPlacement) => void;
 }
 
@@ -36,9 +40,11 @@ const UPCOMING_GROUPS: GroupKey[] = ['day', 'week', 'month'];
  */
 function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: UpcomingViewProps) {
   const { t, locale } = useT();
-  const { snapshot, items, childrenOf } = useData();
+  const { snapshot, items, childrenOf: sourceChildrenOf } = useData('upcoming');
   const prefs = useStore((s) => s.prefs);
+  const setPrefs = useStore((s) => s.setPrefs);
   const current = viewPrefs(prefs, 'upcoming');
+  const hireNoteOpen = useStore((s) => s.hireNote);
   /* Upcoming answers "when?", so it only groups by time: a day (the
      default), a week or a month. A grouping saved before this (project,
      priority, tag, none) reads as days (#98). */
@@ -48,16 +54,20 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
      by itself, so the range never lags behind the tasks it lets in (#146). */
   const today = useToday();
 
-  const scoped = useMemo(() => {
-    const roots = rootItems(items);
-    const future = upcomingItems(roots);
+  const forecasts = useMemo(() => projectOccurrences(datedRoots(items, snapshot), addDays(today, 1), startOfDay(addDays(today, horizon))), [items, today, horizon, snapshot]);
+  const pool = forecasts.items;
+  const sources = useMemo(() => new Map(pool.filter((item) => item.projection).map((item) => [item.id, item.projection!.sourceId])), [pool]);
+  const childrenOf = useMemo(() => (id: string) => sourceChildrenOf(sources.get(id) ?? id), [sources, sourceChildrenOf]);
+  const scoped = useMemo(
+    () => applyFilters(pool, { ...current.filters, includeScheduled: true }, snapshot, childrenOf),
+    [pool, current.filters, snapshot, childrenOf],
+  );
+
+  const hasMoreFuture = useMemo(() => {
+    const beyond = applyFilters(upcomingItems(datedRoots(items, snapshot)), { ...current.filters, includeScheduled: true }, snapshot, childrenOf);
     const limit = startOfDay(addDays(today, horizon));
-    const withinHorizon = future.filter((item) => {
-      const d = dueDate(item);
-      return d !== null && startOfDay(d) <= limit;
-    });
-    return applyFilters(withinHorizon, current.filters, snapshot, childrenOf);
-  }, [items, today, horizon, current.filters, snapshot, childrenOf]);
+    return beyond.some((item) => { const day = dueDate(item); return day !== null && startOfDay(day) > limit; });
+  }, [items, snapshot, current.filters, childrenOf, today, horizon]);
 
   // Upcoming spans many days, so a single capacity percentage would be
   // meaningless here. The header shows counts and time only.
@@ -94,26 +104,38 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
     }))
     .filter((column) => column.items.length > 0 || current.mode === 'board');
 
+  /* Hosted by the first day of the list, when the page is that list; under the header otherwise. */
+  const hireInList = current.mode === 'list' && (group !== 'day' || columns.length > 0);
 
   return (
     <div className="page">
       <PageHeader
+        hireNote={!hireInList}
         title={t('nav.upcoming')}
         actions={
           <>
             <DisplayMenu
+              pageItems={pool}
               viewKey="upcoming"
               modes={['list', 'board']}
               groups={UPCOMING_GROUPS}
             />
-            <button className="btn accent" onClick={onInsights}>
-              <Icon name="trend" />
-              {t('toolbar.insights')}
-            </button>
+            <InsightsButton onClick={onInsights} />
+            <PageMenu
+              items={[7, 15, 30, 60].map((days) => ({
+                key: `h${days}`,
+                label: t('upcoming.horizon', { days }),
+                checked: horizon === days,
+                onPick: () => { setHorizon(days); setPrefs({ upcomingHorizonDays: days }); },
+              }))}
+            />
           </>
         }
         load={load}
-        onOpenUnestimated={load.unestimatedCount > 0 ? onUnestimated : undefined}
+        onOpenUnestimated={load.unestimatedCount > 0 ? () => {
+          const ids = new Set(scoped.map((item) => item.projection?.sourceId ?? item.id));
+          onUnestimated(items.filter((item) => ids.has(item.id)));
+        } : undefined}
       />
 
 
@@ -124,7 +146,7 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
           items={scoped}
           childrenOf={childrenOf}
           mode={current.mode === 'board' ? 'board' : 'list'}
-          wide={current.wide}
+          firstGroupLead={hireNoteOpen ? <HireNote /> : undefined}
           group={group}
           sort={current.sort}
           order="day"
@@ -135,7 +157,6 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
           items={scoped}
           childrenOf={childrenOf}
           mode="board"
-          wide={current.wide}
           group="day"
           sort={current.sort}
           order="day"
@@ -144,9 +165,11 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
         />
       ) : (
         <div className="mode">
-          {columns.map((column) => (
+          {columns.map((column, index) => (
             <TaskGroup
               key={column.id}
+              lead={index === 0 && hireNoteOpen ? <HireNote /> : undefined}
+              keepWhenEmpty={index === 0 && hireNoteOpen}
               title={column.title}
               items={column.items}
               childrenOf={childrenOf}
@@ -162,10 +185,19 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
       )}
 
       <div style={{ marginTop: 'var(--s5)', display: 'flex', justifyContent: 'center' }}>
-        <button className="btn" onClick={() => setHorizon((h) => h + 15)}>
-          <Icon name="caret" />
-          {t('nav.upcoming')} +15
-        </button>
+        <div className="upcoming-extend">
+          <p className="psub" aria-live="polite">{t('upcoming.visibleThrough', {
+            date: new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', year: 'numeric' }).format(addDays(today, horizon)),
+          })}</p>
+          {hasMoreFuture && <button className="btn" onClick={() => {
+            const next = horizon + 15;
+            setHorizon(next);
+            setPrefs({ upcomingHorizonDays: next });
+          }}>
+            <Icon name="caret" />
+            {t('upcoming.extend')}
+          </button>}
+        </div>
       </div>
     </div>
   );

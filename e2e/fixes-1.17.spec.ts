@@ -110,7 +110,7 @@ test('#146 Upcoming moves its range on at midnight, without leaving the page', a
 
   await go(page, '#/upcoming');
   await page.getByRole('button', { name: 'Display' }).click();
-  await page.getByRole('button', { name: 'Board' }).first().click();
+  await page.getByRole('button', { name: 'Board', exact: true }).first().click();
   await page.keyboard.press('Escape');
 
   const heads = page.locator('.screen.active .board .col .chead strong');
@@ -264,33 +264,33 @@ test('#130 in the demo, ticking a daily 14:00 task brings it back tomorrow at 14
    `demo` fixture opens the demo itself and fails on anything logged. */
 bare('#128 with site storage blocked, the connect screen appears and the demo still opens', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('onboarded', JSON.stringify(['demo-user']));
+    localStorage.setItem('skipSetup', '1');
     Object.defineProperty(window, 'sessionStorage', {
       get() { throw new DOMException('The operation is insecure.', 'SecurityError'); },
     });
   });
   await page.goto('/');
   // Not stuck on "Loading…": the connect screen is there.
-  const signIn = page.getByRole('button', { name: 'Continue with Todoist' });
+  const signIn = page.getByRole('button', { name: 'Connect with Todoist' });
   await expect(signIn).toBeVisible();
 
   // Signing in cannot come back without storage: it says so, and stays.
   await signIn.click();
   await expect(page.getByRole('alert')).toContainText("blocking this site's storage");
-  await expect(page).toHaveURL(/localhost/);
+  await expect(page).toHaveURL(/localhost|127\.0\.0\.1/);
   await expect(signIn).toBeEnabled();
 
   // The demo still opens (it is only not remembered on reload).
-  await page.getByRole('button', { name: 'Explore with demo data instead' }).click();
+  await page.getByRole('button', { name: 'Explore with demo data' }).click();
   await expect(page.locator('.screen.active [data-task-id]').first()).toBeVisible();
 });
 
 bare('#128 a crash while drawing shows a message and a Reload button, not a white page', async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem('onboarded', JSON.stringify(['demo-user']));
+    localStorage.setItem('skipSetup', '1');
   });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Explore with demo data instead' }).click();
+  await page.getByRole('button', { name: 'Explore with demo data' }).click();
   await expect(page.locator('.screen.active [data-task-id]').first()).toBeVisible();
 
   // Something in the page breaks while it is being drawn.
@@ -349,17 +349,20 @@ test('#140 every toast has a close button; closing one keeps its undo, and plain
 
 test('#130 follow-up: a task typed with "every day at 3pm" shows Today 15:00', async ({ demo: page }) => {
   await page.keyboard.press('q');
-  await page.locator('.composer-name').fill('Water the plants every day at 3pm');
+  /* Not "Water the plants": the demo seeds a task of that name, due today on a
+     Monday, and the row found first was that one rather than the new task. */
+  await page.locator('.composer-name').fill('Feed the cat every day at 3pm');
   await page.keyboard.press('ControlOrMeta+Enter');
   await expect(page.locator('.composerbox')).toHaveCount(0);
   await go(page, '#/week');
-  await expect(row(page, 'Water the plants')).toContainText('15:00');
+  await expect(row(page, 'Feed the cat')).toContainText('15:00');
 });
 
 test('#135 follow-up: @@link0@@ typed in the composer stays text, with no tag', async ({ demo: page }) => {
   await page.keyboard.press('q');
   await page.locator('.composer-name').fill('Fill @@link0@@ in');
-  await expect(page.locator('.composer-chips .tagchip')).toHaveCount(0);
+  // My week's own label is there (Q takes the page's context); no tag is read from the name.
+  await expect(page.locator('.composer-chips .tagchip', { hasText: 'link0' })).toHaveCount(0);
   await expect(page.locator('.namefield .nmark.label')).toHaveCount(0);
   await page.keyboard.press('ControlOrMeta+Enter');
   await expect(page.locator('.composerbox')).toHaveCount(0);
@@ -370,7 +373,7 @@ test('#135 follow-up: @@link0@@ typed in the composer stays text, with no tag', 
 test('the changelog lists every release\'s lines from the most visible to the least (#148)', async ({ demo: page }) => {
   await page.route('https://github.com/**', (route) => route.fulfill({ status: 204 }));
   await go(page, '#/settings');
-  await page.getByRole('button', { name: 'See the changes' }).click();
+  await page.getByRole('button', { name: 'Changelog' }).click();
   const dialog = page.getByRole('dialog', { name: 'Changelog' });
   const releases = dialog.locator('.whatsnew-release');
   await expect(releases.first()).toBeVisible();

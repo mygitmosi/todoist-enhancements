@@ -1,3 +1,4 @@
+import { clearProjectPeopleCache } from './collab';
 /** Talking to Todoist: signing in and out, reading, writing, the offline queue, the demo. */
 import { verifyEstimateWrites } from './estimate-safety';
 import { auth } from '@/api/auth';
@@ -11,6 +12,7 @@ import { readKept } from '@/domain/views';
 import { detectLocale, translate } from '@/i18n';
 import { buildDemoSnapshot } from '@/demo/demoData';
 import { sessionGet, sessionRemove, sessionSet } from '@/lib/sessionStore';
+import { forgetDemoOnboarding } from '@/domain/onboarding';
 import { defaultPreferences, hydratePreferences, type Preferences } from './prefs';
 import {
   explainFailures, hidePending, partitionQueue, pendingDeletes, revertRefused, schedulePersist,
@@ -228,6 +230,9 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
   startDemo() {
     // Remembered for a reload when the browser allows it, and still opened when not.
     sessionSet('demo', '1');
+    /* Every entry from the sign-in page is a first run (#6); a reload is not,
+       since init() restores the demo without passing here. */
+    forgetDemoOnboarding();
     set({
       demo: true,
       connected: true,
@@ -238,6 +243,7 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
     });
   },
   async disconnect() {
+    clearProjectPeopleCache();
     sessionRemove('demo');
     await auth.disconnect();
     await idb.clearAll();
@@ -282,9 +288,13 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
         stale = await flushQueue(get, set);
       }
 
-      const fromScratch = signedIn ? stale : (full || stale);
+      /* A snapshot saved before filters were read has none, and an
+         incremental read only carries what changed since: it would never
+         bring the filters that already existed. One full read fills them. */
+      const missingFilters = !get().snapshot.filters;
+      const fromScratch = signedIn ? stale : (full || stale || missingFilters);
       const token = fromScratch ? '*' : get().snapshot.syncToken;
-      const response = await sync(token);
+      const response = await sync(token, undefined, get().snapshot.workspaces);
       const snapshot = applySync(fromScratch ? emptySnapshot() : get().snapshot, response);
       const canonical = preferencesWriteTimer
         ? null
@@ -345,8 +355,10 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
     const before = get().snapshot;
     const after = optimistic(before);
 
-    if (get().demo) {
-      // A demo account is a sandbox: changes show, and stop there.
+    /* A demo account is a sandbox, and so is the tour, which plays on the
+       demo's tasks even for a real account (#4): changes show, and stop
+       there — nothing is sent or queued with the demo's ids. */
+    if (get().demo || tourSnapshotBackup) {
       set({ snapshot: after });
       return {};
     }
@@ -371,6 +383,12 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
          a word is indistinguishable from a click that never registered. */
       if (result.failures.length > 0) {
         merged = revertRefused(merged, before, commands, result.failures);
+        /* In development, the refused commands and Todoist's full answer, to
+           diagnose a refusal on a real account (#28). */
+        if (import.meta.env.DEV) {
+          const refused = new Set(result.failures.map((failure) => failure.uuid));
+          console.warn('[todoist] refused', commands.filter((cmd) => refused.has(cmd.uuid)), result.failures);
+        }
       }
 
       set({

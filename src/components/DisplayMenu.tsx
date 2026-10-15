@@ -1,8 +1,12 @@
-import { CreateTagInput } from './CreateTagInput';
-import { useEffect, useRef, useState } from 'react';
+import { ME, UNASSIGNED } from '@/domain/assignees';
+import { AssigneeFilter } from './AssigneeFilter';
+import { WorkspaceFilter } from './WorkspaceFilter';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, type IconName } from './Icon';
 import { Select } from './Select';
+import { DetailsEditor } from './DetailsEditor';
 import { useT } from '@/hooks/useT';
+import { useData } from '@/hooks/useData';
 import { useStore } from '@/store/store';
 import { viewPrefs } from '@/store/prefs';
 import { countActiveFilters, PERSONAL_WORKSPACE } from '@/store/selectors';
@@ -11,6 +15,7 @@ import {
   type GroupKey, type SortKey,
 } from '@/domain/types';
 import { markerStyle } from '@/domain/colors';
+import type { Item } from '@/domain/types';
 import type { TranslationKey } from '@/i18n';
 
 interface DisplayMenuProps {
@@ -25,12 +30,30 @@ interface DisplayMenuProps {
    * narrow. Everywhere else draws from more than one project and keeps it.
    */
   showWorkspaces?: boolean;
+  /**
+   * The tasks this page draws before any display filter is applied. The tag
+   * filter offers the tags found on them, and nothing else: a tag no task here
+   * carries cannot narrow anything. Left out, every tag is offered.
+   */
+  pageItems?: Item[];
 }
 
 const MODE_ICON: Record<DisplayMode, IconName> = {
   list: 'list',
   board: 'board',
   focus: 'stack',
+};
+
+/** An icon for every grouping and sort, so the list reads at a glance. */
+const GROUP_ICON: Partial<Record<GroupKey, IconName>> = {
+  none: 'list', scheduled: 'calendar', day: 'calendar', week: 'week', month: 'calendar',
+  assignee: 'user', workspace: 'project', project: 'project', section: 'section', priority: 'flag',
+  label: 'tag', estimate: 'clock',
+};
+const SORT_ICON: Record<SortKey, IconName> = {
+  assignee: 'user',
+  manual: 'drag', priority: 'flag', due: 'calendar', 'added-desc': 'sort', 'added-asc': 'sort',
+  alphabetical: 'sort', 'estimate-asc': 'clock', 'estimate-desc': 'clock', label: 'tag',
 };
 
 /**
@@ -41,8 +64,9 @@ const MODE_ICON: Record<DisplayMode, IconName> = {
  * button says how many choices differ from the defaults.
  */
 export function DisplayMenu({
-  viewKey, modes, groups, completedToggle = false, showWorkspaces = true,
+  viewKey, modes, groups, completedToggle = false, showWorkspaces = true, pageItems,
 }: DisplayMenuProps) {
+  const { childrenOf } = useData();
   const { t } = useT();
   const prefs = useStore((s) => s.prefs);
   const setViewPrefs = useStore((s) => s.setViewPrefs);
@@ -52,6 +76,8 @@ export function DisplayMenu({
      and the reset both mean "back to how this view starts", and a view that
      starts grouped by project has to be able to say so. */
   const base = defaultViewPrefs(viewKey);
+  const scheduledToggle = viewKey !== 'today' && viewKey !== 'upcoming';
+  const scheduledLabel = viewKey === 'week' ? 'filter.showToday' : 'filter.includeScheduled';
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -70,6 +96,7 @@ export function DisplayMenu({
   }, [open]);
 
   const sorts: SortKey[] = [
+    ...(viewKey.startsWith('project:') ? ['assignee' as const] : []),
     'manual', 'priority', 'due', 'added-desc', 'added-asc', 'alphabetical',
     'estimate-asc', 'estimate-desc', 'label',
   ];
@@ -80,13 +107,34 @@ export function DisplayMenu({
   /* How many settings narrow or reorder this view beyond its defaults. List
      or board, and a board's width, are how the page is drawn, not a filter
      on what it shows: they are visible at a glance and do not count. */
+  const workspaceIds = [PERSONAL_WORKSPACE, ...Object.keys(snapshot.workspaces)];
+  const allWorkspaces = workspaceIds.every((id) => current.filters.workspaces.includes(id));
+  const assigneeIds = new Set([ME, UNASSIGNED, ...Object.keys(snapshot.collaborators), ...Object.values(snapshot.items).flatMap((item) => item.responsible_uid ? [item.responsible_uid] : [])]);
+  assigneeIds.delete(snapshot.user?.id ?? '');
+  const allAssignees = current.filters.assignees != null && [...assigneeIds].every((id) => current.filters.assignees!.includes(id));
   const changed =
-    countActiveFilters(current.filters) +
+    countActiveFilters(scheduledToggle ? current.filters : { ...current.filters, includeScheduled: true }) - Number(allWorkspaces && current.filters.workspaces.length > 0) - Number(current.filters.assignees != null)
+      + Number(JSON.stringify(allAssignees && base.filters.assignees == null ? null : current.filters.assignees) !== JSON.stringify(base.filters.assignees)) +
     (shownGroup !== base.group ? 1 : 0) +
     (current.sort !== base.sort ? 1 : 0);
 
-  const tags = Object.values(snapshot.labels).filter((l) => !l.name.startsWith('est-'));
-  const workspaces = Object.values(snapshot.workspaces);
+  /* The tags this page has: those on its tasks and on their subtasks, plus any
+     already chosen, so a filter that no longer matches anything can still be
+     turned off. */
+  const tags = useMemo(() => {
+    const all = Object.values(snapshot.labels).filter((l) => !l.name.startsWith('est-'));
+    if (!pageItems) return all;
+    const used = new Set<string>(current.filters.labels.map((name) => name.toLowerCase()));
+    const seen = new Set<string>();
+    const walk = (item: Item) => {
+      if (seen.has(item.id)) return;
+      seen.add(item.id);
+      for (const name of item.labels) used.add(name.toLowerCase());
+      for (const child of childrenOf(item.id)) walk(child);
+    };
+    pageItems.forEach(walk);
+    return all.filter((l) => used.has(l.name.toLowerCase()));
+  }, [snapshot.labels, pageItems, childrenOf, current.filters.labels]);
 
   const toggleIn = <T,>(list: T[], value: T): T[] =>
     list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
@@ -110,7 +158,7 @@ export function DisplayMenu({
       {open && (
         <div className="popover displaypanel" role="dialog" aria-label={t('toolbar.display')}>
           <div className="panelhead">
-            <h5>{t('toolbar.presentation')}</h5>
+            <h5>{t('toolbar.display')}</h5>
             <button
               className="resetbtn"
               onClick={() => setViewPrefs(viewKey, base)}
@@ -133,21 +181,6 @@ export function DisplayMenu({
             ))}
           </div>
 
-          {/* A board opens at the width of the header above it, the way a
-              list does; this widens it to the whole page (#108 follow-up). */}
-          {current.mode === 'board' && (
-            <div className="panelrow">
-              <span>{t('toolbar.fullWidth')}</span>
-              <button
-                className="switch"
-                role="switch"
-                aria-checked={current.wide === true}
-                aria-label={t('toolbar.fullWidth')}
-                onClick={() => setViewPrefs(viewKey, { wide: !current.wide })}
-              />
-            </div>
-          )}
-
           {/* Two questions, two selects, drawn the way every other select in
               the app is drawn. */}
           <div className="panelgrid">
@@ -158,6 +191,7 @@ export function DisplayMenu({
               options={groups.map((group) => ({
                 value: group,
                 label: t(`group.${group}` as TranslationKey),
+                icon: GROUP_ICON[group],
               }))}
             />
             <Select
@@ -167,6 +201,7 @@ export function DisplayMenu({
               options={sorts.map((sort) => ({
                 value: sort,
                 label: t(`sort.${sort}` as TranslationKey),
+                icon: SORT_ICON[sort],
               }))}
             />
           </div>
@@ -175,6 +210,8 @@ export function DisplayMenu({
 
           {/* Filters are toggles you can see the state of at a glance, rather
               than a column of checkboxes to read one by one. */}
+          {showWorkspaces && <WorkspaceFilter viewKey={viewKey} />}
+          <AssigneeFilter viewKey={viewKey} />
           <h5>{t('filter.priorities')}</h5>
           <div className="chiprow">
             {([1, 2, 3, 4] as const).map((p) => (
@@ -191,26 +228,6 @@ export function DisplayMenu({
               </button>
             ))}
           </div>
-
-          {(
-            <>
-              <h5>{t('filter.labels')}</h5>
-              <div className="chiprow scroll">
-                {tags.map((label) => (
-                  <button
-                    key={label.id}
-                    className="chip"
-                    aria-pressed={current.filters.labels.includes(label.name)}
-                    onClick={() => setFilters({ labels: toggleIn(current.filters.labels, label.name) })}
-                  >
-                    <Icon name="tag" size="sm" className="taglabel" style={markerStyle(label.color, false)} />
-                    {label.name}
-                  </button>
-                ))}
-              </div>
-              <CreateTagInput onCreated={(name) => setFilters({ labels: [...new Set([...current.filters.labels, name])] })} />
-            </>
-          )}
 
           <h5>{t('filter.estimated')}</h5>
           <div className="segmented small">
@@ -231,51 +248,19 @@ export function DisplayMenu({
             ))}
           </div>
 
-          {/* "My projects" isn't a workspace Todoist hands back — it's the
-              absence of one — so there is nothing to offer this against
-              until the account has added a real one. From that point on
-              there are always at least two places a task can be: personal,
-              or that workspace. */}
-          {showWorkspaces && workspaces.length > 0 && (
-            <>
-              <h5>{t('filter.workspaces')}</h5>
-              <div className="segmented small">
-                <button
-                  aria-pressed={current.filters.workspaces.length === 0}
-                  onClick={() => setFilters({ workspaces: [] })}
-                >
-                  <small>{t('filter.any')}</small>
-                </button>
-                <button
-                  aria-pressed={current.filters.workspaces[0] === PERSONAL_WORKSPACE}
-                  onClick={() => setFilters({ workspaces: [PERSONAL_WORKSPACE] })}
-                >
-                  <small>{t('nav.myProjects')}</small>
-                </button>
-                {workspaces.map((workspace) => (
-                  <button
-                    key={workspace.id}
-                    aria-pressed={current.filters.workspaces[0] === workspace.id}
-                    onClick={() => setFilters({ workspaces: [workspace.id] })}
-                  >
-                    <small>{workspace.name}</small>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
 
           <hr />
-          <div className="panelrow">
-            <span>{t('filter.includeScheduled')}</span>
+          <div className="display-toggles">
+          {scheduledToggle && <div className="panelrow">
+            <span>{t(scheduledLabel)}</span>
             <button
               className="switch"
               role="switch"
               aria-checked={current.filters.includeScheduled}
-              aria-label={t('filter.includeScheduled')}
+              aria-label={t(scheduledLabel)}
               onClick={() => setFilters({ includeScheduled: !current.filters.includeScheduled })}
             />
-          </div>
+          </div>}
           <div className="panelrow">
             <span>{t('filter.showSubtasks')}</span>
             <button
@@ -298,6 +283,32 @@ export function DisplayMenu({
               />
             </div>
           )}
+
+          </div>
+          {tags.length > 0 && <hr />}
+          {tags.length > 0 && <>
+              <h5>{t('filter.labels')}</h5>
+              <div className="chiprow scroll">
+                {tags.map((label) => (
+                  <button
+                    key={label.id}
+                    className="chip"
+                    aria-pressed={current.filters.labels.includes(label.name)}
+                    onClick={() => setFilters({ labels: toggleIn(current.filters.labels, label.name) })}
+                  >
+                    <Icon name="tag" size="sm" className="taglabel" style={markerStyle(label.color, false)} />
+                    {label.name}
+                  </button>
+                ))}
+              </div>
+          </>}
+
+
+          <hr />
+          {/* The one setting here that is not about this page: what every task
+              row shows, and in what order. It says so, and Reset all leaves it. */}
+          <h5>{t('details.title')} <em className="global">{t('details.global')}</em></h5>
+          <DetailsEditor />
         </div>
       )}
     </div>

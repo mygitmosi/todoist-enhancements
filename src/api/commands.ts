@@ -129,7 +129,7 @@ export async function sendCommands(
         method: 'POST',
         form: {
           sync_token: token,
-          resource_types: JSON.stringify(['items', 'projects', 'sections', 'labels', 'notes', 'project_notes']),
+          resource_types: JSON.stringify(['items', 'projects', 'sections', 'labels', 'notes', 'project_notes', 'filters']),
           commands: JSON.stringify(batch.map(({ estimateMinutes: _estimate, ...cmd }) => cmd)),
         },
       });

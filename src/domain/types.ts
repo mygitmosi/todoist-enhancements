@@ -33,6 +33,8 @@ export interface TodoistDuration {
 }
 
 export interface Item {
+  /** A local, read-only future occurrence; never persisted or sent to Todoist. */
+  projection?: { sourceId: string; date: string };
   id: string;
   user_id: string;
   project_id: string;
@@ -59,7 +61,21 @@ export interface Item {
   note_count?: number;
 }
 
+/** Native Todoist team folder, distinct from a project. */
+export interface Folder {
+  id: string;
+  name: string;
+  workspace_id: string;
+  child_order: number;
+  default_order?: number;
+  default_order_key?: string | null;
+  is_deleted?: boolean;
+}
+
 export interface Project {
+  is_shared?: boolean;
+  shared?: boolean;
+  can_assign_tasks?: boolean;
   id: string;
   name: string;
   description?: string;
@@ -74,7 +90,15 @@ export interface Project {
   inbox_project?: boolean;
   view_style?: string;
   workspace_id?: string | null;
-  /** Todoist folders are projects that hold others rather than tasks. */
+  /**
+   * Who can reach the project. `visibility` is `restricted`, `team` or `public`
+   * as far as Todoist documents it; any other value is kept and shown as it comes.
+   */
+  access?: { visibility?: string; configuration?: Record<string, unknown> } | null;
+  /** What the signed-in user is in this project: `CREATOR`, `ADMIN`, `READ_WRITE`… */
+  role?: string;
+  folder_id?: string | null;
+  /** Legacy/demo folder represented as a project. */
   is_folder?: boolean;
   collapsed?: boolean;
 }
@@ -103,10 +127,47 @@ export interface Label {
   is_favorite: boolean;
 }
 
+/**
+ * A saved Todoist filter: a named query such as `today & p1`.
+ *
+ * The app never evaluates the query itself. Todoist does, through
+ * `GET /tasks/filter`, so every operator and every language Todoist accepts
+ * works here too.
+ */
+export interface Filter {
+  id: string;
+  name: string;
+  query: string;
+  /** Markdown; empty or absent when the filter has none. */
+  description?: string;
+  color: string;
+  item_order: number;
+  /** Fractional-indexing position among filters; null until migrated. */
+  order_key?: string | null;
+  is_deleted: boolean;
+  is_favorite: boolean;
+  /** Left over from a cancelled plan: Todoist refuses any change to it. */
+  is_frozen?: boolean;
+}
+
 export interface Workspace {
+  is_deleted?: boolean;
+  is_archived?: boolean;
   id: string;
   name: string;
   logo_big?: string | null;
+  /** `default_access_level` is what a project gets when its creator does not choose. */
+  properties?: { default_access_level?: string } | null;
+}
+
+/** Who a project is shared with, and whether they have said yes. */
+export interface CollaboratorState {
+  is_deleted?: boolean;
+  project_id: string;
+  user_id: string;
+  /** `active` and `invited` are the ones that matter here; Todoist also reports who declined or left. */
+  state: string;
+  role?: string;
 }
 
 export interface Collaborator {
@@ -114,6 +175,27 @@ export interface Collaborator {
   email: string;
   full_name: string;
   image_id: string | null;
+}
+
+/**
+ * One of Todoist's own notifications (a share invitation, a task assigned to
+ * you, a comment…). Todoist's list of kinds is not documented and was not
+ * read from a real account, so only the fields every kind seems to carry are
+ * typed and everything else is read defensively (domain/notifications.ts).
+ */
+export interface LiveNotification {
+  id: string;
+  notification_type?: string;
+  created_at?: string;
+  created?: string;
+  is_unread?: boolean;
+  is_deleted?: boolean;
+  from_uid?: string;
+  project_id?: string;
+  item_id?: string;
+  invitation_id?: string;
+  invitation_secret?: string;
+  [extra: string]: unknown;
 }
 
 export interface Note {
@@ -124,12 +206,21 @@ export interface Note {
   posted_at: string;
   posted_uid: string;
   is_deleted: boolean;
-  file_attachment: {
-    file_name?: string;
-    file_type?: string;
-    file_url?: string;
-    file_size?: number;
-  } | null;
+  file_attachment: NoteAttachment | null;
+  /** Who reacted with which emoji. Todoist keeps these on the comment itself. */
+  reactions?: Record<string, string[]> | null;
+}
+
+/** A file kept with a comment: uploaded to Todoist first, then linked. */
+export interface NoteAttachment {
+  file_name?: string;
+  file_type?: string;
+  file_url?: string;
+  file_size?: number;
+  resource_type?: string;
+  upload_state?: string;
+  /** Todoist's thumbnail of an image, when it made one. */
+  image?: string;
 }
 
 export interface Reminder {
@@ -159,6 +250,7 @@ export interface TodoistUser {
 
 /** A completed task as returned by the completed-tasks endpoints. */
 export interface CompletedItem {
+  responsible_uid?: string | null;
   id: string;
   task_id?: string;
   user_id: string;
@@ -175,12 +267,19 @@ export interface CompletedItem {
 
 /** Everything the app keeps about the account, kept in memory and mirrored to IndexedDB. */
 export interface Snapshot {
+  /** Optional for snapshots saved before native team folders were supported. */
+  folders?: Record<string, Folder>;
   items: Record<string, Item>;
   projects: Record<string, Project>;
   sections: Record<string, Section>;
   labels: Record<string, Label>;
+  /** Absent in a snapshot saved before filters were read (2.2). */
+  filters?: Record<string, Filter>;
   workspaces: Record<string, Workspace>;
   collaborators: Record<string, Collaborator>;
+  /** Absent in a snapshot saved before 2.0. */
+  notifications?: Record<string, LiveNotification>;
+  collaboratorStates?: CollaboratorState[];
   notes: Record<string, Note>;
   reminders: Record<string, Reminder>;
   user: TodoistUser | null;
@@ -275,12 +374,18 @@ export type ViewId =
   | 'project'
   | 'label'
   | 'labels'
+  /** One saved filter, by id. */
+  | 'filter'
+  /** Every saved filter, to open or star. */
+  | 'filters'
   | 'matrix'
-  | 'insights';
+  | 'insights'
+  | 'search';
 
 export type DisplayMode = 'list' | 'board' | 'focus';
 
 export type GroupKey =
+  | 'assignee'
   /** What the page groups by when the user has chosen nothing: sections in a
    *  project, the fixed week layout in My week, flat elsewhere. */
   | 'none'
@@ -296,6 +401,7 @@ export type GroupKey =
   | 'estimate';
 
 export type SortKey =
+  | 'assignee'
   | 'manual'
   | 'priority'
   | 'due'
@@ -307,6 +413,8 @@ export type SortKey =
   | 'label';
 
 export interface ViewFilters {
+  /** null = everyone, [] = nobody; @me and @unassigned are stable account-relative tokens. */
+  assignees?: string[] | null;
   workspaces: string[];
   projects: string[];
   labels: string[];
@@ -319,7 +427,9 @@ export interface ViewFilters {
   showCompleted: boolean;
 }
 
-export const defaultFilters = (): ViewFilters => ({
+export const defaultFilters = (viewKey?: string): ViewFilters => ({
+  assignees: viewKey && !viewKey.startsWith('project:') && !viewKey.startsWith('filter:')
+    ? ['@me', '@unassigned'] : null,
   workspaces: [],
   projects: [],
   labels: [],
@@ -335,12 +445,6 @@ export interface ViewPrefs {
   group: GroupKey;
   sort: SortKey;
   filters: ViewFilters;
-  /**
-   * A board as wide as the page, rather than as wide as the header above it
-   * (#108 follow-up). Off by default: a board opens at the width of a list,
-   * and the Display control widens it for a page that wants the room.
-   */
-  wide?: boolean;
 }
 
 /**
@@ -376,5 +480,5 @@ export const defaultViewPrefs = (viewKey?: string): ViewPrefs => ({
   /* Upcoming is read in time order: by date (then Todoist's own order within
      a day) inside each day, week or month (#98). */
   sort: viewKey === 'upcoming' ? 'due' : 'priority',
-  filters: defaultFilters(),
+  filters: defaultFilters(viewKey),
 });

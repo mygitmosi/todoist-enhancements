@@ -1,3 +1,4 @@
+import { AssigneeBadge } from '../AssigneeBadge';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Overlay } from './Overlay';
 import { Icon, type IconName } from '../Icon';
@@ -5,8 +6,9 @@ import { useT } from '@/hooks/useT';
 import { useData } from '@/hooks/useData';
 import { navigate } from '@/hooks/useRoute';
 import { markerStyle } from '@/domain/colors';
+import { toDisplayPriority } from '@/domain/types';
+import { foldSearch as fold, searchRank } from '@/domain/search';
 import { useStore } from '@/store/store';
-import { bySectionOrder } from '@/domain/orderKey';
 
 interface SearchProps {
   open: boolean;
@@ -22,18 +24,14 @@ interface SearchProps {
   seed?: string;
 }
 
-/** Accents set aside, so "reglages" finds "Réglages". */
-const fold = (text: string): string =>
-  text.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
 /** One row of the result list, whatever kind of thing it points at. */
 interface Hit {
   key: string;
-  heading?: string;
   icon?: IconName;
   marker?: ReactNode;
   title: string;
   detail?: string;
+  assigneeId?: string | null;
   run: () => void;
 }
 
@@ -49,12 +47,13 @@ export function Search({ open, onClose, onOpen, seed = '' }: SearchProps) {
   const { snapshot, items } = useData();
   const includeSections = useStore((s) => s.prefs.includeSectionsInSearch);
   const eisenhowerEnabled = useStore((s) => s.prefs.eisenhowerEnabled);
+  const setPrefs = useStore((s) => s.setPrefs);
   const [query, setQuery] = useState('');
-  const [cursor, setCursor] = useState(0);
+  const [cursor, setCursor] = useState(-1);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (open) { setQuery(seed); setCursor(0); }
+    if (open) { setQuery(seed); setCursor(-1); }
     /* `seed` deliberately left out: it is read at the moment of opening, and
        nothing that changes it afterwards should retype the field under
        somebody's hands. */
@@ -81,12 +80,17 @@ export function Search({ open, onClose, onOpen, seed = '' }: SearchProps) {
         run: go(() => navigate('someday')) },
       { key: 'go-review', icon: 'check', title: t('nav.review'),
         run: go(() => navigate('review')) },
-      ...(eisenhowerEnabled ? [{
-        key: 'go-matrix', icon: 'dashboard' as const, title: t('nav.matrix'),
-        run: go(() => navigate('matrix')),
-      }] : []),
+      /* Always findable: opening it from here turns the page on, rather than
+         hiding it from the one place you would look for it. */
+      { key: 'go-matrix', icon: 'dashboard' as const, title: t('nav.matrix'),
+        run: go(() => {
+          if (!eisenhowerEnabled) setPrefs({ eisenhowerEnabled: true });
+          navigate('matrix');
+        }) },
       { key: 'go-labels', icon: 'tag', title: t('nav.labels'),
         run: go(() => navigate('labels')) },
+      { key: 'go-filters', icon: 'filter', title: t('nav.filters'),
+        run: go(() => navigate('filters')) },
       { key: 'go-dashboard', icon: 'trend', title: t('nav.dashboard'),
         run: go(() => navigate('insights')) },
       { key: 'go-logbook', icon: 'tasks', title: t('insights.logbook'),
@@ -94,59 +98,44 @@ export function Search({ open, onClose, onOpen, seed = '' }: SearchProps) {
       { key: 'go-settings', icon: 'settings', title: t('nav.settings'),
         run: go(() => navigate('settings')) },
     ];
-  }, [t, onClose, eisenhowerEnabled]);
+  }, [t, onClose, eisenhowerEnabled, setPrefs]);
 
   const hits: Hit[] = useMemo(() => {
     const go = (run: () => void) => () => { run(); onClose(); };
     const q = fold(query);
 
-    if (!q) {
-      return destinations.map((hit, index) => ({
-        ...hit,
-        heading: index === 0 ? t('search.quickAccess') : undefined,
-      }));
+    if (!q) return destinations;
+
+    /* How well a name answers what was typed: the whole of it, its beginning,
+       the beginning of one of its words, anywhere in it. Everything found is
+       ranked on this one scale, whatever kind of thing it is, so the best
+       answer is first rather than the first kind of answer. */
+    const rank = (name: string, ...others: string[]) => searchRank(query, name, ...others);
+
+    interface Ranked { hit: Hit; score: number }
+    const found: Ranked[] = [];
+
+    /* Where to go counts for a little more than the same match in a task: a
+       palette is reached for to go somewhere more often than to find one task
+       among four hundred. */
+    for (const hit of destinations) {
+      const score = rank(hit.title);
+      if (score >= 0) found.push({ hit, score: score - 0.5 });
     }
 
-    /* Destinations first, because a palette is reached for to go somewhere
-       more often than to find one task among four hundred. */
-    const places = destinations
-      .filter((hit) => fold(hit.title).includes(q))
-      .map((hit, index) => ({ ...hit, heading: index === 0 ? t('search.goTo') : undefined }));
-
-    const tasks = items
-      .filter((i) => fold(i.content).includes(q) || fold(i.description).includes(q))
-      .slice(0, 12)
-      .map((item, index): Hit => ({
-        key: `task-${item.id}`,
-        heading: index === 0 ? t('search.tasks') : undefined,
-        icon: 'tasks',
-        title: item.content,
-        detail: snapshot.projects[item.project_id]?.name ?? '',
-        run: go(() => onOpen(item.id)),
-      }));
-
-    const sections = includeSections
-      ? Object.values(snapshot.sections)
-        .filter((section) => {
-          const parent = snapshot.projects[section.project_id];
-          return !section.is_archived && !section.is_deleted
-            && parent && !parent.is_archived && !parent.is_deleted
-            && fold(section.name).includes(q);
-        })
-        .sort((a, b) => {
-          const aExact = fold(a.name) === q ? 0 : 1;
-          const bExact = fold(b.name) === q ? 0 : 1;
-          return aExact - bExact || bySectionOrder(a, b);
-        })
-        .slice(0, 6)
-        .map((section, index): Hit => {
-          const parent = snapshot.projects[section.project_id];
-          return {
+    if (includeSections) {
+      for (const section of Object.values(snapshot.sections)) {
+        const parent = snapshot.projects[section.project_id];
+        if (section.is_archived || section.is_deleted || !parent || parent.is_archived || parent.is_deleted) continue;
+        const score = rank(section.name);
+        if (score < 0) continue;
+        found.push({
+          score: score - 0.25,
+          hit: {
             key: `section-${section.id}`,
-            heading: index === 0 ? t('search.sections') : undefined,
             icon: 'section',
             title: section.name,
-            detail: parent?.name ?? '',
+            detail: parent.name,
             /* Resolve again on selection. A stale palette falls back to the
                parent project instead of manufacturing a broken destination. */
             run: go(() => {
@@ -157,37 +146,68 @@ export function Search({ open, onClose, onOpen, seed = '' }: SearchProps) {
                 current ? { sectionId: current.id } : undefined,
               );
             }),
-          };
-        })
-      : [];
+          },
+        });
+      }
+    }
 
-    const projects = Object.values(snapshot.projects)
-      .filter((p) => !p.is_archived && !p.is_deleted && fold(p.name).includes(q))
-      .slice(0, 6)
-      .map((project, index): Hit => ({
-        key: `project-${project.id}`,
-        heading: index === 0 ? t('search.projects') : undefined,
-        marker: <span className="hash" style={markerStyle(project.color)}>#</span>,
-        title: project.name,
-        run: go(() => navigate('project', project.id)),
-      }));
+    for (const item of items) {
+      const score = rank(item.content, item.description);
+      if (score < 0) continue;
+      found.push({
+        score,
+        hit: {
+          key: `task-${item.id}`,
+          assigneeId: item.responsible_uid,
+          /* The list row's own checkbox, priority colour and all, not clickable (#15). */
+          marker: <span className={`check p${toDisplayPriority(item.priority)} search-check`} aria-hidden="true" />,
+          title: item.content,
+          detail: snapshot.projects[item.project_id]?.name ?? '',
+          run: go(() => onOpen(item.id)),
+        },
+      });
+    }
 
-    const labels = Object.values(snapshot.labels)
-      .filter((l) => fold(l.name).includes(q) && !l.name.startsWith('est-'))
-      .slice(0, 6)
-      .map((label, index): Hit => ({
-        key: `label-${label.id}`,
-        heading: index === 0 ? t('search.labels') : undefined,
-        icon: 'tag',
-        title: label.name,
-        run: go(() => navigate('label', label.name)),
-      }));
+    for (const project of Object.values(snapshot.projects)) {
+      if (project.is_archived || project.is_deleted) continue;
+      const score = rank(project.name);
+      if (score < 0) continue;
+      found.push({
+        score,
+        hit: {
+          key: `project-${project.id}`,
+          marker: <span className="hash" style={markerStyle(project.color)}>#</span>,
+          title: project.name,
+          run: go(() => navigate('project', project.id)),
+        },
+      });
+    }
 
-    return [...places, ...sections, ...tasks, ...projects, ...labels];
-  }, [query, items, snapshot, includeSections, onOpen, onClose, t, destinations]);
+    for (const label of Object.values(snapshot.labels)) {
+      if (label.name.startsWith('est-')) continue;
+      const score = rank(label.name);
+      if (score < 0) continue;
+      found.push({
+        score,
+        hit: {
+          key: `label-${label.id}`,
+          icon: 'tag',
+          title: label.name,
+          run: go(() => navigate('label', label.name)),
+        },
+      });
+    }
+
+    /* Stable: equally good answers stay in the order they were found. */
+    return found
+      .map((entry, order) => ({ ...entry, order }))
+      .sort((a, b) => a.score - b.score || a.order - b.order)
+      .slice(0, 30)
+      .map((entry) => entry.hit);
+  }, [query, items, snapshot, includeSections, onOpen, onClose, destinations]);
 
   // A new query invalidates wherever the cursor was.
-  useEffect(() => { setCursor(0); }, [query]);
+  useEffect(() => { setCursor(-1); }, [query]);
 
   // Keep the row under the cursor on screen while the arrows move it.
   useEffect(() => {
@@ -199,16 +219,17 @@ export function Search({ open, onClose, onOpen, seed = '' }: SearchProps) {
   const empty = query.trim() !== '' && hits.length === 0;
 
   const onKeyDown = (event: React.KeyboardEvent) => {
-    if (hits.length === 0) return;
+
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setCursor((c) => (c + 1) % hits.length);
+      setCursor((c) => Math.min(c + 1, hits.length - 1));
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
-      setCursor((c) => (c - 1 + hits.length) % hits.length);
+      setCursor((c) => Math.max(-1, c - 1));
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      hits[Math.min(cursor, hits.length - 1)]?.run();
+      if (cursor === -1 && query.trim()) { navigate('search', undefined, { query: query.trim() }); onClose(); }
+      else hits[cursor]?.run();
     }
   };
 
@@ -232,18 +253,17 @@ export function Search({ open, onClose, onOpen, seed = '' }: SearchProps) {
       <div className="sresults" ref={listRef} role="listbox">
         {hits.map((hit, index) => (
           <div key={hit.key}>
-            {hit.heading && <h4>{hit.heading}</h4>}
             <button
               id={hit.key}
               role="option"
               aria-selected={index === cursor}
-              onMouseEnter={() => setCursor(index)}
               onClick={hit.run}
             >
               {hit.marker ?? (hit.icon && <Icon name={hit.icon} />)}
               <span>
                 <strong>{hit.title}</strong>
                 {hit.detail && <small>{hit.detail}</small>}
+                <AssigneeBadge id={hit.assigneeId ?? null} />
               </span>
             </button>
           </div>
@@ -254,7 +274,7 @@ export function Search({ open, onClose, onOpen, seed = '' }: SearchProps) {
 
       <div className="searchfoot">
         <span><kbd>↑</kbd><kbd>↓</kbd> {t('search.hintMove')}</span>
-        <span><kbd>↵</kbd> {t('search.hintOpen')}</span>
+        <span><kbd>↵</kbd> {t(cursor === -1 ? 'search.hintAll' : 'search.hintOpen')}</span>
       </div>
     </Overlay>
   );

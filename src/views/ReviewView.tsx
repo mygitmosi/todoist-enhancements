@@ -1,3 +1,8 @@
+import { AssigneeBadge } from '@/components/AssigneeBadge';
+import { matchesAssignee } from '@/domain/assignees';
+import { viewPrefs } from '@/store/prefs';
+import { AssigneeFilter } from '@/components/AssigneeFilter';
+import { HireNote } from '@/components/HireNote';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { COMPLETION_LINGER_MS } from '@/components/TaskRow';
@@ -78,8 +83,14 @@ interface ReviewViewProps {
  */
 export function ReviewView({ onOpen }: ReviewViewProps) {
   const { t, locale } = useT();
-  const { snapshot, items, childrenOf } = useData();
+  const { snapshot, items, childrenOf } = useData('review');
   const prefs = useStore((s) => s.prefs);
+  const reviewFilters = viewPrefs(prefs, 'review').filters;
+  useEffect(() => {
+    if (reviewFilters.workspaces.length) useStore.getState().setViewPrefs('review', {
+      filters: { ...reviewFilters, workspaces: [] },
+    });
+  }, [reviewFilters]);
   const sendTo = useStore((s) => s.sendTo);
   const toggleTask = useStore((s) => s.toggleTask);
   const skipOccurrence = useStore((s) => s.skipOccurrence);
@@ -110,6 +121,8 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
    * made rather than states the data happened to be in.
    */
   const [chosen, setChosen] = useState<Record<string, ReviewAction>>({});
+  /** The rows ticked off here that have not gone yet. */
+  const [settlingIds, setSettlingIds] = useState<Set<string>>(new Set());
 
   /* The weekly pass reports what was finished, which is history and is read
      on demand. The daily pass never asks, so it never fetches. */
@@ -119,7 +132,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
   );
   /* `previous` is the week before, which is what turns a bar chart into a
      comparison: the same seven days, one week back, drawn as a dotted line. */
-  const { data: completed, previous, loading } = useCompleted(weekRange, cadence === 'weekly');
+  const { data: completed, previous, loading } = useCompleted(weekRange, cadence === 'weekly', 'review');
 
   const roots = useMemo(() => rootItems(items), [items]);
 
@@ -211,7 +224,8 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
        act in slower motion. Where it was is where it stays. */
     return shown.current.ids
       .map((id) => snapshot.items[id])
-      .filter((item): item is Item => !!item && !item.is_deleted && !item.checked);
+      .filter((item): item is Item => !!item && !item.is_deleted && !item.checked
+        && matchesAssignee(item, viewPrefs(prefs, 'review').filters.assignees, snapshot));
   };
 
   /**
@@ -267,6 +281,8 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
           </div>
         )}
 
+        <div className="review-controls">
+        <AssigneeFilter viewKey="review" variant="toolbar" />
         <div className="segmented small reviewcadence" role="group" aria-label={t('review.title')}>
           {(['daily', 'weekly'] as const).map((value) => (
             <button
@@ -278,8 +294,10 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
             </button>
           ))}
         </div>
+        </div>
 
       </div>
+      <HireNote />
 
       {/* Where you are, and how much is left. A review with no visible end is
           the thing people stop doing. */}
@@ -410,22 +428,26 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
     return (
       <div className="reviewlist">
         {rows.map((item) => (
-          <Row key={item.id} item={item} step={step} />
+          renderRow(item, step)
         ))}
       </div>
     );
   }
 
   /** One decision, one row. */
-  function Row({ item, step: s }: { item: Item; step: ReviewStep }) {
+  /* Drawn by a plain function, not a component declared inside this one: a
+     component made fresh on every render is a different component each time,
+     and every row was thrown away and rebuilt on each change, taking the
+     sliding thumb of its choices with it. */
+  function renderRow(item: Item, s: ReviewStep) {
     const project = snapshot.projects[item.project_id];
     /* Ticked here, not yet gone: the same pause `TaskRow` takes, for the same
        reason — a row that vanishes under the pointer leaves you asking which
        one you just hit. */
-    const [settling, setSettling] = useState(false);
+    const settling = settlingIds.has(item.id);
     const complete = () => {
       if (settling) return;
-      setSettling(true);
+      setSettlingIds((prev) => new Set(prev).add(item.id));
       window.setTimeout(() => {
         forget(item.id);
         void toggleTask(item.id);
@@ -447,7 +469,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
          honest answer to "this is late" is often "I did it on Friday and
          forgot to tick it", and that answer has to look the same in a review
          as it does in a list. */
-      <div className={`reviewrow${settling ? ' done settling' : ''}`}>
+      <div key={item.id} className={`reviewrow${settling ? ' done settling' : ''}`}>
         {/* Sometimes the answer is that it is already done. */}
         {isUncompletable(item) ? (
           <span
@@ -472,7 +494,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
         )}
 
         <button className="reviewname" onClick={() => onOpen(item.id)}>
-          <span className="ttitle">{plainTitle(displayTaskContent(item))}</span>
+          <span className="review-title-line"><span className="ttitle">{plainTitle(displayTaskContent(item))}</span><AssigneeBadge id={item.responsible_uid} /></span>
           <span className="meta">
             {due && (
               <span className={s.id === 'overdue' ? 'late' : undefined}>
@@ -576,7 +598,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
           <Settled />
         ) : (
           <div className="reviewlist scrolls">
-            {rows.map((item) => <Row key={item.id} item={item} step={s} />)}
+            {rows.map((item) => renderRow(item, s))}
           </div>
         )}
       </>
@@ -685,7 +707,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
     const live = snapshot.items[taskId];
     const body = (
       <>
-        <span className="ttitle">{plainTitle(done.content)}</span>
+        <span className="review-title-line"><span className="ttitle">{plainTitle(done.content)}</span><AssigneeBadge id={done.responsible_uid ?? live?.responsible_uid ?? null} /></span>
         <span className="meta">
           <span>{formatRelativeDay(new Date(done.completed_at), locale)}</span>
           {project && !project.inbox_project && (
@@ -973,7 +995,7 @@ function Estimates({
                 <Icon name="check" />
               </span>
               <button className="reviewname" tabIndex={-1} onClick={() => onOpen(item.id)}>
-                <span className="ttitle">{plainTitle(item.content)}</span>
+                <span className="review-title-line"><span className="ttitle">{plainTitle(item.content)}</span><AssigneeBadge id={item.responsible_uid} /></span>
                 {project && !project.inbox_project && (
                   <span className="meta">
                     <span className="proj" style={markerStyle(project.color, false)}>

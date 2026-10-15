@@ -10,12 +10,17 @@ export interface SelectOption {
   label: string;
   /** A Todoist colour name, drawn as the project marker beside the label. */
   marker?: string;
+  visual?: ReactNode;
   /** Drawn in place of a marker, where the option is not a project. */
   icon?: IconName;
   /** Indented under the option above it, as a section is under its project. */
   sub?: boolean;
   /** What the face says once this is chosen, when the label alone would not place it. */
   face?: string;
+  /** A sentence under the label, in the list and, in a `row`, on the closed control too. */
+  hint?: string;
+  /** A destructive entry, drawn in red ("Remove from project"). */
+  danger?: boolean;
 }
 
 interface SelectProps {
@@ -34,13 +39,23 @@ interface SelectProps {
    * How the closed control is drawn: a field (a labelled box with a caret),
    * or a chip in a row of them, the composer's planning line (#113).
    */
-  variant?: 'field' | 'chip';
+  variant?: 'field' | 'chip' | 'icon' | 'row';
   /** A chip standing for nothing set yet: a dashed "+ label" rather than a value. */
   unset?: boolean;
   /** What an unset chip says. */
   unsetLabel?: string;
   /** The chip's own glyph, where the option's marker or icon is not the right one. */
   chipIcon?: ReactNode;
+  /** A colour the set chip is tinted with, where the value has one but no project marker (a priority). */
+  tint?: string;
+  /** The list is exactly as wide as the control, however long its options are. */
+  matchWidth?: boolean;
+  maxPopupWidth?: number;
+  popupClassName?: string;
+  /** Drawn as it is but greyed, and it does not open: the value can be read, not changed. */
+  disabled?: boolean;
+  /** What a greyed control says when pointed at. */
+  title?: string;
 }
 
 /**
@@ -58,7 +73,7 @@ interface SelectProps {
  */
 export function Select({
   label, value, options, onChange, ariaLabel, placeholder, searchable: searchableProp,
-  variant = 'field', unset = false, unsetLabel, chipIcon,
+  variant = 'field', unset = false, unsetLabel, chipIcon, tint, matchWidth = false, maxPopupWidth, popupClassName, disabled = false, title,
 }: SelectProps) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
@@ -66,6 +81,7 @@ export function Select({
   const [query, setQuery] = useState('');
   const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const [quiet, setQuiet] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const typed = useRef({ text: '', at: 0 });
@@ -104,8 +120,11 @@ export function Select({
     const top = below + height > window.innerHeight - margin
       ? Math.max(margin, button.top - height - 4)
       : below;
-    setPosition({ top, left: button.left, width: button.width });
-  }, [open, filtered.length, searchable]);
+    const width = Math.min(button.width, window.innerWidth - margin * 2, maxPopupWidth ?? Infinity);
+    const popupWidth = matchWidth ? width : Math.min(maxPopupWidth ?? Infinity, Math.max(width, listRef.current?.offsetWidth ?? width));
+    const left = Math.max(margin, Math.min(button.left, window.innerWidth - margin - popupWidth));
+    setPosition({ top, left, width });
+  }, [open, filtered.length, searchable, matchWidth, maxPopupWidth]);
 
   useEffect(() => {
     if (!open) return;
@@ -149,6 +168,9 @@ export function Select({
     if (!option) return;
     onChange(option.value);
     setOpen(false);
+    /* Focus comes back to the field for the keyboard, without the ring a
+       pick would otherwise leave on it (#25); the next key shows it again. */
+    setQuiet(true);
     buttonRef.current?.focus();
   }
 
@@ -195,13 +217,15 @@ export function Select({
 
   const list = open && (
     <div
-      className="popover listbox"
+      className={`popover listbox${popupClassName ? ` ${popupClassName}` : ''}`}
       aria-label={ariaLabel ?? label}
       ref={listRef}
       style={{
         top: position?.top ?? -9999,
         left: position?.left ?? -9999,
         minWidth: position?.width,
+        maxWidth: maxPopupWidth ? `min(${maxPopupWidth}px, calc(100vw - 16px))` : 'calc(100vw - 16px)',
+        ...(matchWidth ? { width: position?.width, maxWidth: position?.width } : {}),
         visibility: position ? undefined : 'hidden',
       }}
     >
@@ -227,15 +251,18 @@ export function Select({
           role="option"
           aria-selected={option.value === value}
           data-active={at === active || undefined}
-          className={`opt${at === active ? ' active' : ''}${option.sub ? ' sectionopt' : ''}`}
+          className={`opt${at === active ? ' active' : ''}${option.sub ? ' sectionopt' : ''}${option.danger ? ' danger' : ''}`}
           onMouseEnter={() => setActive(at)}
           onMouseDown={(event) => { event.preventDefault(); choose(at); }}
         >
+          {option.visual}
           {option.icon && <Icon name={option.icon} size="sm" />}
           {option.marker !== undefined && (
             <span className="hash" style={markerStyle(option.marker)}>#</span>
           )}
-          <span className="listbox-label">{option.label}</span>
+          {option.hint
+            ? <span className="listbox-text"><span className="listbox-label">{option.label}</span><small>{option.hint}</small></span>
+            : <span className="listbox-label">{option.label}</span>}
           {option.value === value && <Icon name="check" size="sm" />}
         </button>
       ))}
@@ -244,22 +271,30 @@ export function Select({
   );
 
   const chip = variant === 'chip';
+  const compact = variant === 'icon';
+  const row = variant === 'row';
 
   return (
-    <span className={`fselect${chip ? ' inchips' : ''}`}>
-      {label && !chip && <span className="fselect-label">{label}</span>}
+    <span className={`fselect${chip ? ' inchips' : ''}${compact ? ' as-icon' : ''}${row ? ' as-row' : ''}`}>
+      {label && !chip && !compact && <span className="fselect-label">{label}</span>}
       <button
         type="button"
         ref={buttonRef}
-        className={`fselect-face${chip ? ' chipface' : ''}${chip && unset ? ' unset' : ''}${open ? ' open' : ''}`}
+        style={chip && !unset ? (tint ? ({ '--marker': tint } as React.CSSProperties) : current?.marker ? markerStyle(current.marker) : undefined) : undefined}
+        className={`fselect-face${chip ? ' chipface' : ''}${row ? ' rowface' : ''}${chip && !unset && (tint || current?.marker) ? ' tinted' : ''}${chip && unset ? ' unset' : ''}${open ? ' open' : ''}${quiet ? ' quiet' : ''}`}
         aria-haspopup="listbox"
         aria-expanded={open}
+        disabled={disabled}
+        title={title}
         aria-label={ariaLabel ?? label}
         onClick={() => setOpen((v) => !v)}
-        onKeyDown={onKeyDown}
+        onBlur={() => setQuiet(false)}
+        onKeyDown={(event) => { setQuiet(false); onKeyDown(event); }}
       >
-        {chip && unset ? <Icon name="plus" size="sm" /> : chip && chipIcon ? chipIcon : (
+        {compact ? chipIcon : <>
+        {chip && chipIcon ? chipIcon : (
           <>
+            {current?.visual}
             {current?.icon && <Icon name={current.icon} size="sm" />}
             {current?.marker !== undefined && (
               <span className="hash" style={markerStyle(current.marker)}>#</span>
@@ -267,10 +302,18 @@ export function Select({
           </>
         )}
         {/* Cut with an ellipsis when it is long; the whole of it on hover. */}
+        {row && current ? (
+          <span className="fselect-value rowtext">
+            <strong>{current.label}</strong>
+            {current.hint && <small>{current.hint}</small>}
+          </span>
+        ) : (
         <span className="fselect-value" title={current?.face ?? current?.label}>
           {chip && unset ? (unsetLabel ?? label) : current?.face ?? current?.label ?? placeholder ?? ''}
         </span>
+        )}
         {!chip && <Icon name="caret" size="sm" />}
+        </>}
       </button>
       {list && createPortal(list, document.body)}
     </span>

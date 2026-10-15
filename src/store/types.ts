@@ -1,7 +1,7 @@
 /** The shape of the store, shared by the slices that build it (see store.ts). */
 import type { StateCreator } from 'zustand';
 import type { Command } from '@/api/commands';
-import type { CompletedItem, DisplayPriority, Item, Note, Snapshot, ViewPrefs } from '@/domain/types';
+import type { CompletedItem, DisplayPriority, Item, Note, NoteAttachment, Snapshot, ViewPrefs } from '@/domain/types';
 import type { RecurrenceReading } from '@/domain/recurrence';
 import type { Locale } from '@/i18n';
 import type { DropTarget } from '@/domain/dnd';
@@ -53,6 +53,15 @@ export interface TimeFilter {
   scope: 'page' | 'everywhere';
   /** How each group is ordered: shortest first, or the most important first. */
   sort: 'duration' | 'priority';
+}
+
+/** What a saved filter is made of, when one is created or changed here. */
+export interface FilterFields {
+  name: string;
+  query: string;
+  color: string;
+  is_favorite: boolean;
+  description?: string;
 }
 
 export interface AppState {
@@ -131,11 +140,36 @@ export interface AppState {
    */
   walkthrough: boolean;
   setWalkthrough: (open: boolean) => void;
+  /** Marks Todoist's notifications read (or unread); 'all' is every unread one. */
+  markNotifications: (ids: string[] | 'all', unread?: boolean) => Promise<void>;
+  /** Accepts or declines a project invitation carried by a notification. */
+  answerInvitation: (notificationId: string, accept: boolean) => Promise<void>;
+  /** Invites by e-mail; `role` only means something in a team workspace. */
+  shareProject: (projectId: string, email: string, role?: string) => Promise<void>;
+  removeCollaborator: (projectId: string, email: string) => Promise<void>;
+  /** Changes what a member may do in a workspace project. */
+  changeRole: (projectId: string, userId: string, role: string) => Promise<void>;
+  /** Leaves a project somebody else shared: drops it from the snapshot once Todoist agrees. */
+  leaveProject: (projectId: string) => Promise<void>;
+  /** Assigns a task to a collaborator of its project, or to nobody. */
+  loadProjectPeople: (projectId: string, force?: boolean) => Promise<void>;
+  assignTask: (itemId: string, userId: string | null) => Promise<void>;
   updateTask: (id: string, args: Record<string, unknown>) => Promise<void>;
+  /** Posts a comment on a task, with a file already uploaded when there is one. */
+  /** False when Todoist refused it, so the field can give the draft back. */
+  addComment: (itemId: string, content: string, attachment?: NoteAttachment | null) => Promise<boolean>;
+  /** Rewrites a comment's text. */
+  updateComment: (id: string, content: string) => Promise<void>;
+  deleteComment: (id: string) => Promise<void>;
+  /** Adds or takes back the current user's reaction to a comment. */
+  toggleReaction: (id: string, emoji: string) => Promise<void>;
+  /** A copy of a task, with the subtasks still open under it, right after the original. */
+  duplicateTask: (id: string) => Promise<void>;
   /** Gives a task a repeat rule, leaving the date for Todoist to resolve. */
   /* Takes the rule and the language it was written in, which is all Todoist
      needs: where the reading came from is the caller's business. */
-  setRecurrence: (id: string, rule: Pick<RecurrenceReading, 'string' | 'lang'>) => Promise<void>;
+  /** `date`: the day (and time) the rule lands on first, when it is known (#202). */
+  setRecurrence: (id: string, rule: Pick<RecurrenceReading, 'string' | 'lang'> & { date?: string }) => Promise<void>;
   /**
    * Writes several estimates at once, as one request.
    *
@@ -195,9 +229,9 @@ export interface AppState {
    * All of it or none of it: true when every task is now under the target.
    */
   nestMany: (ids: string[], parentId: string) => Promise<boolean>;
-  createTask: (args: Record<string, unknown>) => Promise<void>;
+  createTask: (args: Record<string, unknown>) => Promise<boolean>;
   /** Independent tasks, all in one request: the screen shows them at once. */
-  createTasks: (list: Array<Record<string, unknown>>) => Promise<void>;
+  createTasks: (list: Array<Record<string, unknown>>) => Promise<boolean>;
   moveTask: (id: string, target: { project_id?: string; section_id?: string | null }) => Promise<void>;
   /**
    * Sends a task to a destination, by the same table drag and drop uses.
@@ -207,7 +241,19 @@ export interface AppState {
   sendTo: (id: string, target: DropTarget, destination: string | null) => Promise<void>;
   setTaskLabels: (id: string, labels: string[]) => Promise<void>;
   setTaskPriority: (id: string, priority: DisplayPriority) => Promise<void>;
+  renameLabel: (id: string, name: string) => Promise<void>;
   setLabelFavourite: (id: string, favourite: boolean) => Promise<void>;
+  setLabelColour: (id: string, color: string) => Promise<void>;
+  /** Deletes a tag in Todoist, which also takes it off every task. */
+  deleteLabel: (id: string) => Promise<void>;
+  /** Stars or unstars a saved filter, in Todoist as well. */
+  setFilterFavourite: (id: string, favourite: boolean) => Promise<void>;
+  /** Saves a new filter; resolves with its temporary id, or null when name or query is empty. */
+  createFilter: (fields: FilterFields) => Promise<string | null>;
+  updateFilter: (id: string, fields: Partial<FilterFields> & { order_key?: string }) => Promise<void>;
+  deleteFilter: (id: string) => Promise<void>;
+  /** The filters in their new order, and the one that was moved to get there. */
+  reorderFilters: (ids: string[], moved: string) => Promise<void>;
   /**
    * Creates a tag.
    *
@@ -215,7 +261,7 @@ export interface AppState {
    * only becomes a thing you can find, colour and favourite once it exists as
    * a label of its own — so it is created outright rather than left implied.
    */
-  createLabel: (name: string, color?: string) => Promise<void>;
+  createLabel: (name: string, color?: string, favourite?: boolean) => Promise<void>;
   /** Puts the tags in this order, which is also the order of the sidebar's favourites. */
   reorderLabels: (ids: string[]) => Promise<void>;
   /**
@@ -236,6 +282,8 @@ export interface AppState {
    * project back out to the root of its workspace.
    */
   nestProject: (id: string, parentId: string | null) => Promise<void>;
+  /** Moves a project, with its tasks, to a workspace or back to the personal space (null). */
+  moveProjectToWorkspace: (id: string, workspaceId: string | null) => Promise<void>;
   skipOccurrence: (id: string) => Promise<void>;
   /** Advances every recurring task in a mixed selection, leaving one-off tasks alone. */
   skipOccurrences: (ids: string[]) => Promise<number>;
@@ -252,7 +300,7 @@ export interface AppState {
     /** Places the new project next to an existing one instead of at the end. */
     anchor?: { siblingId: string; position: 'above' | 'below' } | null,
     /** The rest of what the sheet asks for, so creating and editing match. */
-    extra?: { description?: string; favourite?: boolean },
+    extra?: { description?: string; favourite?: boolean; parentId?: string | null; viewStyle?: 'list' | 'board'; access?: string },
   ) => Promise<string>;
   /** Puts a project out of sight without destroying it. Todoist keeps the tasks. */
   archiveProject: (id: string) => Promise<void>;
@@ -330,6 +378,9 @@ export interface AppState {
   openSidePanel: (panel: SidePanel) => void;
   /** Closes the panel, or only that one when it is the one that is open. */
   closeSidePanel: (panel?: SidePanel) => void;
+  /** The one-time note for Todoist's people is up on the page. Lasts until the app is reloaded. */
+  hireNote: boolean;
+  setHireNote: (open: boolean) => void;
   timeFilter: TimeFilter;
   setTimeFilter: (patch: Partial<TimeFilter>) => void;
 
@@ -341,9 +392,10 @@ export interface AppState {
 export type Slice<T> = StateCreator<AppState, [], [], T>;
 
 export type SyncSlice = Pick<AppState, 'ready' | 'connected' | 'snapshot' | 'syncState' | 'syncError' | 'pendingCount' | 'demo' | 'resolvedIds' | 'signInError' | 'init' | 'connect' | 'startDemo' | 'disconnect' | 'refresh' | 'startPolling' | 'apply'>;
+export type CollabSlice = Pick<AppState, 'markNotifications' | 'answerInvitation' | 'shareProject' | 'removeCollaborator' | 'changeRole' | 'leaveProject' | 'assignTask' | 'loadProjectPeople'>;
 export type DustSlice = Pick<AppState, 'dustKept' | 'keepInSomeday'>;
 export type PreferencesSlice = Pick<AppState, 'prefs' | 'walkthrough' | 'setPrefs' | 'setViewPrefs' | 'setLocale' | 'ensurePreferencesTask' | 'beginTourPreview' | 'endTourPreview' | 'setWalkthrough'>;
-export type TasksSlice = Pick<AppState, 'logbookEntry' | 'setLogbookEntry' | 'loadTask' | 'updateTask' | 'setRecurrence' | 'setEstimates' | 'toggleTask' | 'completeTasks' | 'removeTask' | 'removeTasks' | 'restoreTasks' | 'createTask' | 'createTasks' | 'setTaskLabels' | 'setTaskPriority' | 'skipOccurrence' | 'skipOccurrences' | 'reorderSubtasks'>;
+export type TasksSlice = Pick<AppState, 'logbookEntry' | 'setLogbookEntry' | 'loadTask' | 'updateTask' | 'addComment' | 'updateComment' | 'deleteComment' | 'toggleReaction' | 'duplicateTask' | 'setRecurrence' | 'setEstimates' | 'toggleTask' | 'completeTasks' | 'removeTask' | 'removeTasks' | 'restoreTasks' | 'createTask' | 'createTasks' | 'setTaskLabels' | 'setTaskPriority' | 'skipOccurrence' | 'skipOccurrences' | 'reorderSubtasks'>;
 export type TasksMoveSlice = Pick<AppState, 'sendTo' | 'sendManyTo' | 'updateMany' | 'moveMany' | 'nestMany' | 'moveTask'>;
-export type StructureSlice = Pick<AppState, 'createLabel' | 'setLabelFavourite' | 'reorderLabels' | 'reorderProjects' | 'nestProject' | 'createProject' | 'archiveProject' | 'deleteProject' | 'duplicateProject' | 'updateProjectFields' | 'createSection' | 'moveSection' | 'removeSection' | 'archiveSection' | 'moveSectionToProject' | 'duplicateSection' | 'updateSectionFields'>;
-export type UiSlice = Pick<AppState, 'toasts' | 'undoStack' | 'draggingTaskId' | 'draggingSectionId' | 'nesting' | 'outdenting' | 'draggingProjectId' | 'draggingTag' | 'selection' | 'selectionAnchor' | 'toast' | 'dismissToast' | 'pushUndo' | 'undo' | 'consumeUndo' | 'setDraggingSection' | 'setDraggingTag' | 'setNesting' | 'setOutdenting' | 'setDraggingProject' | 'sidePanel' | 'openSidePanel' | 'closeSidePanel' | 'timeFilter' | 'setTimeFilter' | 'toggleSelection' | 'setSelectionAnchor' | 'selectRange' | 'clearSelection' | 'setDragging'>;
+export type StructureSlice = Pick<AppState, 'createLabel' | 'renameLabel' | 'setLabelFavourite' | 'setLabelColour' | 'deleteLabel' | 'setFilterFavourite' | 'createFilter' | 'updateFilter' | 'deleteFilter' | 'reorderFilters' | 'reorderLabels' | 'reorderProjects' | 'nestProject' | 'moveProjectToWorkspace' | 'createProject' | 'archiveProject' | 'deleteProject' | 'duplicateProject' | 'updateProjectFields' | 'createSection' | 'moveSection' | 'removeSection' | 'archiveSection' | 'moveSectionToProject' | 'duplicateSection' | 'updateSectionFields'>;
+export type UiSlice = Pick<AppState, 'toasts' | 'undoStack' | 'draggingTaskId' | 'draggingSectionId' | 'nesting' | 'outdenting' | 'draggingProjectId' | 'draggingTag' | 'selection' | 'selectionAnchor' | 'toast' | 'dismissToast' | 'pushUndo' | 'undo' | 'consumeUndo' | 'setDraggingSection' | 'setDraggingTag' | 'setNesting' | 'setOutdenting' | 'setDraggingProject' | 'sidePanel' | 'openSidePanel' | 'closeSidePanel' | 'hireNote' | 'setHireNote' | 'timeFilter' | 'setTimeFilter' | 'toggleSelection' | 'setSelectionAnchor' | 'selectRange' | 'clearSelection' | 'setDragging'>;

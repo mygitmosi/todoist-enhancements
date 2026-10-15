@@ -1,3 +1,5 @@
+import { InsightsButton } from '@/components/InsightsButton';
+import { HireNote } from '@/components/HireNote';
 import { useMemo } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { SubtasksProvider } from '@/components/TaskRow';
@@ -12,10 +14,10 @@ import { useData } from '@/hooks/useData';
 import { useStore } from '@/store/store';
 import { useConfirm } from '@/components/overlays/Confirm';
 import { viewPrefs } from '@/store/prefs';
-import { applyFilters, rootItems, sortItems } from '@/store/selectors';
+import { applyFilters, datedRoots, sortItems } from '@/store/selectors';
 import { anytimeItems, bucketOf, groupWeek, weekItems } from '@/domain/views';
 import { summariseLoad, weeklyCapacity } from '@/domain/load';
-import { toApiDate } from '@/domain/dates';
+import { toApiDate, isToday } from '@/domain/dates';
 import { dueForDate } from '@/domain/recurrence';
 import { weekLabel } from '@/domain/types';
 import { placementFor, type TaskPlacement } from '@/domain/dnd';
@@ -70,17 +72,18 @@ function WeekBody({
 }: WeekViewProps) {
   const { t } = useT();
   const timePill = useTimePill();
-  const { snapshot, items, childrenOf } = useData();
+  const { snapshot, items, childrenOf } = useData(scope === 'today' ? 'today' : 'week');
   const prefs = useStore((s) => s.prefs);
   const updateMany = useStore((s) => s.updateMany);
+  const hireNoteOpen = useStore((s) => s.hireNote);
   const confirm = useConfirm();
   /* Two pages, two sets of display preferences: a filter set on Today has no
      business following you to the rest of the week. */
   const viewKey = scope === 'today' ? 'today' : 'week';
   const current = viewPrefs(prefs, viewKey);
 
-  const scoped = useMemo(() => {
-    const roots = rootItems(items);
+  const pool = useMemo(() => {
+    const roots = datedRoots(items, snapshot);
     const now = new Date();
     const inScope =
       scope === 'today'
@@ -91,8 +94,13 @@ function WeekBody({
         : scope === 'anytime'
           ? anytimeItems(roots, now)
           : weekItems(roots, now);
-    return applyFilters(inScope, current.filters, snapshot, childrenOf);
-  }, [items, current.filters, snapshot, childrenOf, scope]);
+    return inScope;
+  }, [items, snapshot, scope]);
+  const scoped = useMemo(
+    () => applyFilters(pool, { ...current.filters, includeScheduled: true }, snapshot, childrenOf)
+      .filter((item) => scope !== 'all' || current.filters.includeScheduled || !isToday(item)),
+    [pool, current.filters, snapshot, childrenOf, scope],
+  );
 
   const groups = useMemo(
     () => groupWeek(scoped, new Date(), prefs.showQuickGroup),
@@ -157,7 +165,7 @@ function WeekBody({
      today are neither, so an empty one is just noise. */
   const weekColumns = useMemo(() => {
     const today = [
-      { id: 'overdue', title: t('group.overdue'), items: groups.overdue },
+      { id: 'overdue', title: t('group.overdue'), items: groups.overdue, accent: 'late' as const },
       ...(prefs.showQuickGroup
         /* Blue, and a place to look rather than somewhere to drop: a card is
            not made quick by being dragged here. */
@@ -177,24 +185,34 @@ function WeekBody({
       .filter((column) => column.items.length > 0 || column.dropTarget)
       .map((column) => ({
         ...column, items: sortItems(column.items, current.sort, childrenOf, 'day', snapshot, true),
+        /* Each column a task can be added to has the line to do it, empty or full. */
+        onAddTask: column.id === 'quick' ? () => onAddTaskTo(placementFor({ kind: 'quick' }))
+          : column.id === 'untimed' || column.id === 'timed' ? () => onAddTaskTo(placementFor({ kind: 'today' }))
+            : column.id === 'anytime' ? () => onAddTaskTo(placementFor({ kind: 'anytime' }))
+              : undefined,
       }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- placementFor and onAddTaskTo are stable for a page.
   }, [groups, prefs.showQuickGroup, current.sort, childrenOf, snapshot, t, scope]);
+
+  /* Whether one of the groups below is drawn with its own "Add task" line. */
+  const hasAddLine = (scope !== 'anytime' && (
+    (prefs.showQuickGroup && groups.quick.length > 0) || groups.untimed.length > 0 || groups.timed.length > 0 || hireNoteOpen
+  )) || (scope !== 'today' && groups.anytime.length > 0);
 
   return (
     <div className="page">
       <PageHeader
+        hireNote={current.mode === 'board'}
         title={t(scope === 'today' ? 'nav.today' : 'nav.week')}
         actions={
           <>
             <DisplayMenu
               viewKey={viewKey}
+              pageItems={pool}
               modes={['list', 'board']}
               groups={['none', 'project', 'priority', 'label', 'estimate']}
             />
-            <button className="btn accent" onClick={onInsights}>
-              <Icon name="trend" />
-              {t('toolbar.insights')}
-            </button>
+            <InsightsButton onClick={onInsights} />
           </>
         }
         load={load}
@@ -207,7 +225,6 @@ function WeekBody({
         onOpen={onOpen}
         onUnestimated={onUnestimated}
       />
-
 
       {current.mode === 'list' && current.group === 'none' ? (
         <div className="mode">
@@ -244,7 +261,6 @@ function WeekBody({
               reorderable={byHand}
               viewKey={viewKey}
               accent="quick"
-              dropTarget={{ kind: 'quick' }}
               onAddTask={() => onAddTaskTo(placementFor({ kind: 'quick' }))}
             />
           )}
@@ -252,6 +268,8 @@ function WeekBody({
           <TaskGroup
             title={t('group.untimed')}
             items={sortedGroup(groups.untimed)}
+            lead={hireNoteOpen ? <HireNote /> : undefined}
+            keepWhenEmpty={hireNoteOpen}
             childrenOf={childrenOf}
             onOpen={onOpen}
             reorderable={byHand}
@@ -283,22 +301,47 @@ function WeekBody({
             />
           )}
 
-          {scoped.length === 0 && <p className="empty">{t('task.noTasks')}</p>}
+          {/* A group is drawn only when it has tasks, and the line that adds one
+              comes with it: an empty page, or a Today with only overdue tasks,
+              still gets one, at the foot of the page. */}
+          {!hasAddLine && (
+            <button
+              className="addline sectionadd"
+              onClick={() => onAddTaskTo(placementFor({ kind: scope === 'today' ? 'today' : 'anytime' }))}
+            >
+              <Icon name="plus" size="sm" />
+              {t('nav.addTaskHere')}
+            </button>
+          )}
         </div>
       ) : (
         <ModeSurface
           items={scoped}
+          firstGroupLead={hireNoteOpen ? <HireNote /> : undefined}
           childrenOf={childrenOf}
           mode={current.mode}
-          wide={current.wide}
           group={current.group}
           sort={current.sort}
           order="day"
+          viewKey={viewKey}
           onOpen={onOpen}
           /* Only when nothing else was asked for: a board grouped by project
              is a board of projects, not of the week's buckets. */
           boardColumns={
-            current.mode === 'board' && current.group === 'none' ? weekColumns : undefined
+            current.mode === 'board' && current.group === 'none'
+              ? weekColumns.map((column) => column.id !== 'overdue' || column.items.length === 0 ? column : {
+                ...column,
+                action: (
+                  <button
+                    className="btn sm linklike"
+                    onClick={() => void rescheduleOverdue()}
+                    title={t('group.rescheduleAllHint')}
+                  >
+                    {t('group.rescheduleAll')}
+                  </button>
+                ),
+              })
+              : undefined
           }
           addToGroup={(key) => {
             const place = addToGroupFor(current.group, key);

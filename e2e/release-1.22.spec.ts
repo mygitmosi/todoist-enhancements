@@ -1,12 +1,12 @@
 import { expect, go, test } from './demo';
 
 const sectionBox = (page: import('@playwright/test').Page, name: string) =>
-  page.locator('.screen.active .group').filter({ has: page.locator(`input.gname[value="${name}"]`) });
+  page.locator('.screen.active .group').filter({ has: page.locator(`.gnamegrow[data-value="${name}"]`) });
 
 test('a section header shows its count after the title and offers a menu (#185)', async ({ demo: page }) => {
   await go(page, '#/project/site');
   const group = sectionBox(page, 'To do');
-  await expect(group.locator('.gtoggle .gcount')).toHaveText(/^\d+$/);
+  await expect(group.locator('.gtoggle .gcount')).toHaveText(/^\d+ tasks?$/);
   // One menu button replaces the trash button.
   await expect(group.getByRole('button', { name: 'Delete section' })).toHaveCount(0);
 
@@ -43,7 +43,7 @@ test('the fold arrow is left of the title and a folded section stays folded (#18
   await go(page, '#/project/site');
   const group = sectionBox(page, 'To do');
   const caret = group.getByRole('button', { name: 'Collapse the section' });
-  const title = group.locator('input.gname');
+  const title = group.locator('textarea.gname');
   expect((await caret.boundingBox())!.x).toBeLessThan((await title.boundingBox())!.x);
 
   await caret.click();

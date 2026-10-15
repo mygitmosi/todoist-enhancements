@@ -11,6 +11,9 @@ import { request } from './client';
 export const todoistTaskUrl = (id: string): string => `https://app.todoist.com/app/task/${id}`;
 
 /** A section's page in Todoist's web app. */
+export const todoistProjectUrl = (id: string): string => `https://app.todoist.com/app/project/${id}`;
+export const todoistLabelUrl = (id: string): string => `https://app.todoist.com/app/label/${id}`;
+export const todoistFilterUrl = (id: string): string => `https://app.todoist.com/app/filter/${id}`;
 export const todoistSectionUrl = (id: string): string => `https://app.todoist.com/app/section/${id}`;
 
 /**

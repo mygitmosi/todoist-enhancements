@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveTempIds } from './sync';
+import { applySync, resolveTempIds } from './sync';
 import { emptySnapshot, type Snapshot } from '@/domain/types';
 import { item } from '@/test/items';
 
@@ -42,5 +42,40 @@ describe('resolveTempIds', () => {
     const next = resolveTempIds(snapshot, { tmp: 'real' });
     expect(Object.keys(next.items)).toEqual(['real']);
     expect(next.items.real.content).toBe('from Todoist');
+  });
+});
+
+describe('applySync filters', () => {
+  const filter = (id: string, extra = {}) => ({
+    id, name: id, query: 'today', color: 'red', item_order: 1, is_deleted: false, is_favorite: false, ...extra,
+  });
+
+  it('reads filters into a snapshot saved before they existed', () => {
+    const old = { ...emptySnapshot() };
+    delete old.filters;
+    const next = applySync(old, { sync_token: 't', full_sync: true, filters: [filter('f1')] });
+    expect(Object.keys(next.filters ?? {})).toEqual(['f1']);
+  });
+
+  it('keeps filters when an incremental read carries none, and drops a deleted one', () => {
+    const base = applySync(emptySnapshot(), { sync_token: 't', full_sync: true, filters: [filter('f1'), filter('f2')] });
+    const same = applySync(base, { sync_token: 'u', full_sync: false });
+    expect(Object.keys(same.filters ?? {}).sort()).toEqual(['f1', 'f2']);
+    const gone = applySync(base, { sync_token: 'v', full_sync: false, filters: [filter('f2', { is_deleted: true })] });
+    expect(Object.keys(gone.filters ?? {})).toEqual(['f1']);
+  });
+});
+
+describe('collaborator sync variants and deletion', () => {
+  it('reads both spellings of the membership field defensively', () => {
+    const next = applySync(emptySnapshot(), { sync_token: 't', full_sync: true,
+      collaborators_states: [{ project_id: 'p', user_id: 'a', state: 'active' }] });
+    expect(next.collaboratorStates?.[0].user_id).toBe('a');
+  });
+  it('removes a collaborator mapping marked deleted instead of keeping an active tombstone', () => {
+    const base = { ...emptySnapshot(), collaboratorStates: [{ project_id: 'p', user_id: 'a', state: 'active' }] };
+    const next = applySync(base, { sync_token: 't', full_sync: false,
+      collaborator_states: [{ project_id: 'p', user_id: 'a', state: 'active', is_deleted: true }] });
+    expect(next.collaboratorStates).toEqual([]);
   });
 });

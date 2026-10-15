@@ -1,4 +1,8 @@
-import { useMemo } from 'react';
+import { InsightsButton } from '@/components/InsightsButton';
+import { LabelTitle } from '@/components/LabelTitle';
+import { HireNote } from '@/components/HireNote';
+import { useMemo, useState } from 'react';
+import { ProjectMenu } from '@/components/ProjectMenu';
 import { PageHeader } from '@/components/PageHeader';
 import { SubtasksProvider } from '@/components/TaskRow';
 import { DisplayMenu } from '@/components/DisplayMenu';
@@ -7,6 +11,9 @@ import { TaskGroup } from '@/components/TaskGroup';
 import { Icon } from '@/components/Icon';
 import { TimePanel } from '@/components/TimePanel';
 import { useT } from '@/hooks/useT';
+import { useFilterResult } from '@/hooks/useFilterResult';
+import { FilterSheet, type FilterSheetTarget } from '@/components/overlays/FilterSheet';
+import { FilterDescription, FilterMenu, FilterTitle } from '@/components/FilterHeader';
 import { useTimePill } from '@/hooks/useTimePill';
 import { useData } from '@/hooks/useData';
 import { useStore } from '@/store/store';
@@ -19,12 +26,16 @@ import type { Item } from '@/domain/types';
 import type { DropTarget, RowOrder, TaskPlacement } from '@/domain/dnd';
 
 interface SimpleListViewProps {
-  kind: 'someday' | 'inbox' | 'label';
+  kind: 'someday' | 'inbox' | 'label' | 'filter';
   labelName?: string;
+  /** The saved filter a `filter` page shows. */
+  filterId?: string;
   onOpen: (id: string) => void;
   onInsights: () => void;
   onUnestimated: (items?: Item[]) => void;
   onAddTaskTo: (placement: TaskPlacement) => void;
+  /** Opens the project sheet; the Inbox page's menu edits through it. */
+  onProjectSheet?: (target: { mode: 'edit'; projectId: string }) => void;
 }
 
 /**
@@ -46,17 +57,47 @@ const priorityOf = (key: string): 1 | 2 | 3 | 4 | undefined => {
   return at >= 1 && at <= 4 ? (at as 1 | 2 | 3 | 4) : undefined;
 };
 
+/** The key a page's Display settings are kept under. */
+const viewKeyOf = ({ kind, labelName, filterId }: Pick<SimpleListViewProps, 'kind' | 'labelName' | 'filterId'>) =>
+  kind === 'label' ? `label:${labelName}` : kind === 'filter' ? `filter:${filterId}` : kind;
+
 function SimpleListBody({
-  kind, labelName, onOpen, onInsights, onUnestimated, onAddTaskTo,
+  kind, labelName, filterId, onOpen, onInsights, onUnestimated, onAddTaskTo, onProjectSheet,
 }: SimpleListViewProps) {
   const { t } = useT();
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const inboxProject = kind === 'inbox'
+    ? Object.values(useStore.getState().snapshot.projects).find((p) => p.inbox_project && !p.is_deleted)
+    : undefined;
   const timePill = useTimePill();
-  const { snapshot, items, childrenOf } = useData();
+  const { snapshot, items, childrenOf: allChildrenOf } = useData(viewKeyOf({ kind, labelName, filterId }));
   const prefs = useStore((s) => s.prefs);
-  const viewKey = kind === 'label' ? `label:${labelName}` : kind;
+  const [filterSheet, setFilterSheet] = useState<FilterSheetTarget>(null);
+  const viewKey = viewKeyOf({ kind, labelName, filterId });
   const current = viewPrefs(prefs, viewKey);
 
-  const scoped = useMemo(() => {
+  /* A filter's tasks are whatever Todoist says its query matches, subtasks
+     included. A matching subtask whose parent matches too is drawn under it;
+     one whose parent does not stands on its own, as in Todoist. A parent only
+     opens onto the subtasks that match. */
+  const filter = kind === 'filter' && filterId ? snapshot.filters?.[filterId] : undefined;
+  const filterResult = useFilterResult(filter);
+  const matched = useMemo(
+    () => new Set(filterResult.parts?.flatMap((part) => part.ids) ?? []),
+    [filterResult.parts],
+  );
+  const childrenOf = useMemo(
+    () => (kind === 'filter'
+      ? (id: string) => allChildrenOf(id).filter((child) => matched.has(child.id))
+      : allChildrenOf),
+    [kind, allChildrenOf, matched],
+  );
+  const filterPool = (ids: string[]): Item[] => ids
+    .map((id) => snapshot.items[id])
+    .filter((item): item is Item => Boolean(item) && !item.checked && !item.is_deleted
+      && !(item.parent_id && matched.has(item.parent_id)));
+
+  const pool0 = useMemo(() => {
     const roots = rootItems(items);
     let selection: Item[];
 
@@ -65,12 +106,21 @@ function SimpleListBody({
     } else if (kind === 'inbox') {
       const inboxId = snapshot.user?.inbox_project_id;
       selection = inboxId ? roots.filter((i) => i.project_id === inboxId) : [];
+    } else if (kind === 'filter') {
+      const seen = new Set<string>();
+      selection = filterPool(filterResult.parts?.flatMap((part) => part.ids) ?? [])
+        .filter((item) => !seen.has(item.id) && Boolean(seen.add(item.id)));
     } else {
       selection = labelName ? roots.filter((i) => hasLabel(i, labelName)) : [];
     }
 
-    return applyFilters(selection, current.filters, snapshot, childrenOf);
-  }, [items, kind, labelName, current.filters, snapshot, childrenOf]);
+    return selection;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, kind, labelName, snapshot, filterResult.parts, matched]);
+  const scoped = useMemo(
+    () => applyFilters(pool0, current.filters, snapshot, childrenOf),
+    [pool0, current.filters, snapshot, childrenOf],
+  );
 
   /* The one flat list is drawn straight rather than through `ModeSurface`, and
      `ModeSurface` is what used to do the sorting: the sort in the display menu
@@ -84,10 +134,12 @@ function SimpleListBody({
   /* The quick tasks lead the page and are listed only there (#154). A board
      keeps its columns whole. */
   const split = useMemo(
-    () => current.mode === 'board' && current.group !== 'none'
+    /* A filter shows what Todoist's query returns and nothing else, so its
+       tasks stay in the lists the query draws rather than leaving for Quick. */
+    () => kind === 'filter' || (current.mode === 'board' && current.group !== 'none')
       ? { quick: [], rest: scoped }
       : pullQuick(scoped, prefs.showQuickGroup, current.sort, childrenOf, order, snapshot),
-    [scoped, current.mode, current.group, current.sort, prefs.showQuickGroup, childrenOf, order, snapshot],
+    [kind, scoped, current.mode, current.group, current.sort, prefs.showQuickGroup, childrenOf, order, snapshot],
   );
   /* Under Quick, on Someday only: what has sat there for months (#161). Quick
      has taken its own already, so nothing is listed twice. The group is oldest
@@ -118,17 +170,21 @@ function SimpleListBody({
     [scoped, childrenOf],
   );
 
-  const title = kind === 'label' ? (labelName ?? '') : t(`nav.${kind}` as TranslationKey);
+  const title = kind === 'label'
+    ? (labelName ?? '')
+    : kind === 'filter' ? (filter?.name ?? '') : t(`nav.${kind}` as TranslationKey);
 
   /* What this page is, said twice: as the place a dropped task lands, and as
      the head start the composer opens with. */
   const inboxId = snapshot.user?.inbox_project_id;
-  const dropTarget: DropTarget | undefined = kind === 'someday'
+  const dropTarget: DropTarget | undefined = kind === 'filter'
+    ? undefined
+    : kind === 'someday'
     ? { kind: 'someday' }
     : kind === 'inbox'
       ? (inboxId ? { kind: 'project', projectId: inboxId } : undefined)
       : (labelName ? { kind: 'label', label: labelName } : undefined);
-  const addition = kind === 'someday'
+  const addition = kind === 'someday' || kind === 'filter'
     ? {}
     : kind === 'inbox'
       ? { projectId: inboxId }
@@ -183,22 +239,58 @@ function SimpleListBody({
     />
   ) : undefined;
   const lead = quickGroup || dustGroup ? <>{quickGroup}{dustGroup}</> : undefined;
+  /* The note is a row of the main list, under Quick and Dust. Where the page is
+     not drawn as a list (a board, a grouping), it goes under the header. */
+  const hireNoteOpen = useStore((s) => s.hireNote);
+  const commaFilter = kind === 'filter' && (filterResult.parts?.length ?? 0) > 1
+    && current.mode === 'list' && current.group === 'none';
+  const flatList = !commaFilter && !(kind === 'filter' && (filterResult.error || !filter))
+    && current.mode === 'list' && (current.group === 'none' || scoped.length === 0);
+  const hireInList = commaFilter || flatList
+    || (current.mode === 'list' && !(kind === 'filter' && (filterResult.error || !filter)));
 
   return (
     <div className="page">
       <PageHeader
-        title={title}
+        hireNote={!hireInList}
+        title={filter ? <FilterTitle filter={filter} /> : kind === 'label' ? <LabelTitle name={title} /> : title}
+        subtitle={filter ? <FilterDescription filter={filter} /> : undefined}
         actions={
           <>
             <DisplayMenu
               viewKey={viewKey}
+              pageItems={pool0}
               modes={['list', 'board']}
               groups={['none', 'project', 'priority', 'label', 'estimate']}
             />
-            <button className="btn accent" onClick={onInsights}>
-              <Icon name="trend" />
-              {t('toolbar.insights')}
-            </button>
+            <InsightsButton onClick={onInsights} />
+            {filter && <FilterMenu filter={filter} onEdit={() => setFilterSheet({ mode: 'edit', filterId: filter.id })} />}
+            {inboxProject && (
+              <span className="pmenu-wrap">
+                <button
+                  className="iconbtn"
+                  aria-label={t('project.actions')}
+                  title={t('project.actions')}
+                  aria-expanded={menuAnchor !== null}
+                  aria-haspopup="menu"
+                  onClick={(event) => {
+                    const button = event.currentTarget;
+                    setMenuAnchor((current) => (current ? null : button));
+                  }}
+                >
+                  <Icon name="more" />
+                </button>
+                {menuAnchor && (
+                  <ProjectMenu
+                    project={inboxProject}
+                    align="right"
+                    anchor={menuAnchor}
+                    onClose={() => setMenuAnchor(null)}
+                    onEdit={() => onProjectSheet?.({ mode: 'edit', projectId: inboxProject.id })}
+                  />
+                )}
+              </span>
+            )}
           </>
         }
         load={load}
@@ -213,10 +305,45 @@ function SimpleListBody({
       />
 
 
-      {/* A list with nothing in it is drawn as the one flat list whatever it is
+      {/* The query itself is in the edit sheet, not on the page, as in Todoist. */}
+      {kind === 'filter' && filter && ((filterResult.loading && filterResult.parts === null) || filterResult.stale) && (
+        <p className="filterquery">
+          {filterResult.stale ? t('filters.stale') : t('filters.loading')}
+        </p>
+      )}
+      {kind === 'filter' && !filter && <p className="empty">{t('filters.missing')}</p>}
+      {kind === 'filter' && filterResult.error && (
+        <p className="empty filtererror" role="alert">{t('filters.refused', { reason: filterResult.error })}</p>
+      )}
+
+      {/* A query with commas is several lists, one under the other, each
+          headed by its part of the query, as Todoist draws it. Grouping or a
+          board from the Display menu takes over from these. */}
+      {kind === 'filter' && (filterResult.parts?.length ?? 0) > 1
+        && current.mode === 'list' && current.group === 'none' ? (
+        <div className="mode">
+          {lead}
+          {filterResult.parts!.map((part, index) => {
+            const own = new Set(filterPool(part.ids).map((item) => item.id));
+            const shown = ordered.filter((item) => own.has(item.id));
+            return (
+              <TaskGroup
+                key={`${index}-${part.query}`}
+                title={part.query}
+                items={shown}
+                childrenOf={childrenOf}
+                onOpen={onOpen}
+                lead={index === 0 && hireNoteOpen ? <HireNote /> : undefined}
+                keepWhenEmpty
+              />
+            );
+          })}
+        </div>
+      ) : kind === 'filter' && (filterResult.error || !filter) ? null
+      /* A list with nothing in it is drawn as the one flat list whatever it is
           grouped by: groups of nothing have no line to add a task, and an empty
-          page is exactly where one is wanted. */}
-      {current.mode === 'list' && (current.group === 'none' || scoped.length === 0) ? (
+          page is exactly where one is wanted. */
+      : current.mode === 'list' && (current.group === 'none' || scoped.length === 0) ? (
         /* One flat list is one place, so it is a group of its own rather than
            a grouping of one: somewhere to drop a task, and a standing line to
            add one that already belongs here — in the Inbox, in the project;
@@ -225,6 +352,7 @@ function SimpleListBody({
           {lead}
           <TaskGroup
             items={ordered}
+            lead={hireNoteOpen ? <HireNote /> : undefined}
             childrenOf={childrenOf}
             onOpen={onOpen}
             dropTarget={dropTarget}
@@ -238,6 +366,7 @@ function SimpleListBody({
         <ModeSurface
           items={pool}
           lead={lead}
+          firstGroupLead={hireNoteOpen ? <HireNote /> : undefined}
           /* A board with no grouping is its one column, led by Quick: blue,
              and a place to look rather than somewhere to drop. */
           boardColumns={current.mode === 'board' && current.group === 'none'
@@ -250,7 +379,6 @@ function SimpleListBody({
             : undefined}
           childrenOf={childrenOf}
           mode={current.mode}
-          wide={current.wide}
           group={current.group}
           sort={current.sort}
           onOpen={onOpen}
@@ -258,13 +386,14 @@ function SimpleListBody({
           addToGroup={addToGroup}
         />
       )}
+      {kind === 'filter' && <FilterSheet target={filterSheet} onClose={() => setFilterSheet(null)} />}
     </div>
   );
 }
 
 export function SimpleListView(props: SimpleListViewProps) {
   const prefs = useStore((s) => s.prefs);
-  const viewKey = props.kind === 'label' ? `label:${props.labelName}` : props.kind;
+  const viewKey = viewKeyOf(props);
   return (
     <SubtasksProvider value={viewPrefs(prefs, viewKey).filters.showSubtasks}>
       <SimpleListBody {...props} />

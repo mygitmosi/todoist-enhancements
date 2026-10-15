@@ -1,8 +1,12 @@
+import { defaultViewPrefs } from '@/domain/types';
+import { viewPrefs } from '@/store/prefs';
+import { AssigneeFilter } from '@/components/AssigneeFilter';
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { PERSONAL_WORKSPACE } from '@/store/selectors';
+import { WorkspaceFilter } from './WorkspaceFilter';
 import {
   EISENHOWER_PRIORITIES,
   EISENHOWER_URGENCY_RULES,
@@ -24,14 +28,15 @@ export function EisenhowerDisplayMenu() {
   const snapshot = useStore((s) => s.snapshot);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const workspaces = Object.values(snapshot.workspaces);
+  const workspaceSelection = viewPrefs(prefs, 'matrix').filters.workspaces;
+  const workspaceChanged = workspaceSelection.length > 0 && ![PERSONAL_WORKSPACE, ...Object.keys(snapshot.workspaces)].every((id) => workspaceSelection.includes(id));
   /* Matrix or list is how the page is drawn, not a setting on what it
      shows: like list or board on the other pages, it does not count. */
-  const changed = Number(prefs.eisenhowerUrgent.join('|') !== 'overdue|today')
+  const changed = Number(JSON.stringify(viewPrefs(prefs, 'matrix').filters.assignees) !== JSON.stringify(defaultViewPrefs('matrix').filters.assignees)) + Number(prefs.eisenhowerUrgent.join('|') !== 'overdue|today')
     + Number(prefs.eisenhowerImportant.join('|') !== '1|2')
     + Number(prefs.eisenhowerShowFuture)
     + Number(prefs.eisenhowerIncludeSomeday)
-    + Number(prefs.eisenhowerWorkspace !== null);
+    + Number(workspaceChanged || prefs.eisenhowerWorkspace !== null);
 
   useEffect(() => {
     if (!open) return;
@@ -49,7 +54,9 @@ export function EisenhowerDisplayMenu() {
     };
   }, [open]);
 
-  const reset = () => setPrefs({
+  const reset = () => {
+    useStore.getState().setViewPrefs('matrix', defaultViewPrefs('matrix'));
+    setPrefs({
     eisenhowerLayout: 'matrix',
     eisenhowerUrgent: ['overdue', 'today'],
     eisenhowerImportant: [1, 2],
@@ -57,6 +64,7 @@ export function EisenhowerDisplayMenu() {
     eisenhowerIncludeSomeday: false,
     eisenhowerWorkspace: null,
   });
+  };
 
   const toggleUrgent = (rule: EisenhowerUrgencyRule) => setPrefs({
     eisenhowerUrgent: prefs.eisenhowerUrgent.includes(rule)
@@ -87,10 +95,12 @@ export function EisenhowerDisplayMenu() {
       {open && (
         <div className="popover displaypanel anchor-right" role="dialog" aria-label={t('toolbar.display')}>
           <div className="panelhead">
-            <h5>{t('toolbar.presentation')}</h5>
+            <h5>{t('toolbar.display')}</h5>
             <button className="resetbtn" onClick={reset}>{t('toolbar.resetAll')}</button>
           </div>
 
+          <WorkspaceFilter viewKey="matrix" />
+          <AssigneeFilter viewKey="matrix" />
           <div className="segmented">
             {(['list', 'matrix'] as MatrixLayout[]).map((layout) => (
               <button
@@ -127,63 +137,33 @@ export function EisenhowerDisplayMenu() {
             />
           </div>
 
-          {/* "My projects" isn't a workspace Todoist hands back — it's the
-              absence of one — so this has nothing to offer it against until
-              the account has added a real workspace. */}
-          {workspaces.length > 0 && (
-            <>
-              <h5>{t('filter.workspaces')}</h5>
-              <div className="segmented small">
-                <button
-                  aria-pressed={prefs.eisenhowerWorkspace === null}
-                  onClick={() => setPrefs({ eisenhowerWorkspace: null })}
-                >
-                  <small>{t('filter.any')}</small>
-                </button>
-                <button
-                  aria-pressed={prefs.eisenhowerWorkspace === PERSONAL_WORKSPACE}
-                  onClick={() => setPrefs({ eisenhowerWorkspace: PERSONAL_WORKSPACE })}
-                >
-                  <small>{t('nav.myProjects')}</small>
-                </button>
-                {workspaces.map((workspace) => (
-                  <button
-                    key={workspace.id}
-                    aria-pressed={prefs.eisenhowerWorkspace === workspace.id}
-                    onClick={() => setPrefs({ eisenhowerWorkspace: workspace.id })}
-                  >
-                    <small>{workspace.name}</small>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
+          {/* Toggle pills, like the filters of every other Display panel (#23). */}
           <h5>{t('matrix.urgent')}</h5>
-          <div className="matrix-checks">
+          <div className="chiprow">
             {EISENHOWER_URGENCY_RULES.map((rule) => (
-              <label className="checkrow" key={rule}>
-                <input
-                  type="checkbox"
-                  checked={prefs.eisenhowerUrgent.includes(rule)}
-                  onChange={() => toggleUrgent(rule)}
-                />
-                <span>{t(`matrix.urgent.${rule}` as TranslationKey)}</span>
-              </label>
+              <button
+                key={rule}
+                className="chip"
+                aria-pressed={prefs.eisenhowerUrgent.includes(rule)}
+                onClick={() => toggleUrgent(rule)}
+              >
+                {t(`matrix.urgent.${rule}` as TranslationKey)}
+              </button>
             ))}
           </div>
 
           <h5>{t('matrix.important')}</h5>
-          <div className="matrix-checks importance-checks">
+          <div className="chiprow">
             {EISENHOWER_PRIORITIES.map((priority) => (
-              <label className="checkrow" key={priority}>
-                <input
-                  type="checkbox"
-                  checked={prefs.eisenhowerImportant.includes(priority)}
-                  onChange={() => toggleImportant(priority)}
-                />
-                <span>{t(`common.p${priority}` as TranslationKey)}</span>
-              </label>
+              <button
+                key={priority}
+                className="chip"
+                aria-pressed={prefs.eisenhowerImportant.includes(priority)}
+                onClick={() => toggleImportant(priority)}
+              >
+                <span className="flagdot" style={{ background: `var(--p${priority})` }} />
+                P{priority}
+              </button>
             ))}
           </div>
           <p className="displayhelp">{t('matrix.settings.help')}</p>
