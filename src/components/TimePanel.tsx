@@ -5,6 +5,7 @@ import { COMPLETION_LINGER_MS } from './TaskRow';
 import { useT } from '@/hooks/useT';
 import { useData } from '@/hooks/useData';
 import { useStore } from '@/store/store';
+import { completionTick } from '@/store/tick';
 import { rootItems } from '@/store/selectors';
 import { effectiveEstimate, formatDuration, parseDurationInput } from '@/domain/estimates';
 import {
@@ -295,6 +296,7 @@ function TimeRow({ item, when, onOpen }: { item: Item; when: FitBucketKey; onOpe
      task leaves a moment later, so a wrong click is not simply a vanished row. */
   const complete = () => {
     if (settling) return;
+    completionTick(item);
     setSettling(true);
     timer.current = setTimeout(() => { void toggleTask(item.id); }, COMPLETION_LINGER_MS);
   };

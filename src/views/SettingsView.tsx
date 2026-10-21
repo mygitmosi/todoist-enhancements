@@ -5,6 +5,7 @@ import { canStoreDurations } from '@/domain/estimates';
 import { useEffect, useState } from 'react';
 import { BrandIcon, Icon, type IconName } from '@/components/Icon';
 import { Select } from '@/components/Select';
+import { COMPLETION_SOUNDS, playCompletionSound, type CompletionChoice, type CompletionSound } from '@/lib/completionSound';
 import { GroupOrderEditor, SidebarNavEditor } from '@/components/SidebarNavEditor';
 import { AccentChoice, BackgroundChoice, ThemeChoice, LayoutChoice, DensityChoice, EstimateStorageChoice, TaskChipsChoice, TaskOpenChoice } from '@/components/Choosers';
 import { WorkspacePreview } from '@/components/WorkspacePreview';
@@ -238,6 +239,21 @@ export function SettingsView() {
             </Row>
             <Row title={t('settings.naturalDates')} hint={t('settings.naturalDatesHint')}>
               <Switch checked={prefs.naturalDates} onChange={() => setPrefs({ naturalDates: !prefs.naturalDates })} label={t('settings.naturalDates')} />
+            </Row>
+            <Row title={t('settings.completionSoundChoice')} hint={t('settings.completionSoundChoiceHint')}>
+              <Select
+                value={prefs.completionSoundChoice}
+                onChange={(value) => { setPrefs({ completionSoundChoice: value as CompletionChoice }); if (value !== 'none') playCompletionSound(value as CompletionSound); }}
+                ariaLabel={t('settings.completionSoundChoice')}
+                options={[
+                  { value: 'none', label: t('settings.sound.none') },
+                  ...COMPLETION_SOUNDS.map((sound) => ({
+                    value: sound,
+                    label: t(`settings.sound.${sound}` as TranslationKey),
+                    action: { icon: 'volume' as const, label: t('settings.soundListen'), run: () => playCompletionSound(sound) },
+                  })),
+                ]}
+              />
             </Row>
             <Row title={t('settings.searchSections')} hint={t('settings.searchSectionsHint')}>
               <Switch checked={prefs.includeSectionsInSearch} onChange={() => setPrefs({ includeSectionsInSearch: !prefs.includeSectionsInSearch })} label={t('settings.searchSections')} />

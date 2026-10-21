@@ -1,3 +1,6 @@
+import { filterRoots } from '@/domain/filterSelection';
+import { pageClass } from '@/domain/pageLayout';
+import { CalendarSurface } from '@/components/CalendarSurface';
 import { InsightsButton } from '@/components/InsightsButton';
 import { LabelTitle } from '@/components/LabelTitle';
 import { HireNote } from '@/components/HireNote';
@@ -92,10 +95,7 @@ function SimpleListBody({
       : allChildrenOf),
     [kind, allChildrenOf, matched],
   );
-  const filterPool = (ids: string[]): Item[] => ids
-    .map((id) => snapshot.items[id])
-    .filter((item): item is Item => Boolean(item) && !item.checked && !item.is_deleted
-      && !(item.parent_id && matched.has(item.parent_id)));
+  const filterPool = (ids: string[]): Item[] => filterRoots(ids, snapshot.items);
 
   const pool0 = useMemo(() => {
     const roots = rootItems(items);
@@ -136,7 +136,7 @@ function SimpleListBody({
   const split = useMemo(
     /* A filter shows what Todoist's query returns and nothing else, so its
        tasks stay in the lists the query draws rather than leaving for Quick. */
-    () => kind === 'filter' || (current.mode === 'board' && current.group !== 'none')
+    () => current.mode === 'table' || kind === 'filter' || (current.mode === 'board' && current.group !== 'none')
       ? { quick: [], rest: scoped }
       : pullQuick(scoped, prefs.showQuickGroup, current.sort, childrenOf, order, snapshot),
     [kind, scoped, current.mode, current.group, current.sort, prefs.showQuickGroup, childrenOf, order, snapshot],
@@ -146,7 +146,7 @@ function SimpleListBody({
      first unless the Display sort asks for something else. */
   const dustKept = useStore((s) => s.dustKept);
   const dustSplit = useMemo(() => {
-    if (kind !== 'someday' || !prefs.showDustGroup || current.mode === 'board') {
+    if (kind !== 'someday' || !prefs.showDustGroup || (current.mode === 'board' || current.mode === 'table')) {
       return { dust: [], rest: split.rest };
     }
     const { dust, rest } = splitDust(split.rest, {
@@ -250,7 +250,7 @@ function SimpleListBody({
     || (current.mode === 'list' && !(kind === 'filter' && (filterResult.error || !filter)));
 
   return (
-    <div className="page">
+    <div className={pageClass(current)}>
       <PageHeader
         hireNote={!hireInList}
         title={filter ? <FilterTitle filter={filter} /> : kind === 'label' ? <LabelTitle name={title} /> : title}
@@ -260,7 +260,7 @@ function SimpleListBody({
             <DisplayMenu
               viewKey={viewKey}
               pageItems={pool0}
-              modes={['list', 'board']}
+              modes={['list', 'board', 'table', 'calendar']}
               groups={['none', 'project', 'priority', 'label', 'estimate']}
             />
             <InsightsButton onClick={onInsights} />
@@ -297,12 +297,12 @@ function SimpleListBody({
         onOpenUnestimated={load.unestimatedCount > 0 ? onUnestimated : undefined}
         time={timePill}
       />
-      <TimePanel
+      {current.mode !== 'calendar' && <TimePanel
         pageItems={scoped}
         pageLabel={title}
         onOpen={onOpen}
         onUnestimated={onUnestimated}
-      />
+      />}
 
 
       {/* The query itself is in the edit sheet, not on the page, as in Todoist. */}
@@ -319,19 +319,25 @@ function SimpleListBody({
       {/* A query with commas is several lists, one under the other, each
           headed by its part of the query, as Todoist draws it. Grouping or a
           board from the Display menu takes over from these. */}
-      {kind === 'filter' && (filterResult.parts?.length ?? 0) > 1
+      {current.mode === 'calendar' && !(kind === 'filter' && (filterResult.error || !filter)) ? (
+        <CalendarSurface key={viewKey} viewKey={viewKey} items={pool0} childrenOf={childrenOf} onOpen={onOpen} onAddTaskTo={onAddTaskTo} />
+      ) : kind === 'filter' && (filterResult.parts?.length ?? 0) > 1
         && current.mode === 'list' && current.group === 'none' ? (
         <div className="mode">
           {lead}
           {filterResult.parts!.map((part, index) => {
-            const own = new Set(filterPool(part.ids).map((item) => item.id));
-            const shown = ordered.filter((item) => own.has(item.id));
+            const ownMatches = new Set(part.ids);
+            const partChildrenOf = (id: string) => allChildrenOf(id).filter((child) => ownMatches.has(child.id));
+            const shown = sortItems(applyFilters(filterPool(part.ids), current.filters, snapshot, partChildrenOf),
+              current.sort, partChildrenOf, order, snapshot);
             return (
               <TaskGroup
                 key={`${index}-${part.query}`}
-                title={part.query}
+                title={/^(overdue|en retard)$/i.test(part.query.trim()) ? t('filters.overdueGroup')
+                  : /^(today|aujourd’hui|aujourd'hui)$/i.test(part.query.trim()) ? t('date.today')
+                  : /^(tomorrow|demain)$/i.test(part.query.trim()) ? t('date.tomorrow') : part.query}
                 items={shown}
-                childrenOf={childrenOf}
+                childrenOf={partChildrenOf}
                 onOpen={onOpen}
                 lead={index === 0 && hireNoteOpen ? <HireNote /> : undefined}
                 keepWhenEmpty
@@ -365,6 +371,7 @@ function SimpleListBody({
       ) : (
         <ModeSurface
           items={pool}
+          viewKey={viewKey}
           lead={lead}
           firstGroupLead={hireNoteOpen ? <HireNote /> : undefined}
           /* A board with no grouping is its one column, led by Quick: blue,

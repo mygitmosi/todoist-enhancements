@@ -12,6 +12,7 @@ import { useT } from '@/hooks/useT';
 import { useData } from '@/hooks/useData';
 import { useCompleted } from '@/hooks/useCompleted';
 import { useStore } from '@/store/store';
+import { completionTick } from '@/store/tick';
 import { navigate } from '@/hooks/useRoute';
 import { rootItems } from '@/store/selectors';
 import { markerStyle } from '@/domain/colors';
@@ -447,6 +448,7 @@ export function ReviewView({ onOpen }: ReviewViewProps) {
     const settling = settlingIds.has(item.id);
     const complete = () => {
       if (settling) return;
+      completionTick(item);
       setSettlingIds((prev) => new Set(prev).add(item.id));
       window.setTimeout(() => {
         forget(item.id);

@@ -124,6 +124,14 @@ test('Insights does not move while pressed and its dark state stays readable', a
 test('list and full width board headers share the same available width', async ({ demo: page }) => {
   await page.setViewportSize({ width: 1800, height: 1000 });
   await go(page, 'week');
+  /* A list keeps a reading width by default; the full width one is the page's. */
+  await page.evaluate(async () => {
+    const path = performance.getEntriesByType('resource').map((entry) => entry.name).find((url) => /\/src\/store\/store\.ts(?:\?|$)/.test(url))!;
+    const { useStore } = await import(path);
+    useStore.getState().setViewPrefs('week', { fullWidth: true });
+  });
+  await expect(page.locator('.screen.active .page.narrow')).toHaveCount(0);
+  await page.waitForTimeout(500);
   const header = page.locator('.screen.active .phead');
   const mode = page.locator('.screen.active .mode');
   const list = await mode.boundingBox();

@@ -1,3 +1,5 @@
+import { Select } from '../Select';
+import { usePhone } from '@/hooks/usePhone';
 import { useProjectPeople } from '@/hooks/useProjectPeople';
 import { AssigneeBadge } from '../AssigneeBadge';
 import { AssigneeField } from '../AssigneeField';
@@ -16,6 +18,7 @@ import { useMenuKeys } from '@/hooks/useMenuKeys';
 import { useData } from '@/hooks/useData';
 import { navigate } from '@/hooks/useRoute';
 import { useStore } from '@/store/store';
+import { completionTick } from '@/store/tick';
 import { useConfirm } from './Confirm';
 import {
   effectiveEstimate, formatDuration,
@@ -148,10 +151,11 @@ function EditableSubtask({ child, onOpen }: { child: Item; onOpen: (id: string) 
           aria-checked={child.checked}
           aria-label={t('task.complete')}
           tabIndex={0}
-          onClick={() => void toggleTask(child.id)}
+          onClick={() => { completionTick(child); void toggleTask(child.id); }}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault();
+              completionTick(child);
               void toggleTask(child.id);
             }
           }}
@@ -244,6 +248,7 @@ function PropLabel({ name, prop }: { name: string; prop: string }) {
 }
 
 export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
+  const phone = usePhone();
   const pendingWrites = useStore((s) => s.pendingCount);
   const { t, locale } = useT();
   const { snapshot, childrenOf } = useData();
@@ -634,6 +639,29 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
     setSubtaskDraft('');
   }
 
+  /* The section belongs here with the project rather than being left to the
+     breadcrumb: this is the panel a task is edited in, and where it lives was
+     the one property it could read but not change. A move, not an update:
+     `item_update` takes neither a project nor a section, so the field used to
+     move the task on screen only. One row, in one place: first on a wide
+     screen, last of the chips on a phone. */
+  const projectProp = (
+          <div className="prop" data-prop="project">
+            <PropLabel name={t('detail.project')} prop="project" />
+            <PlacementField
+              matchWidth
+              ariaLabel={t('detail.project')}
+              value={{ projectId: item.project_id, sectionId: item.section_id }}
+              onChange={(place) => void moveTask(
+                item.id,
+                place.sectionId
+                  ? { section_id: place.sectionId }
+                  : { project_id: place.projectId },
+              )}
+            />
+          </div>
+  );
+
   return (
     <Overlay
       open
@@ -789,10 +817,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                 aria-checked={item.checked}
                 aria-label={t('task.complete')}
                 tabIndex={0}
-                onClick={() => void toggleTask(item.id)}
+                onClick={() => { completionTick(item); void toggleTask(item.id); }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
+                    completionTick(item);
                     void toggleTask(item.id);
                   }
                 }}
@@ -968,26 +997,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
         </div>
 
         <aside className="detail-side">
-          {/* The section belongs here with the project rather than being left
-              to the breadcrumb: this is the panel a task is edited in, and
-              where it lives was the one property it could read but not change.
-              A move, not an update — `item_update` takes neither a project nor
-              a section, so the field used to move the task on screen only. */}
-          <div className="prop" data-prop="project">
-            <PropLabel name={t('detail.project')} prop="project" />
-            <PlacementField
-              matchWidth
-              ariaLabel={t('detail.project')}
-              value={{ projectId: item.project_id, sectionId: item.section_id }}
-              onChange={(place) => void moveTask(
-                item.id,
-                place.sectionId
-                  ? { section_id: place.sectionId }
-                  : { project_id: place.projectId },
-              )}
-            />
-          </div>
-
+          {!phone && projectProp}
           <div className="prop" data-prop="start">
             <PropLabel name={t('detail.startDate')} prop="start" />
             <DateField
@@ -1032,12 +1042,18 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
             )}
           </div>
 
+          {/* On a phone the properties other than the date are one row of chips, as in
+              the composer; on a wide screen this wrapper draws nothing and they are the
+              rows they always were, project first (#294). */}
+          <div className="propchips">
           <div className="prop" data-prop="deadline">
             <PropLabel name={t('detail.deadline')} prop="deadline" />
             <DateField
               value={deadline ? toApiDate(deadline) : ''}
               label={t('detail.deadline')}
-              placeholder={t('date.pick')}
+              /* The property's name is not drawn on a phone, where it is a chip:
+                 an empty chip has to say which date it is. */
+              placeholder={phone ? t('detail.deadline') : t('date.pick')}
               onChange={(value) =>
                 void updateTask(item.id, { deadline: value ? { date: value, lang: locale } : null })}
             />
@@ -1067,6 +1083,19 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
 
           <div className="prop" data-prop="priority">
             <PropLabel name={t('detail.priority')} prop="priority" />
+            {/* One chip on a phone, as in the composer: four pills would be most of the row. */}
+            {phone ? (
+              <Select
+                variant="chip"
+                label={t('detail.priority')}
+                ariaLabel={t('detail.priority')}
+                chipIcon={<Icon name="flag" size="sm" style={{ color: `var(--p${priority})` }} />}
+                tint={`var(--p${priority})`}
+                value={String(priority)}
+                onChange={(next) => void updateTask(item.id, { priority: toTodoistPriority(Number(next) as 1 | 2 | 3 | 4) })}
+                options={([1, 2, 3, 4] as const).map((p) => ({ value: String(p), label: `P${p}` }))}
+              />
+            ) : (
             <div className="priopills" role="radiogroup" aria-label={t('detail.priority')}>
               {([1, 2, 3, 4] as const).map((p) => (
                 <button
@@ -1082,6 +1111,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                 </button>
               ))}
             </div>
+            )}
           </div>
 
           {/* Only where somebody else is in the project: elsewhere there is
@@ -1182,6 +1212,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
             )}
           </div>
 
+          {phone && projectProp}
+          </div>
         </aside>
       </div>
     </Overlay>

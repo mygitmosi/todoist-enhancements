@@ -1,3 +1,7 @@
+import { usePhone } from '@/hooks/usePhone';
+import { useKeyboardInset } from '@/hooks/useKeyboardInset';
+import { uploadAttachment } from '@/api/uploads';
+import type { NoteAttachment } from '@/domain/types';
 import { AssigneeField } from '../AssigneeField';
 import { canAssign } from '@/domain/assignees';
 import { assignees } from '@/domain/sharing';
@@ -33,6 +37,7 @@ interface ComposerProps {
   defaultSectionId?: string;
   /** Pre-filled date when the task is added from a dated section. */
   defaultDate?: string;
+  defaultMinutes?: number;
   /** Pre-filled tags, for a page that is one tag. */
   defaultLabels?: string[];
   defaultPriority?: DisplayPriority;
@@ -47,13 +52,16 @@ interface ComposerProps {
  * priority, tags and the estimate all sit on the row below.
  */
 export function Composer({
-  open, onClose, defaultProjectId, defaultSectionId, defaultDate, defaultLabels, defaultPriority, defaultResponsibleUid,
+  open, onClose, defaultProjectId, defaultSectionId, defaultDate, defaultMinutes, defaultLabels, defaultPriority, defaultResponsibleUid,
 }: ComposerProps) {
   const { t } = useT();
   const snapshot = useStore((s) => s.snapshot);
-  const createTask = useStore((s) => s.createTask);
+  const createTaskId = useStore((s) => s.createTaskId);
+  const addComment = useStore((s) => s.addComment);
   const createTasks = useStore((s) => s.createTasks);
   const confirm = useConfirm();
+  const phone = usePhone();
+  useKeyboardInset(open && phone);
   const naturalDates = useStore((s) => s.prefs.naturalDates);
   const dateFormat = useStore((s) => s.prefs.dateFormat);
 
@@ -63,6 +71,24 @@ export function Composer({
     || '';
 
   const [name, setName] = useState('');
+  const [files, setFiles] = useState<Array<{ id: string; file: File; preview: string }>>([]);
+  const filesRef = useRef(files);
+  filesRef.current = files;
+  const uploaded = useRef(new Map<string, NoteAttachment>());
+  const sent = useRef(new Set<string>());
+  const [createdTaskId, setCreatedTaskId] = useState<string | null>(null);
+  const createdId = useRef<string | null>(null);
+  const resetFiles = () => {
+    for (const entry of filesRef.current) URL.revokeObjectURL(entry.preview);
+    filesRef.current = [];
+    setFiles([]);
+    uploaded.current.clear();
+    sent.current.clear();
+    createdId.current = null;
+    setCreatedTaskId(null);
+  };
+  useEffect(() => () => { for (const entry of filesRef.current) URL.revokeObjectURL(entry.preview); }, []);
+
   const [description, setDescription] = useState('');
   const [projectId, setProjectId] = useState('');
   const [responsibleUid, setResponsibleUid] = useState<string | null>(null);
@@ -115,13 +141,14 @@ export function Composer({
 
   useEffect(() => {
     if (!open) return;
+    resetFiles();
     setResponsibleUid(defaultResponsibleUid ?? null);
     setName('');
     setDescription('');
     setPriority(4);
     setLabels(defaultLabels ?? []);
     setPriority(defaultPriority ?? 4);
-    setMinutes(null);
+    setMinutes(defaultMinutes ?? null);
     setTagsOpen(false);
     setTagQuery('');
     setSubtasks([]);
@@ -136,7 +163,7 @@ export function Composer({
     setDeadline('');
     /* eslint-disable-next-line react-hooks/exhaustive-deps -- the array is
        built fresh by the caller on every render; its contents are the dep. */
-  }, [open, defaultProjectId, defaultSectionId, defaultDate, defaultPriority, defaultLabels?.join('\u0000'),
+  }, [open, defaultProjectId, defaultSectionId, defaultDate, defaultMinutes, defaultPriority, defaultLabels?.join('\u0000'),
     inboxId, defaultResponsibleUid]);
 
   useEffect(() => {
@@ -157,7 +184,7 @@ export function Composer({
     const target = named || projectId || inboxId;
     return target && snapshot.projects[target]?.can_assign_tasks !== false ? assignees(snapshot, target) : [];
   };
-  const parsed = parseShorthand(name, snapshot, naturalDates, refusals, dateFormat, peopleOf);
+  const parsed = parseShorthand(name, snapshot, naturalDates, refusals, dateFormat, peopleOf, defaultDate);
 
   /*
    * The task's tags: the ones picked by hand, and the ones the name says right
@@ -316,7 +343,31 @@ export function Composer({
     submitting.current = true;
     setSaving(true);
     try {
-      await create(content);
+      const attachments: Array<{ id: string; attachment: NoteAttachment }> = [];
+      for (const entry of filesRef.current) {
+        let attachment = uploaded.current.get(entry.id);
+        if (!attachment) {
+          attachment = await uploadAttachment(entry.file, useStore.getState().demo);
+          uploaded.current.set(entry.id, attachment);
+        }
+        attachments.push({ id: entry.id, attachment });
+      }
+      const id = createdId.current ?? await create(content);
+      if (!id) return;
+      createdId.current = id;
+      setCreatedTaskId(id);
+      for (const entry of attachments) {
+        if (sent.current.has(entry.id)) continue;
+        if (!await addComment(id, '', entry.attachment)) {
+          useStore.getState().toast(t('composer.attachmentRetry'));
+          return;
+        }
+        sent.current.add(entry.id);
+      }
+      resetFiles();
+      onClose();
+    } catch {
+      useStore.getState().toast(t(createdId.current ? 'composer.attachmentRetry' : 'comment.uploadFailed'));
     } finally {
       submitting.current = false;
       setSaving(false);
@@ -402,7 +453,7 @@ export function Composer({
           : read.date ? { due: { date: read.date, timezone: null, string: read.date, lang: 'en' as const, is_recurring: false } } : {}),
       };
     });
-    const saved = await createTask({
+    const id = await createTaskId({
       content,
       description: description.trim() || undefined,
       project_id: targetProject,
@@ -424,14 +475,44 @@ export function Composer({
       subtasks: lines,
     });
 
-    if (saved) onClose();
+    return id;
   }
+
+  /* Where the task goes: a chip among the others on a wide screen, and on a phone
+     the left of the bar the send button sits on, as in the validated design (#294). */
+  const placement = (
+    <>
+      {/* One chip for both: a section is a place, not a setting applied
+              to the project chosen before it. The Inbox is a project like any
+              other, so this chip is never empty. */}
+          <PlacementField
+            variant="chip"
+            label={t('composer.project')}
+            value={{ projectId: projectId || inboxId, sectionId: sectionId || null }}
+            onNewProject={() => setNewProject(true)}
+            onChange={(place) => {
+              setProjectId(place.projectId);
+              setSectionId(place.sectionId ?? '');
+            }}
+          />
+          <AssigneeField projectId={projectId || inboxId} value={responsibleUid} onChange={setResponsibleUid} chip />
+    </>
+  );
 
   return (
     <>
-    <Overlay open={open} onClose={onClose} label={t('nav.addTask')} size="sm">
+    <Overlay open={open} onClose={saving ? () => {} : onClose} label={t('nav.addTask')} size="sm">
       <div
         className="composerbox"
+        onPasteCapture={(event) => {
+          const images = [...event.clipboardData.items].filter((entry) => entry.kind === 'file' && entry.type.startsWith('image/'))
+            .map((entry) => entry.getAsFile()).filter((file): file is File => file !== null);
+          if (images.length === 0) return;
+          event.preventDefault();
+          event.stopPropagation();
+          if (submitting.current || createdId.current) return;
+          setFiles((previous) => [...previous, ...images.map((file) => ({ id: crypto.randomUUID(), file, preview: URL.createObjectURL(file) }))]);
+        }}
         /* Cmd+Enter saves, from any field in the sheet — Todoist's own key for
            it, and the one anybody writing in the description or filling in
            subtasks reaches for rather than aiming at the button. Plain Enter
@@ -445,11 +526,13 @@ export function Composer({
           void submit();
         }}
       >
+        <fieldset className="composer-fields" disabled={saving || Boolean(createdTaskId)}
+          {...({ inert: saving || createdTaskId ? '' : undefined } as object)}>
         <TaskNameField
           value={name}
           onChange={setName}
           onSubmit={() => void submit()}
-          onPasteList={(lines, keepAsText) => void pasteList(lines, keepAsText)}
+          onPasteList={files.length > 0 ? undefined : (lines, keepAsText) => void pasteList(lines, keepAsText)}
           placeholder={t('composer.namePlaceholder')}
           ariaLabel={t('composer.name')}
           /* A long title wraps and the field grows, as the task panel's does (#247).
@@ -625,20 +708,7 @@ export function Composer({
           )}
           <EstimateChip minutes={minutes} onChange={setMinutes} />
 
-          {/* One chip for both: a section is a place, not a setting applied
-              to the project chosen before it. The Inbox is a project like any
-              other, so this chip is never empty. */}
-          <PlacementField
-            variant="chip"
-            label={t('composer.project')}
-            value={{ projectId: projectId || inboxId, sectionId: sectionId || null }}
-            onNewProject={() => setNewProject(true)}
-            onChange={(place) => {
-              setProjectId(place.projectId);
-              setSectionId(place.sectionId ?? '');
-            }}
-          />
-          <AssigneeField projectId={projectId || inboxId} value={responsibleUid} onChange={setResponsibleUid} chip />
+          {!phone && placement}
         </div>
 
         {/* Level 3, subtasks: open, with a heading and a count, one of the
@@ -703,12 +773,24 @@ export function Composer({
           </div>
         </div>
 
+        </fieldset>
+        {files.length > 0 && <div className="composer-attachments" role="group" aria-label={t('composer.attachments')}>
+          <span className="sr" role="status">{t('composer.attachedCount', { count: files.length })}</span>
+          {files.map((entry) => <div className="composer-attachment" key={entry.id}>
+            <img src={entry.preview} alt="" /><span>{entry.file.name}</span>
+            <button className="iconbtn" disabled={saving || Boolean(createdTaskId)} aria-label={t('composer.removeAttachment', { name: entry.file.name })}
+              onClick={() => { URL.revokeObjectURL(entry.preview); uploaded.current.delete(entry.id); setFiles((previous) => previous.filter((file) => file.id !== entry.id)); }}>
+              <Icon name="close" size="sm" /></button>
+          </div>)}
+        </div>}
+        {createdTaskId && <p role="status" className="composer-attachment-status">{t('composer.attachmentRetry')}</p>}
         {/* Level 4, the way out, on its own bar: always in the same place. */}
         <div className="composer-actions">
           <span className="composer-hint" aria-hidden="true">
             <kbd>⌘</kbd><kbd>↵</kbd> {t('composer.hintAdd')}
           </span>
-          <button className="btn quiet" onClick={onClose}>{t('composer.cancel')}</button>
+          {phone && <span className="composer-place">{placement}</span>}
+          <button className="btn quiet" disabled={saving} onClick={onClose}>{t('composer.cancel')}</button>
           {/* Everything typed can be read as a date, a project or a tag, and then
               there is no title left for Todoist: the button says so rather than
               doing nothing when clicked. */}
@@ -717,11 +799,13 @@ export function Composer({
             disabled={!parsed.content.trim() || saving}
             title={name.trim() && !parsed.content.trim() ? t('composer.needsTitle') : undefined}
             aria-busy={saving}
+            aria-label={saving ? t('composer.adding') : createdTaskId ? t('composer.retryAttachments') : t('composer.add')}
             onClick={() => void submit()}
           >
             {/* The window stays open while Todoist answers (#142): the button says
                 it is sending, rather than looking switched off. */}
-            {saving ? t('composer.adding') : t('composer.add')}
+            <span className="sendlabel">{saving ? t('composer.adding') : createdTaskId ? t('composer.retryAttachments') : t('composer.add')}</span>
+            <Icon name="arrow-up" className="sendicon" />
           </button>
         </div>
       </div>

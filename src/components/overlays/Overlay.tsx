@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { isTopOverlay, overlayCount, pushOverlay, removeOverlay } from './overlayStack';
+import { SheetGrip } from '../SheetChrome';
 
 interface OverlayProps {
   open: boolean;
@@ -252,6 +253,8 @@ export function Overlay({
     <div className={`overlay${open ? ' open' : ' leaving'}${hung ? ' hung' : ''}`} role="dialog" aria-modal="true" aria-label={label}>
       <div className="scrim" onClick={open ? onClose : undefined} />
       <div className={sheetClass} ref={sheetRef} style={hung ?? undefined}>
+        {/* A phone's sheet comes up from the bottom and goes back down under a finger (#293). */}
+        <SheetGrip onClose={onClose} close={false} />
         {children}
       </div>
     </div>

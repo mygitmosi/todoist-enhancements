@@ -1,3 +1,6 @@
+import { TableSurface } from '@/components/TableSurface';
+import { pageClass } from '@/domain/pageLayout';
+import { CalendarSurface } from '@/components/CalendarSurface';
 import { useProjectPeople } from '@/hooks/useProjectPeople';
 import { useProjectCompleted } from '@/hooks/useProjectCompleted';
 import { InsightsButton } from '@/components/InsightsButton';
@@ -188,7 +191,7 @@ function ProjectBody({
      there (#154). A board grouped by something other than the sections keeps
      its columns whole. */
   const split = useMemo(
-    () => current.mode === 'board' && current.group !== 'none'
+    () => current.mode === 'table' || (current.mode === 'board' && current.group !== 'none')
       ? { quick: [], rest: scoped }
       : pullQuick(scoped, prefs.showQuickGroup, current.sort, childrenOf, 'project', snapshot),
     [scoped, current.mode, current.group, current.sort, prefs.showQuickGroup, childrenOf, snapshot],
@@ -305,7 +308,7 @@ function ProjectBody({
   ) : undefined;
 
   return (
-    <div className="page">
+    <div className={pageClass(current)}>
       <PageHeader
         hireNote={!hireInList}
         title={
@@ -379,7 +382,7 @@ function ProjectBody({
             <DisplayMenu
               viewKey={viewKey}
               pageItems={pool0}
-              modes={['list', 'board']}
+              modes={['list', 'board', 'table', 'calendar']}
               groups={['none', 'assignee', 'scheduled', 'priority', 'label', 'estimate', 'day']}
               completedToggle
               showWorkspaces={false}
@@ -420,15 +423,27 @@ function ProjectBody({
         onOpenUnestimated={load.unestimatedCount > 0 ? onUnestimated : undefined}
         time={timePill}
       />
-      <TimePanel
+      {current.mode !== 'calendar' && <TimePanel
         pageItems={scoped}
         pageLabel={project.name}
         onOpen={onOpen}
         onUnestimated={onUnestimated}
-      />
+      />}
 
 
-      {current.mode === 'board' ? (
+      {current.mode === 'table' && current.group === 'none' ? (
+        <TableSurface viewKey={viewKey} childrenOf={childrenOf} onOpen={onOpen}
+          groups={[
+            { title: t('group.noSection'), items: looseItems, childrenOf, onOpen,
+              dropTarget: { kind: 'section', sectionId: null, projectId }, reorderable: 'project', onAddTask: () => onAddTaskTo({ projectId }) },
+            ...sectionGroups.map((group) => ({ title: group.title, items: group.items, childrenOf, onOpen,
+              sectionId: group.id, projectId, reorderable: 'project' as const,
+              dropTarget: { kind: 'section' as const, sectionId: group.id, projectId },
+              onAddTask: () => onAddTaskTo({ projectId, sectionId: group.id }) })),
+          ]} />
+      ) : current.mode === 'calendar' ? (
+        <CalendarSurface key={viewKey} viewKey={viewKey} items={pool0} onOpen={onOpen} onAddTaskTo={onAddTaskTo} />
+      ) : current.mode === 'board' ? (
         <ModeSurface
           items={scoped}
           childrenOf={childrenOf}

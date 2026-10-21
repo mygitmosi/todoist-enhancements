@@ -1,3 +1,4 @@
+import { readClockRange } from './clockRange';
 import { readNaturalDate } from './nlp';
 import type { DateFormat } from './dates';
 import { findLinks } from './markdown';
@@ -109,6 +110,7 @@ export function parseShorthand(
   dateFormat: DateFormat = 'dmy',
   /** Who a task of this project can be given to, for `+name`. Asked once the project is known. */
   peopleOf?: (projectId: string | null) => Array<{ id: string; name: string }>,
+  baseDate?: string,
 ): Shorthand {
   const ranges: Highlight[] = [];
   const claim = (start: number, length: number, kind: HighlightKind, tone?: string, keep?: boolean) =>
@@ -279,6 +281,11 @@ export function parseShorthand(
     }
   }
 
+  const timeRange = naturalDates ? readClockRange(mask(raw, [...ranges.filter((range) => range.kind !== 'duration'), ...refused, ...linkRanges])) : null;
+  if (timeRange) {
+    minutes = timeRange.minutes;
+    claim(timeRange.index, timeRange.length, 'date');
+  }
   let date: string | null = null;
   if (naturalDates) {
     /* The date is read from what the explicit syntax has not already claimed,
@@ -296,6 +303,13 @@ export function parseShorthand(
       date = last.date;
       claim(last.at, last.length, 'date');
     }
+  }
+
+  if (timeRange) {
+    const hour = String(Math.floor(timeRange.start / 60)).padStart(2, '0');
+    const minute = String(timeRange.start % 60).padStart(2, '0');
+    const day = date?.slice(0, 10) ?? baseDate?.slice(0, 10) ?? readNaturalDate(`at ${hour}:${minute}`)?.date.slice(0, 10);
+    if (day) date = `${day}T${hour}:${minute}:00`;
   }
 
   // Small standalone h-values are durations; explicit clock readings have already claimed their range.

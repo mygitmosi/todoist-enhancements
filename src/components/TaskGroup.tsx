@@ -13,7 +13,7 @@ import { SectionMenu } from './SectionMenu';
 import { formatDuration, effectiveEstimate } from '@/domain/estimates';
 import type { Item } from '@/domain/types';
 
-interface TaskGroupProps {
+export interface TaskGroupProps {
   title?: string;
   items: Item[];
   childrenOf: (id: string) => Item[];

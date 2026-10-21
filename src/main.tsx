@@ -8,8 +8,11 @@ import './styles/additions.css';
 import './styles/theme.css';
 import './styles/polish.css';
 import './styles/v2.css';
+import './styles/table.css';
+import './styles/mobile.css';
 import { startSegSlider } from './lib/segSlider';
 import { startTabStops } from './lib/tabStops';
+import { watchInstall } from './lib/install';
 
 // Exposed only while developing, so views can be exercised against sample data
 // without a real account. Vite strips this branch from production builds.
@@ -19,6 +22,7 @@ if (import.meta.env.DEV) {
 
 startSegSlider();
 startTabStops();
+watchInstall();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

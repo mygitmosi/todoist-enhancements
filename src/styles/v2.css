@@ -55,7 +55,7 @@
   }
   .signin-check .ic{width:12px;height:12px;stroke-width:3}
   .signin-mock{
-    margin-top:auto;height:min(560px,calc(100vh - 300px));border-radius:20px 20px 0 0;overflow:hidden;
+    margin-top:auto;height:min(560px,calc(100dvh - 300px));border-radius:20px 20px 0 0;overflow:hidden;
     box-shadow:0 -10px 40px rgba(0,0,0,.25);margin-bottom:-2px;
   }
   .signin-mock .polish-preview{border:0;border-radius:0}
@@ -313,7 +313,7 @@
 .switch[aria-checked="true"]::after{margin-left:16px}
 
 .displaypanel,.popover.displaypanel{width:350px;padding:14px 16px;border-radius:18px;border:1px solid var(--border-strong);
-  box-shadow:0 12px 40px rgba(0,0,0,.16),0 2px 6px rgba(0,0,0,.05);max-height:calc(100vh - 140px)}
+  box-shadow:0 12px 40px rgba(0,0,0,.16),0 2px 6px rgba(0,0,0,.05);max-height:calc(100dvh - 140px)}
 .displaypanel .panelhead h5{margin:0;font-size:15px;font-weight:700;color:var(--text);text-transform:none;letter-spacing:0}
 .displaypanel .resetbtn{padding:4px 8px;border-radius:8px;font-size:12.5px;color:var(--late-dark,var(--accent))}
 .displaypanel .resetbtn:hover{text-decoration:none;background:color-mix(in srgb,var(--accent) 10%,transparent)}
@@ -343,7 +343,7 @@
    count under it, and each task on a white card.
    ========================================================================== */
 .board{gap:14px;padding:2px 2px 16px;margin:8px -2px 0}
-.board > *{flex:0 0 var(--colw,320px);min-width:0}
+.board > *{flex:0 0 var(--colw,272px);min-width:0}
 .col{padding:14px 12px 8px;border:0;border-radius:20px;background:var(--frame-card)}
 .col.accent-quick{background:var(--wash-quick-deep)}
 .col.accent-late{background:var(--late-wash)}
@@ -523,7 +523,7 @@ a.btn,a.btn:hover{text-decoration:none}
 /* Notifications hang from the bell: a card of rows, each with a round initial. */
 @media (min-width:721px){
   .overlay.hung .scrim{background:transparent;backdrop-filter:none}
-  .overlay.hung .sheet{width:400px;max-width:calc(100vw - 16px);min-height:0;max-height:min(640px,calc(100vh - 90px));
+  .overlay.hung .sheet{width:400px;max-width:calc(100vw - 16px);min-height:0;max-height:min(640px,calc(100dvh - 90px));
     border-radius:22px;border:1px solid var(--border-strong);box-shadow:0 12px 40px rgba(0,0,0,.16),0 2px 6px rgba(0,0,0,.05);
     display:flex;flex-direction:column;overflow:hidden;margin:0;transform:none}
   .overlay.hung .sheet-head{padding:16px 22px 10px}
@@ -1726,14 +1726,14 @@ img.notifav{display:block;width:34px;height:34px;object-fit:cover}
 
 /* The composer's title wraps (#247). Same two layers as the task panel's title, at the composer's own size:
    the field and its mirror share every metric, or a mark slides off its word. */
-.composerbox > .namefield.multiline{margin-left:var(--s5)}
-.composerbox > .namefield.multiline .composer-name,
-.composerbox > .namefield.multiline .namemirror{
+:is(.composerbox, .composer-fields) > .namefield.multiline{margin-left:var(--s5)}
+:is(.composerbox, .composer-fields) > .namefield.multiline .composer-name,
+:is(.composerbox, .composer-fields) > .namefield.multiline .namemirror{
   width:100%;box-sizing:border-box;display:block;margin:0;padding:9px 0;border:0;border-radius:0;
   font:inherit;font-size:18px;font-weight:650;line-height:1.4;letter-spacing:normal;
   white-space:pre-wrap;overflow-wrap:anywhere;overflow:hidden;
 }
-.composerbox > .namefield.multiline .composer-name{position:relative;z-index:1;resize:none;background:transparent;color:var(--text)}
+:is(.composerbox, .composer-fields) > .namefield.multiline .composer-name{position:relative;z-index:1;resize:none;background:transparent;color:var(--text)}
 
 /* Settings, About: the author's links, each in its network's colours (#231). */
 .alinks.social{margin-top:0}
@@ -1874,3 +1874,195 @@ img.notifav{display:block;width:34px;height:34px;object-fit:cover}
 
 .fselect-face:disabled{opacity:.5;cursor:default;pointer-events:auto}
 .shareform .fselect-face:disabled:hover{background:transparent;box-shadow:none}
+
+/* ==========================================================================
+   Phone foundations (#289, #200)
+   v2.css is loaded after the phone rules of app.css and theme.css, so its
+   desktop page padding used to win on a phone: 44 px of margin on each side.
+   ========================================================================== */
+@media (max-width:720px){
+  .page,.page.wide{padding:var(--s4) var(--s4) calc(80px + env(safe-area-inset-bottom))}
+  /* A tinted group no longer adds a second inset: its rows keep the page's
+     16 px sides, only the tint reaches a little further out. */
+  .group.accent-late,.group.accent-quick,.group.accent-dust{margin-inline:-8px;padding:14px 8px 6px}
+}
+
+/* A field under 16 px makes iOS zoom the page in and leave it zoomed. Touch
+   only: the sizes on a desktop stay as drawn. The name fields (18 px or more)
+   are left alone, and a subtask field is set together with its mirror. */
+@media (hover:none) and (pointer:coarse){
+  :is(input,textarea,select):not([type="checkbox"],[type="radio"],[type="range"],[type="color"],[type="file"],.composer-name,.titlefield){font-size:16px!important}
+  .namefield .subtaskfield,.namefield:has(.subtaskfield) .namemirror{font-size:16px!important}
+  .descedit,.descedit.composer{font-size:16px}
+}
+
+/* Taps are answered by the app's own pressed states, not a grey rectangle. */
+html{-webkit-tap-highlight-color:transparent}
+
+/* The setup on a phone: one column and one scroll, Back and Continue pinned
+   above the browser's toolbar. The preview stays the laptop window, scaled to
+   the screen, and stays put at the top while the controls scroll under it. */
+@media (max-width:720px){
+  .setup{padding-bottom:0}
+  .setup-body{grid-template-columns:minmax(0,1fr)}
+  .setup-body .setup-controls,.setup-track > .setup-controls{padding:2px 2px calc(130px + env(safe-area-inset-bottom))}
+  .setup-track{display:flex;flex-direction:column;gap:12px;height:100%;transform:none!important}
+  .setup-track > .setup-preview{order:-1;flex:none;align-self:center;width:min(100%,250px);max-height:24dvh;overflow:hidden}
+  .setup-track > .setup-controls{flex:1 1 0;min-height:0}
+  .setup-track[data-pos="a"] > .setup-controls.b,.setup-track[data-pos="b"] > .setup-controls.a{display:none}
+  .setup-foot{padding:48px 16px calc(12px + env(safe-area-inset-bottom))}
+  .setup-hint{width:100%;margin:0 0 8px;text-align:center;font-size:var(--fs-13);color:var(--muted)}
+}
+.setup-hint{margin:0;font-size:var(--fs-13);color:var(--muted)}
+
+/* The preview is a laptop window drawn at laptop size and scaled down, but
+   the phone rules above answer to the width of the screen, not of the window
+   it is drawn in: left alone they take the sidebar out of the picture and
+   fold its rows into a phone layout. Everything the phone block changes is put
+   back here, inside the picture only. */
+@media (max-width:720px){
+  .pvscale .sidebar{display:flex;flex-direction:column}
+  .pvscale .workspace{display:block;flex:none}
+  .pvscale .phead{flex-wrap:nowrap;justify-content:space-between;gap:var(--s5);margin-bottom:var(--s2)}
+  .pvscale .phead-text,.pvscale .pactions{flex:0 0 auto}
+  .pvscale .pactions{flex-wrap:nowrap}
+  .pvscale .metrics{margin-bottom:var(--s5);gap:14px;font-size:inherit}
+  .pvscale .task{padding:14px 10px 14px 0;grid-template-columns:18px minmax(0,1fr) auto}
+  .pvscale .group.accent-late,.pvscale .group.accent-quick,.pvscale .group.accent-dust{margin-inline:-18px;padding:14px 18px 6px}
+}
+
+/* The picture stays at the top of the step while the choices scroll under it. */
+@media (max-width:720px){
+  .setup-body{display:flex;flex-direction:column;gap:12px}
+  .setup-body .setup-preview{flex:none;align-self:center;width:min(100%,250px);max-height:24dvh;overflow:hidden}
+  .setup-body .setup-controls{flex:1 1 0;min-height:0}
+}
+
+/* A section head on a phone: the caret over the checkbox column, the name on
+   one line, and the section's own action (Reschedule all) on a row of its own
+   instead of on top of the name (the nowrap in theme.css beat the wrap in
+   app.css, which is what made them overlap). */
+@media (max-width:720px){
+  .ghead{flex-wrap:wrap;padding-left:0}
+  .ghead .gcaret{margin-left:-3px}
+  .ghead .gname{white-space:nowrap}
+  .ghead .gactions{order:4;width:100%;margin:0 0 8px 16px;justify-content:flex-start}
+}
+
+/* The navigation page on a phone (#289): white on white made the search field
+   and the selected row vanish. The page takes a wash of the accent, so it
+   follows the theme (red, blue, graphite...), and the field gets an edge. */
+@media (max-width:720px){
+  .browse,.browse .sidebar-sheet{background:color-mix(in srgb,var(--accent) 7%,var(--subtle))}
+  .browse .sidebar-sheet .searchbtn{border:1px solid var(--border-strong);background:var(--surface)}
+  .browse .sidebar-sheet{--side-sel:var(--surface)}
+}
+@media (hover:none){.searchbtn kbd{display:none}}
+
+/* No hover on a phone: a workspace's "+" is always there (#289). */
+@media (hover:none),(max-width:720px){
+  .side-head .side-add{opacity:1;pointer-events:auto;min-width:32px;min-height:32px}
+}
+
+/* Small windows on a phone fit the screen with room to breathe: never taller
+   than what is visible between the notch and the home indicator, and the
+   search sits near the top where the keyboard will not cover it. */
+@media (max-width:720px){
+  .sheet-sm,.sheet-search{max-height:calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+  .sheet-search{align-self:start;margin-top:calc(env(safe-area-inset-top) + 12px)}
+}
+
+/* Keyboard hints mean nothing to a finger. */
+@media (hover:none){.searchfoot,.searchfield kbd{display:none}}
+
+/* The Display panel hangs from the left edge of its button on a phone, which
+   is the page margin only when the button is on the left. In the matrix and
+   the dashboard it is on the right: hung from there, it ran off the screen. */
+@media (max-width:720px){
+  .displaypanel.anchor-right{left:auto;right:0}
+}
+
+/* The review on a phone (#289): the filter and the cadence share one row, the
+   steps fall in rows of three instead of being cut, the card keeps less
+   padding, and a row's dates wrap instead of running off the edge. */
+@media (max-width:720px){
+  .review-controls{justify-content:space-between}
+  .review-controls .multiselect{flex:0 1 auto;min-width:0}
+  .multiselect.as-toolbar > .fselect-face{width:auto;max-width:100%}
+  .multiselect.as-toolbar .fselect-value{max-width:11ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .reviewcadence button{padding:0 9px;white-space:nowrap}
+  .reviewrail{overflow:visible;row-gap:10px}
+  .reviewrail > li{flex:0 0 33.333%;min-width:0}
+  .reviewrail > li::after{display:none!important}
+  .reviewstep{margin-top:14px;padding:16px 14px 14px;border-radius:18px}
+  .reviewrow{flex-wrap:wrap;padding:10px 12px}
+  .reviewrow .reviewname{flex:1 1 0;min-width:0}
+  .reviewrow .reviewactions{flex:1 0 100%;flex-wrap:wrap;justify-content:flex-start;gap:4px;border-radius:14px;overflow:visible}
+}
+@media (max-width:720px){
+  .reviewrow .reviewactions .btn{padding:0 9px;font-size:var(--fs-12);white-space:nowrap}
+}
+
+/* The logbook on a phone: the controls stand closer together, and a row is
+   two lines (the name across the whole width, then its project and estimate)
+   instead of a name squeezed to "Renou..." between two columns. */
+@media (max-width:720px){
+  .page .periodbar{margin-top:8px;gap:8px 12px}
+  .periodbar .pagerlabel{min-width:0}
+  .periodbar .periodright,.periodbar .spanbar{width:100%}
+  .periodbar .spanbar{display:flex}
+  .periodbar .spanbar > button{flex:1 1 auto;padding:0 8px}
+  .logbar{gap:8px 12px}
+  .logbar .logcontrol{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0}
+  .logbar .logcontrol .segmented{flex:1 1 auto}
+  .loglegend{display:none}
+  .logrow{grid-template-columns:16px minmax(0,1fr) auto;grid-template-areas:"tick name time" ". proj proj";row-gap:2px;padding:10px 0}
+  .logrow .logtick{grid-area:tick}
+  .logrow .logname{grid-area:name;white-space:normal}
+  .logrow .logproject{grid-area:proj;padding-left:0}
+  .logrow .logmeta.time{grid-area:time}
+}
+
+/* The table on a phone: the title stays pinned and narrower, so the next
+   column is already in view and you scroll sideways for the rest; the pinned
+   column casts a thin edge over what slides under it. */
+@media (max-width:720px){
+  .task-table{--table-title-min:150px;--table-title-max:170px}
+  .table-scroll{-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+  .task-table .tmain,.task-table .table-head > div:first-of-type{box-shadow:6px 0 6px -6px rgba(0,0,0,.18)}
+}
+
+/* Sign-in on a phone: the form first, then the same pitch and picture the
+   wide screen shows beside it, so the screen is not a white page with a form. */
+@media (max-width:899px){
+  .signin{min-height:100dvh;height:auto;overflow:visible}
+  .signin-main{order:1}
+  .signin-bubble{
+    order:2;margin:8px 12px calc(12px + env(safe-area-inset-bottom));border-radius:24px;padding:28px 20px 0;
+    display:flex;flex-direction:column;gap:16px;overflow:hidden;position:relative;color:#fff;
+    background:linear-gradient(165deg,color-mix(in srgb,var(--accent) 78%,#fff),var(--accent) 42%,color-mix(in srgb,var(--accent) 66%,#000));
+  }
+  .signin-bubble h2{margin:0;font-size:26px;line-height:1.1;letter-spacing:-.025em;font-weight:700;color:#fff}
+  .signin-checks{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:14px}
+  .signin-checks li{display:flex;gap:10px;align-items:center}
+  .signin-check{width:18px;height:18px;border-radius:6px;display:grid;place-items:center;flex:none;background:rgba(255,255,255,.95);color:var(--accent)}
+  .signin-check .ic{width:12px;height:12px;stroke-width:3}
+  .signin-mock{margin-top:8px;height:230px;border-radius:16px 16px 0 0;overflow:hidden;box-shadow:0 -10px 40px rgba(0,0,0,.25)}
+  .signin-mock .polish-preview{border:0;border-radius:0}
+}
+
+/* A tinted callout reaches 8 px past the page margin, so the list around it
+   must not clip at the margin (the rows still do, inside the callout). */
+@media (max-width:720px){
+  .mode{overflow-x:visible}
+}
+
+/* The navigation page keeps its own selected-row colours: with the coloured
+   background chosen, the wide screen's white wash and white icon were drawn
+   on this light page and could not be read. */
+@media (max-width:720px){
+  :root .browse .sidebar-sheet.sidebar{
+    --side-sel:var(--surface);--side-sel-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px rgba(0,0,0,.04);
+    --side-icon-sel:var(--accent);--side-hover:rgba(0,0,0,.045);--side-bar:rgba(0,0,0,.1);
+  }
+}

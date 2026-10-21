@@ -1,3 +1,4 @@
+import { TableSurface } from './TableSurface';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useDndMonitor } from '@dnd-kit/core';
 import { SectionName, TaskGroup } from './TaskGroup';
@@ -76,6 +77,7 @@ interface ModeSurfaceProps {
  */
 export function ModeSurface(props: ModeSurfaceProps) {
   const { mode } = props;
+  if (mode === 'table') return <GroupedTable {...props} />;
   if (mode === 'board') return <BoardSurface {...props} />;
   return <ListSurface {...props} />;
 }
@@ -83,12 +85,13 @@ export function ModeSurface(props: ModeSurfaceProps) {
 function useGrouped(props: ModeSurfaceProps) {
   const { t, locale } = useT();
   const snapshot = useStore((s) => s.snapshot);
-  const { items, group, sort, childrenOf, order } = props;
+  const { items, group, sort, childrenOf, order, viewKey } = props;
 
   return useMemo(() => {
     const sorted = sortItems(items, sort, childrenOf, order, snapshot);
     return groupItems(sorted, group, snapshot, {
       none: t('common.none'),
+      overdue: viewKey?.startsWith('filter:') ? t('filters.overdueGroup') : undefined,
       noProject: t('nav.inbox'),
       noSection: t('group.noSection'),
       noEstimate: t('metrics.noEstimates'),
@@ -112,7 +115,25 @@ function useGrouped(props: ModeSurfaceProps) {
       scheduled: t('section.scheduled'),
       available: t('section.available'),
     });
-  }, [items, group, sort, childrenOf, order, snapshot, t, locale]);
+  }, [items, group, sort, childrenOf, order, viewKey, snapshot, t, locale]);
+}
+
+function GroupedTable(props: ModeSurfaceProps) {
+  const groups = useGrouped(props);
+  /* A page that has buckets of its own (My week's late, quick, today and
+     anytime) draws them in a table as it does in a board, when nothing else
+     was asked for. */
+  if (props.boardColumns && props.group === 'none') {
+    return <TableSurface viewKey={props.viewKey ?? 'table'} childrenOf={props.childrenOf} onOpen={props.onOpen}
+      groups={props.boardColumns.map((column) => ({ title: column.title, items: column.items,
+        childrenOf: props.childrenOf, onOpen: props.onOpen, onAddTask: column.onAddTask ?? props.addToGroup?.(column.id),
+        actions: column.action, reorderable: props.order }))} />;
+  }
+  return <TableSurface viewKey={props.viewKey ?? 'table'} childrenOf={props.childrenOf} onOpen={props.onOpen}
+    groups={groups.length ? groups.map((group) => ({ title: group.title || undefined, items: group.items,
+      childrenOf: props.childrenOf, onOpen: props.onOpen, onAddTask: props.addToGroup?.(group.key),
+      reorderable: props.order })) : [{ items: [], childrenOf: props.childrenOf, onOpen: props.onOpen,
+        onAddTask: props.addToGroup?.('none') }]} />;
 }
 
 function ListSurface(props: ModeSurfaceProps) {
@@ -143,11 +164,13 @@ function ListSurface(props: ModeSurfaceProps) {
   );
 }
 
-/** A board column is never narrower than 320px (v2): wide enough to read a title. */
-const COLUMN_MIN = 320;
+/** A board column is never narrower than 272px, Todoist's own width, so a wide screen shows as many columns as Todoist does (#279). */
+const COLUMN_MIN = 272;
 /** Nor wider than this, past which a column stops reading as a column. They
  *  stretch between the two so that a whole number of them fills the page (#99). */
-const COLUMN_MAX = 480;
+const COLUMN_MAX = 340;
+/** How much of the next column a phone's board shows beside the one in front. */
+const PHONE_PEEK = 28;
 /** How close to the board's edge a held card has to be to turn the page. */
 const EDGE_ZONE = 48;
 /** How long it is held there before the first turn, and between the next ones. */
@@ -168,6 +191,8 @@ function BoardSurface(props: ModeSurfaceProps) {
 
   const boardRef = useRef<HTMLDivElement>(null);
   const [reach, setReach] = useState({ left: false, right: false });
+  /** Which column is in front, for the dots under a phone's board (#295). */
+  const [at, setAt] = useState(0);
   /* How many columns make a page, and how wide each one is so that exactly
      that many fill the board: no column is ever half on screen (#99). */
   const [page, setPage] = useState<{ count: number; width: number } | null>(null);
@@ -186,8 +211,12 @@ function BoardSurface(props: ModeSurfaceProps) {
       const available = board.clientWidth;
       const fit = Math.max(1, Math.floor((available + gap) / (COLUMN_MIN + gap)));
       const count = Math.min(fit, slots);
-      const width = Math.min(COLUMN_MAX, (available - (count - 1) * gap) / count);
+      /* On a phone one column is the page, and the next one shows its edge so
+         that a swipe is the obvious thing to do (#295). */
+      const peek = count === 1 && slots > 1 && available <= 720 ? PHONE_PEEK : 0;
+      const width = Math.min(COLUMN_MAX, (available - (count - 1) * gap - peek) / count);
       setPage((was) => (was?.count === count && Math.abs(was.width - width) < 0.5 ? was : { count, width }));
+      setAt(Math.round(board.scrollLeft / Math.max(1, width + gap)));
       const max = board.scrollWidth - board.clientWidth;
       setReach({ left: board.scrollLeft > 1, right: board.scrollLeft < max - 1 });
     };
@@ -380,6 +409,12 @@ function BoardSurface(props: ModeSurfaceProps) {
           />
         )}
       </div>
+      {/* Where the swiping is: drawn on a phone only, where the board is one column wide. */}
+      {slots > 1 && (
+        <div className="boarddots" aria-hidden="true">
+          {Array.from({ length: slots }, (_, index) => <i key={index} className={index === Math.min(at, slots - 1) ? 'on' : undefined} />)}
+        </div>
+      )}
     </div>
   );
 }

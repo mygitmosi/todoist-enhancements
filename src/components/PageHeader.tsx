@@ -23,6 +23,8 @@ interface PageHeaderProps {
   /** Display and Insights: the controls for this page, on the title line. */
   actions?: ReactNode;
   load: LoadSummary;
+  /** A layout with its own navigable period cannot use the parent list’s totals. */
+  hideMetrics?: boolean;
   /** Opens the list of tasks on this page that have no estimate. */
   onOpenUnestimated?: () => void;
   /** Offers the time filter on this page. Left out on the pages it does not belong on. */
@@ -38,7 +40,7 @@ interface PageHeaderProps {
  * which the caller decides by passing it or not (#173).
  */
 export function PageHeader({
-  title, subtitle, actions, load, onOpenUnestimated, time, hireNote = true,
+  title, subtitle, actions, load, onOpenUnestimated, time, hireNote = true, hideMetrics = false,
 }: PageHeaderProps) {
   const { t, locale } = useT();
 
@@ -65,7 +67,7 @@ export function PageHeader({
         {actions && <div className="pactions">{actions}</div>}
       </div>
 
-      <div className="metrics">
+      {!hideMetrics && <div className="metrics">
         <span className="metric">
           <Icon name="tasks" size="sm" />
           <b>{load.taskCount}</b> {t('metrics.taskWord', { count: load.taskCount })}
@@ -123,7 +125,7 @@ export function PageHeader({
             </span>
           </>
         )}
-      </div>
+      </div>}
       {hireNote && <HireNote />}
     </>
   );

@@ -1223,7 +1223,7 @@
    between them. The sheet itself stops scrolling so there is one scroller,
    and it is no taller than the composer, with the composer's side room. */
 .sheet:has(> .whatsnew){overflow:hidden;display:flex}
-.whatsnew{display:flex;flex-direction:column;width:100%;max-height:min(620px, calc(100vh - 56px));min-height:0}
+.whatsnew{display:flex;flex-direction:column;width:100%;max-height:min(620px, calc(100dvh - 56px));min-height:0}
 .whatsnew-head{flex:0 0 auto;align-items:center;padding:var(--s4) var(--s5)}
 .whatsnew-pills{
   flex:0 0 auto;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;
@@ -1367,7 +1367,7 @@
   background:var(--scrim, rgb(0 0 0 / .4));
 }
 .repeatdialog{
-  width:min(440px, 100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;
+  width:min(440px, 100%);max-height:calc(100dvh - 32px);display:flex;flex-direction:column;
   border-radius:var(--r-lg);background:var(--surface);color:var(--text);box-shadow:var(--sh-lg);overflow:hidden;
 }
 .repeatdialog-head{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);padding:var(--s4) var(--s5);border-bottom:1px solid var(--border)}
@@ -1421,7 +1421,7 @@
 .sheet .composerbox{padding:0;gap:0}
 /* Margin, not padding: the mirror behind the name covers its box exactly,
    and padding would put the marks above the words. */
-.composerbox > .namefield{margin:var(--s4) var(--s5) 0}
+:is(.composerbox, .composer-fields) > .namefield{margin:var(--s4) var(--s5) 0}
 .composerbox .composer-desc{
   display:block;width:100%;min-height:0;margin:-4px 0 var(--s3);padding:0 var(--s5);
   border:0;border-radius:0;background:transparent;resize:none;overflow:hidden;
@@ -1730,3 +1730,9 @@ html.desktop-app .macapp,html.desktop-app .macapp-line{display:none}
 .maccallout{display:grid;gap:var(--s3);margin-top:var(--s2);padding:var(--s4);border:1px solid var(--border-strong);border-radius:var(--r-lg);background:var(--subtle)}
 .maccallout > strong{font-size:var(--fs-13);font-weight:600}
 @media (prefers-reduced-motion:reduce){.macfold,.macfold-in{transition:none}}
+
+/* A listbox row can carry a small button at its right edge (a sound preview). */
+.popover button.opt .opt-action{margin-left:auto;flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;color:var(--muted)}
+.popover button.opt .opt-action:hover{background:var(--hover);color:var(--text)}
+.popover button.opt .listbox-label+.ic,.popover button.opt .listbox-text+.ic{margin-left:auto}
+.popover button.opt .ic+.opt-action{margin-left:6px}

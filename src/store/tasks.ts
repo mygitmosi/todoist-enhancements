@@ -591,7 +591,20 @@ export const createTasksSlice: Slice<TasksSlice> = (set, get) => ({
     });
   },
   async createTask(args) {
-    return get().createTasks([args]);
+    return Boolean(await get().createTaskId(args));
+  },
+  /** The composer keeps this identity if attaching a comment needs a retry. */
+  async createTaskId(args) {
+    const { snapshot, prefs } = get();
+    if (typeof args.responsible_uid === 'string' && !canAssign(snapshot, String(args.project_id ?? snapshot.user?.inbox_project_id ?? ''), args.responsible_uid)) {
+      get().toast(translate(prefs.locale, 'assignee.invalid'));
+      return null;
+    }
+    const planned = planTask(snapshot, args, prefs.estimateStorage === 'duration' && canStoreDurations(snapshot.user) ? 'duration' : 'tag');
+    const tempId = Object.keys(planned.items)[0];
+    const mapping = await get().apply(planned.commands, (current) => ({ ...current, items: { ...current.items, ...planned.items } }));
+    const id = mapping[tempId] ?? tempId;
+    return get().snapshot.items[id] ? id : null;
   },
   /**
    * Several independent tasks, in one request (#152).

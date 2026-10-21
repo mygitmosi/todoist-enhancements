@@ -236,6 +236,7 @@ export function Search({ open, onClose, onOpen, seed = '' }: SearchProps) {
   return (
     <Overlay open={open} onClose={onClose} label={t('nav.search')} size="search">
       <div className="searchfield">
+        <span className="searchpill">
         <Icon name="search" />
         <input
           type="search"
@@ -248,6 +249,9 @@ export function Search({ open, onClose, onOpen, seed = '' }: SearchProps) {
           autoFocus
         />
         <kbd>Esc</kbd>
+        </span>
+        {/* On a phone the search is a page of its own, left with this (#293). */}
+        <button type="button" className="searchcancel" onClick={onClose}>{t('common.cancel')}</button>
       </div>
 
       <div className="sresults" ref={listRef} role="listbox">

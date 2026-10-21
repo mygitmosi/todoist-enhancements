@@ -11,6 +11,8 @@ interface EstimateFieldProps {
   onCommit: (minutes: number | null) => void | Promise<'accepted' | 'pending' | 'failed' | void>;
   onCancel?: () => void;
   autoFocus?: boolean;
+  /** Controls that cancel or replace the draft without saving it on blur. */
+  cancelOnBlurTarget?: string;
   placeholder?: string;
   unitLabel?: string;
   inputMode?: 'numeric' | 'text';
@@ -34,7 +36,7 @@ interface EstimateFieldProps {
  * accepted and normalised: 25, 1h15, 90 min.
  */
 export function EstimateField({
-  minutes, pendingWrites, onCommit, onCancel, autoFocus, placeholder, onChange, onAdvance, unitLabel, inputMode = 'numeric',
+  minutes, pendingWrites, onCommit, onCancel, autoFocus, cancelOnBlurTarget, placeholder, onChange, onAdvance, unitLabel, inputMode = 'numeric',
 }: EstimateFieldProps) {
   const { t, locale } = useT();
   /* Said as a duration ("45 min", "1 h 30") and typed as one, so there is no unit to put beside it. */
@@ -118,7 +120,10 @@ export function EstimateField({
             onChange(next === '' ? null : parseDurationInput(next));
           }
         }}
-        onBlur={commit}
+        onBlur={(event) => {
+          if (cancelOnBlurTarget && event.relatedTarget instanceof Element && event.relatedTarget.closest(cancelOnBlurTarget)) return;
+          commit();
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             // Validate, and nothing else: no dialog closing behind it, no row

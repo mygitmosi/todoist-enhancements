@@ -8,7 +8,7 @@
  * cannot drift apart.
  */
 export const APP_NAME = 'Enhanced for Todoist';
-export const VERSION = '2.9.0';
+export const VERSION = '2.15.0';
 export const AUTHOR = 'julesbertolino';
 /* A copy served with the app: the GitHub address redirects to another host first, which is why the photo arrived late. */
 export const AUTHOR_AVATAR_URL = `${import.meta.env.BASE_URL}author.png`;

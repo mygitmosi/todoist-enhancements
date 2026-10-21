@@ -65,7 +65,6 @@
   :root[data-layout="sidebar-float"] .app{background:var(--surface)}
   :root[data-layout="sidebar-float"] .sidebar{
     position:absolute;z-index:5;top:var(--frame-gap);bottom:var(--frame-gap);left:var(--frame-gap);
-    /* The last row, so the demo banner above the app is not covered. */
     grid-row:-2 / -1;grid-column:1;
     width:calc(var(--sidebar-w) - var(--frame-gap));border-radius:var(--frame-r);
     background:var(--frame-card);box-shadow:0 0 0 1px rgba(0,0,0,.05),0 12px 36px -8px rgba(0,0,0,.18);
@@ -742,15 +741,6 @@ button.subprog[aria-expanded="false"]{background:var(--subtle)}
 /* A section's own description sits under its heading. */
 
 /* ---------- Demo mode ---------- */
-.app.demo{grid-template-rows:auto minmax(0,1fr)}
-.demobanner{
-  grid-column:1 / -1;display:flex;align-items:center;gap:10px;
-  padding:7px 16px;background:var(--warn-soft);color:var(--warn);
-  border-bottom:1px solid var(--warn-border);font-size:var(--fs-12);
-}
-.demobanner button{
-  margin-left:auto;color:var(--warn);font-weight:600;text-decoration:underline;
-}
 
 /* The subtask and comment blocks are separated from the title and description. */
 .detail-section.boxed{
@@ -915,7 +905,6 @@ button.subprog[aria-expanded="false"]{background:var(--subtle)}
 /* Folded, the sidebar slides away (see the frame, above) and one button is
    left to bring it back, fixed over the page's corner. */
 .app.collapsed .expand-wrap{
-  /* Placed in the app's last row, so the demo banner above it is not covered. */
   position:absolute;grid-row:-2 / -1;grid-column:1 / -1;
   top:calc(var(--frame-gap) + 10px);left:calc(var(--frame-gap) + 10px);z-index:40;display:block;
   background:var(--surface);border:1px solid var(--border);
@@ -2901,8 +2890,6 @@ html.desktop-app body::before{
 html.desktop-app .sidebar{padding-top:44px}
 html.desktop-app .app.collapsed .expand-wrap{top:8px;left:84px;-webkit-app-region:no-drag;app-region:no-drag}
 html.desktop-app.quickadd body::before{display:none}
-/* The demo banner sits under that strip; its button has to stay clickable. */
-html.desktop-app .demobanner button{-webkit-app-region:no-drag;app-region:no-drag}
 
 /* Display (v2): Reset all is the one destructive control, so it is red; the
    "Show on each task" block says it is not about this page; its chips can be

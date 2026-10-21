@@ -15,6 +15,7 @@ import {
   type MatrixLayout,
 } from '@/store/prefs';
 import type { TranslationKey } from '@/i18n';
+import { PanelSheet } from '@/components/SheetChrome';
 
 /**
  * The matrix uses the same Display surface as every task view, while keeping
@@ -85,15 +86,16 @@ export function EisenhowerDisplayMenu() {
         className="btn"
         aria-expanded={open}
         aria-haspopup="dialog"
+        aria-label={t('toolbar.display')}
         onClick={() => setOpen((value) => !value)}
       >
         <Icon name="sliders" />
-        {t('toolbar.display')}
+        <span className="tb-label">{t('toolbar.display')}</span>
         {changed > 0 && <span className="displaycount">{changed}</span>}
       </button>
 
       {open && (
-        <div className="popover displaypanel anchor-right" role="dialog" aria-label={t('toolbar.display')}>
+        <PanelSheet className="popover displaypanel anchor-right" label={t('toolbar.display')} onClose={() => setOpen(false)}>
           <div className="panelhead">
             <h5>{t('toolbar.display')}</h5>
             <button className="resetbtn" onClick={reset}>{t('toolbar.resetAll')}</button>
@@ -167,7 +169,7 @@ export function EisenhowerDisplayMenu() {
             ))}
           </div>
           <p className="displayhelp">{t('matrix.settings.help')}</p>
-        </div>
+        </PanelSheet>
       )}
     </div>
   );

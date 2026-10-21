@@ -1,3 +1,4 @@
+import { usePhone } from '@/hooks/usePhone';
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
 import { useT } from '@/hooks/useT';
@@ -51,9 +52,14 @@ export function WorkspacePreview({ stage, layout = 'inline' }: {
   /* In a setup step the picture is the point of the step, so it is drawn closer
      (a narrower window, scaled up) and cropped: the sidebar, or the list, in
      a size you can aim at. */
+  const phone = usePhone();
   const zoomed = layout === 'stage' && (stage === 'metadata' || stage === 'organisation');
-  const windowW = zoomed ? (stage === 'metadata' ? 760 : 620) : stage === 'login' ? 1100 : WINDOW_W;
-  const windowH = zoomed ? 560 : stage === 'login' ? 820 : WINDOW_H;
+  /* On a phone every step is drawn close: a laptop window squeezed into the width of a
+     phone is too small to see what the choice changes. The frame, the sidebar and the
+     first column are still all in it. */
+  const close = phone && layout === 'stage' && stage !== 'login' && !zoomed;
+  const windowW = zoomed ? (stage === 'metadata' ? 760 : 620) : close ? 920 : stage === 'login' ? 1100 : WINDOW_W;
+  const windowH = zoomed ? 560 : close ? 520 : stage === 'login' ? 820 : WINDOW_H;
 
   const frame = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);

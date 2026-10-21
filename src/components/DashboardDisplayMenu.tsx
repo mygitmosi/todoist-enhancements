@@ -7,6 +7,7 @@ import { useStore } from '@/store/store';
 import { viewPrefs } from '@/store/prefs';
 import { defaultViewPrefs } from '@/domain/types';
 import { PERSONAL_WORKSPACE } from '@/store/selectors';
+import { PanelSheet } from '@/components/SheetChrome';
 
 /** Dashboard filters apply to both open tasks and completion statistics. */
 export function DashboardDisplayMenu() {
@@ -33,16 +34,16 @@ export function DashboardDisplayMenu() {
     };
   }, [open]);
   return <div className="displaywrap" ref={ref}>
-    <button className="btn" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((value) => !value)}>
-      <Icon name="sliders" size="sm" />{t('toolbar.display')}
+    <button className="btn" aria-expanded={open} aria-haspopup="dialog" aria-label={t('toolbar.display')} onClick={() => setOpen((value) => !value)}>
+      <Icon name="sliders" size="sm" /><span className="tb-label">{t('toolbar.display')}</span>
       {changed > 0 && <span className="displaycount">{changed}</span>}
     </button>
-    {open && <div className="popover displaypanel anchor-right" role="dialog" aria-label={t('toolbar.display')}>
+    {open && <PanelSheet className="popover displaypanel anchor-right" label={t('toolbar.display')} onClose={() => setOpen(false)}>
       <div className="panelhead"><h5>{t('toolbar.display')}</h5>
         <button className="resetbtn" onClick={() => useStore.getState().setViewPrefs('dashboard', { filters: defaults })}>{t('toolbar.resetAll')}</button>
       </div>
       <WorkspaceFilter viewKey="dashboard" />
       <AssigneeFilter viewKey="dashboard" />
-    </div>}
+    </PanelSheet>}
   </div>;
 }

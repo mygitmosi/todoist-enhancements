@@ -1,3 +1,5 @@
+import { CalendarSurface } from '@/components/CalendarSurface';
+import { pageClass } from '@/domain/pageLayout';
 import { InsightsButton } from '@/components/InsightsButton';
 import { HireNote } from '@/components/HireNote';
 import { useMemo } from 'react';
@@ -200,7 +202,7 @@ function WeekBody({
   )) || (scope !== 'today' && groups.anytime.length > 0);
 
   return (
-    <div className="page">
+    <div className={pageClass(current)}>
       <PageHeader
         hireNote={current.mode === 'board'}
         title={t(scope === 'today' ? 'nav.today' : 'nav.week')}
@@ -208,25 +210,28 @@ function WeekBody({
           <>
             <DisplayMenu
               viewKey={viewKey}
-              pageItems={pool}
-              modes={['list', 'board']}
+              pageItems={current.mode === 'calendar' ? items : pool}
+              modes={['list', 'board', 'table', 'calendar']}
               groups={['none', 'project', 'priority', 'label', 'estimate']}
             />
             <InsightsButton onClick={onInsights} />
           </>
         }
         load={load}
+        hideMetrics={current.mode === 'calendar'}
         onOpenUnestimated={load.unestimatedCount > 0 ? onUnestimated : undefined}
         time={timePill}
       />
-      <TimePanel
+      {current.mode !== 'calendar' && <TimePanel
         pageItems={scoped}
         pageLabel={t(scope === 'today' ? 'nav.today' : 'nav.week')}
         onOpen={onOpen}
         onUnestimated={onUnestimated}
-      />
+      />}
 
-      {current.mode === 'list' && current.group === 'none' ? (
+      {current.mode === 'calendar' ? (
+        <CalendarSurface key={viewKey} viewKey={viewKey} items={items} onOpen={onOpen} onAddTaskTo={onAddTaskTo} />
+      ) : current.mode === 'list' && current.group === 'none' ? (
         <div className="mode">
           {scope !== 'anytime' && (
           <>
@@ -328,7 +333,7 @@ function WeekBody({
           /* Only when nothing else was asked for: a board grouped by project
              is a board of projects, not of the week's buckets. */
           boardColumns={
-            current.mode === 'board' && current.group === 'none'
+            (current.mode === 'board' || current.mode === 'table') && current.group === 'none'
               ? weekColumns.map((column) => column.id !== 'overdue' || column.items.length === 0 ? column : {
                 ...column,
                 action: (

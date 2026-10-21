@@ -1,0 +1,119 @@
+
+/* A dedicated edge never competes with draggable navigation rows. */
+.sidebar-resize{position:absolute;right:-4px;top:0;bottom:0;width:8px;z-index:8;cursor:col-resize;touch-action:none;user-select:none}
+.sidebar-resize:hover{background:transparent}
+.sidebar-resize:focus-visible{background:transparent;outline:2px solid var(--border-strong);outline-offset:-2px;border-radius:var(--r-xs)}
+
+@media(min-width:721px){.sidebar{position:relative}}
+.table-scroll{overflow-x:auto;max-width:100%;padding-bottom:var(--s3)}
+.task-table{font-size:var(--fs-13)}
+.task-table .task,.table-head{display:grid;grid-template-columns:var(--table-columns);gap:12px;align-items:center}
+.table-head{padding:var(--s3) 12px;color:var(--muted);border-bottom:1px solid var(--border);font-weight:600}
+.table-head button{text-align:left;min-height:34px;width:100%}
+.task-table .task{padding:8px 12px;min-height:48px}
+.task-table .task .tmain{min-width:0;padding-left:calc(var(--depth,0) * 20px)}
+.table-cell{min-width:0;max-height:90px;overflow:hidden;color:var(--muted)}
+.table-cell .datefield,.table-cell .fselect,.table-cell .estimatefield,.table-cell .multiselect{width:100%;min-width:0}
+.table-cell .datefield-face,.table-cell .fselect-face{border-color:transparent;background:transparent}
+.table-cell.tone-late .fselect-face{color:var(--late)}
+.table-cell.tone-today .fselect-face{color:var(--accent)}
+.table-column-options{margin:var(--s3) 0}.table-column-options .chipgroup{display:flex;flex-wrap:wrap;gap:var(--s2);margin:var(--s2) 0}
+.table-column-options button[aria-pressed=true]{background:var(--accent-soft);color:var(--accent)}
+.table-footer{padding:var(--s4) 12px;color:var(--muted);border-top:1px solid var(--border)}
+.task-table .trow-end{width:28px}.task-table .taskacts{right:0}
+@media(max-width:720px){
+ .task-table .tmain,.table-head>div:first-of-type{position:sticky;left:0;background:var(--surface);z-index:2}
+ .task-table .task{grid-template-columns:var(--table-columns)}
+}
+
+.table-cell.tone-today .fselect-face{color:var(--date-today)}
+.table-cell.tone-tomorrow .fselect-face{color:var(--date-tomorrow)}
+.table-cell.tone-week .fselect-face{color:var(--date-week)}
+.task-table .task .drag{left:0;top:0;width:12px;height:100%;display:flex;align-items:center;transform:none}
+
+.task-table .task,.task-table .task[data-depth]{width:100%;margin-left:0;min-height:42px;padding:4px 12px;border-radius:0;gap:12px}
+.task-table .group,.task-table .group:first-of-type{margin-top:12px}
+.task-table .task .tmain{padding-left:calc(var(--depth,0) * 20px);display:flex;align-items:center;gap:8px}
+.task-table .task .ttitle{-webkit-line-clamp:1}
+.task-table .task::after{left:0;right:0}
+.task-table .fselect-face,.task-table .estfield input{border-color:transparent;box-shadow:none;background:transparent;border-radius:4px}
+.task-table .fselect-face:hover,.task-table .estfield input:hover{background:var(--hover)}
+.task-table .fselect-face:focus-visible,.task-table .estfield input:focus-visible{outline:2px solid var(--accent)}
+.task-table .table-cell{overflow:visible}
+.task-table .table-description,.task-table .table-project{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-table .table-head{padding-top:4px;padding-bottom:4px}
+.task-table .estfield{width:100%}
+.task-table .estfield input{width:100%;min-width:0}
+.task-table{border:1px solid var(--border);border-radius:var(--r-md)}
+.task-table .table-cell.tone-late .fselect-face{color:var(--late)}
+.task-table .table-labels .multiselect{margin:0}
+
+:root[data-layout="page-float"] .pvscale{--sidebar-w:248px}
+:root[data-layout="sidebar-float"] .pvscale{--sidebar-w:268px}
+.app:has(.sidebar-resize:active),.app:has(.sidebar-resize:active) .workspace{transition:none}
+
+.displaypanel .display-modes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.displaypanel .display-modes button{display:flex;flex-direction:column;justify-content:center;gap:6px;min-width:0;min-height:64px;padding:8px 3px}
+.displaypanel .display-modes button small{font-size:var(--fs-11);white-space:nowrap}
+.table-priority-mark{display:inline-flex;color:var(--priority-color)}
+.table-priority-mark.p1{--priority-color:var(--p1)}.table-priority-mark.p2{--priority-color:var(--p2)}
+.table-priority-mark.p3{--priority-color:var(--p3)}.table-priority-mark.p4{--priority-color:var(--p4)}
+.task-table .task[data-depth]{--table-indent:calc(var(--depth) * 22px)}
+.task-table .task[data-depth]>.check{transform:translateX(var(--table-indent))}
+.task-table .task[data-depth]>.tmain{padding-left:var(--table-indent)}
+.task-table .task[data-table-colored]:not(.picked){background:color-mix(in srgb,var(--table-row-color) 9%,var(--surface))}
+.task-table .task[data-table-colored]:not(.picked):hover{background:color-mix(in srgb,var(--table-row-color) 15%,var(--surface))}
+@media(max-width:720px){.task-table .task[data-table-colored]:not(.picked)>.tmain{background:color-mix(in srgb,var(--table-row-color) 9%,var(--surface))}}
+
+.composer-fields{display:contents;border:0;margin:0;padding:0;min-width:0}
+.composer-attachments{display:grid;gap:8px;margin:12px var(--s5)}
+.composer-attachment{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--subtle);border-radius:var(--r-sm);min-width:0}
+.composer-attachment img{width:44px;height:44px;object-fit:contain;border-radius:4px}
+.composer-attachment>span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-13)}
+.composer-attachment-status{font-size:var(--fs-12);color:var(--muted);margin:8px 0}
+@media(max-width:720px){.task-table .task.picked>.tmain{background:var(--row-marked)}}
+
+.displaypanel .display-modes{border-radius:12px}
+.displaypanel .display-modes button{border-radius:8px}
+.task-table .task,.task-table .task[data-depth],.task-table .table-head{padding-left:30px}
+.task-table .task .drag{left:2px;width:18px;justify-content:center}
+.displaypanel .display-modes.seg-slide::before{border-radius:8px}
+
+/* The table scrolls inside itself and its header row stays in view. */
+.table-scroll{overflow:auto;overscroll-behavior:contain}
+.table-scroll .table-head{position:sticky;top:0;z-index:4;background:var(--surface);border-radius:var(--r-md) var(--r-md) 0 0}
+
+/* "Title" starts where the checkboxes do; "Add task" sits under them. */
+.table-head>div:first-of-type{grid-column:1 / 3}
+.table-head>div:first-of-type button{padding-left:0}
+.task-table .addline{padding-left:30px}
+
+/* Rows carry no buttons at their right edge; a task opens from its title. */
+.task-table .task .trow-end,.task-table .task .taskacts{display:none}
+
+/* Dates, deadline, priority and duration read as discreet pills. */
+.task-table .table-cell:is(.table-date,.table-deadline,.table-priority,.table-estimate) :is(.datefield,.fselect,.estimatefield,.estfield){width:fit-content;max-width:100%}
+.task-table .table-cell:is(.table-date,.table-deadline,.table-priority,.table-estimate) :is(.datefield-face,.fselect-face,.estfield input){
+  border-radius:999px;background:color-mix(in srgb,var(--text) 6%,transparent);padding-inline:10px}
+.task-table .table-cell:is(.table-date,.table-deadline,.table-priority,.table-estimate) :is(.datefield-face,.fselect-face,.estfield input):hover{background:var(--hover)}
+.task-table .table-estimate .estfield input{width:84px;text-align:center}
+
+/* Tags are shown, not summarised. */
+.task-table .table-labels .fselect-face{background:transparent;padding-inline:0;height:auto;min-height:28px}
+.cell-tags{display:flex;flex-wrap:nowrap;gap:4px;align-items:center;min-width:0;overflow:hidden}
+.cell-tags .tag{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cell-tags .tag-more{flex:none;color:var(--muted);font-size:var(--fs-12)}
+.cell-tags .tag{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;font-size:var(--fs-12);line-height:18px;
+  color:var(--marker,var(--muted));background:var(--marker-soft,var(--subtle))}
+.cell-tags .tag .ic{width:12px;height:12px;color:inherit}
+.cell-tags.is-none{color:var(--faint);opacity:0}
+.task-table .task:hover .cell-tags.is-none,.task-table .table-labels:focus-within .cell-tags.is-none{opacity:1}
+
+/* A list keeps a reading width unless Display → Full width asks for the page;
+   the page glides between the two. */
+.page{transition:padding-inline .35s cubic-bezier(.2,.8,.2,1)}
+@media(min-width:900px){.app .page.narrow{padding-inline:max(44px,calc((100% - 960px) / 2))}}
+@media(prefers-reduced-motion:reduce){.page{transition:none}}
+.display-fullwidth{margin:var(--s3) 0}
+.table-column-options .detailschips{margin-bottom:var(--s3)}
+

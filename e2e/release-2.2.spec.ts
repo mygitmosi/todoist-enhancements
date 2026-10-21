@@ -14,8 +14,8 @@ test('a filter with commas shows one list per part, without its query on the pag
   await go(page, '#/filter/f3');
   await expect(page.locator('.screen.active .phead input').first()).toHaveValue('Overdue, then today');
   await expect(page.locator('.screen.active').getByText('overdue, today')).toHaveCount(0);
-  await expect(page.locator('.screen.active .page').getByText('overdue', { exact: true })).toBeVisible();
-  await expect(page.locator('.screen.active .page').getByText('today', { exact: true })).toBeVisible();
+  await expect(page.locator('.screen.active .page .gname').filter({ hasText: /^Overdue$/ })).toBeVisible();
+  await expect(page.locator('.screen.active .page .gname').filter({ hasText: /^Today$/ })).toBeVisible();
 });
 
 test('a filter can be created and deleted from the app (#201)', async ({ demo: page }) => {

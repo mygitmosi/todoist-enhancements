@@ -1,3 +1,4 @@
+import { SidebarResize } from './SidebarResize';
 import { addDays, endOfDay } from 'date-fns';
 import { dueDate, isToday } from '@/domain/dates';
 import { viewPrefs } from '@/store/prefs';
@@ -100,6 +101,7 @@ export function Sidebar({
   const showSearch = useStore((s) => s.prefs.sidebarSearch);
   const showCounts = useStore((s) => s.prefs.sidebarCounts);
   const disconnect = useStore((s) => s.disconnect);
+  const demo = useStore((s) => s.demo);
   const draggingProjectId = useStore((s) => s.draggingProjectId);
   const [menuOpen, setMenuOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -545,7 +547,7 @@ export function Sidebar({
             </button>
             <button className="danger" onClick={() => { setMenuOpen(false); void disconnect(); }}>
               <Icon name="logout" />
-              {t('nav.signOut')}
+              {demo ? t('demo.exit') : t('nav.signOut')}
             </button>
           </div>
         )}
@@ -639,6 +641,7 @@ export function Sidebar({
         </span>,
         document.body,
       )}
+      {!sheet && <SidebarResize hidden={collapsed} />}
     </aside>
     {collapsed && (
       <div className="expand-wrap">

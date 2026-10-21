@@ -11,10 +11,12 @@ interface MultiSelectProps {
   value: string[] | null;
   options: Array<{ value: string; label: string; visual?: ReactNode }>;
   onChange: (value: string[] | null) => void;
+  /** Draws the closed control's content in place of the label and summary. */
+  face?: ReactNode;
 }
 
 /** A compact multi-selection with real keyboard-operable checkboxes. */
-export function MultiSelect({ label, value, options, onChange, allLabel, icon, variant = 'field' }: MultiSelectProps) {
+export function MultiSelect({ label, value, options, onChange, allLabel, icon, variant = 'field', face }: MultiSelectProps) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -66,7 +68,7 @@ export function MultiSelect({ label, value, options, onChange, allLabel, icon, v
     }}>
       <button ref={button} type="button" className="fselect-face" aria-label={`${label}: ${summary}`}
         aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((previous) => !previous)}>
-        {icon && <Icon name={icon} size="sm" />}<span>{label}</span><span className="fselect-value">{summary}</span><Icon name="caret" size="sm" />
+        {face ?? <>{icon && <Icon name={icon} size="sm" />}<span>{label}</span><span className="fselect-value">{summary}</span><Icon name="caret" size="sm" /></>}
       </button>
       {open && createPortal(<div ref={popup} className="multiselect-options" role="dialog" aria-label={label}
         onMouseDown={(event) => event.stopPropagation()}

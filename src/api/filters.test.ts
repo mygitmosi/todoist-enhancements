@@ -22,3 +22,15 @@ describe('splitQuery', () => {
     expect(splitQuery('today,, ,overdue,')).toEqual(['today', 'overdue']);
   });
 });
+
+describe('reported negated date filters (#274)', () => {
+  it.each(['!(date before: tomorrow)', '!(deadline after: today)', '!(due: today)'])(
+    'passes %s through without interpreting the negation', (query) => {
+      expect(splitQuery(query)).toEqual([query]);
+    },
+  );
+  it('keeps separate negated date lists intact', () => {
+    expect(splitQuery('!(date before: tomorrow), !(deadline after: today), !(due: today)'))
+      .toEqual(['!(date before: tomorrow)', '!(deadline after: today)', '!(due: today)']);
+  });
+});

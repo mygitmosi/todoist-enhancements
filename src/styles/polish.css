@@ -435,7 +435,7 @@
    Two columns for the scenes that have a picture (the picture, then the
    controls), one centred column for the greeting and the end. The controls
    scroll on their own so Back and Continue never leave the window. */
-.setup{height:min(700px,calc(100vh - 56px));min-height:0}
+.setup{height:min(700px,calc(100dvh - 56px));min-height:0}
 .setup-body{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);align-items:stretch;overflow:hidden;min-height:0}
 .setup-preview{height:auto;min-height:0}
 .setup-controls{min-height:0;overflow-y:auto;padding:2px 4px 36px 2px}
@@ -508,6 +508,9 @@
 .mdedit .cm-editor{background:transparent;color:inherit}
 .mdedit .cm-editor.cm-focused{outline:none}
 .mdedit .cm-scroller{font:inherit;line-height:inherit;overflow:visible}
+/* The composer's description stops growing at ten lines and scrolls inside
+   itself, so a long paste cannot push the buttons out of the sheet (#288). */
+.descedit.composer .cm-scroller{max-height:calc(10 * 1.5em);overflow-y:auto;overscroll-behavior:contain}
 .mdedit .cm-content{padding:0;font:inherit;caret-color:var(--text)}
 .mdedit .cm-line{padding:0;overflow-wrap:anywhere}
 .mdedit .cm-placeholder{color:var(--faint)}

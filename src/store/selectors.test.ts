@@ -248,3 +248,20 @@ describe('native team folder hierarchy', () => {
     expect(tree[0].roots.find((n) => n.project.id === 'folder')?.children[0].project.id).toBe('site');
   });
 });
+
+describe('filter date grouping', () => {
+  it('puts past dates and deadline-only tasks in one Overdue group before upcoming days', () => {
+    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+    const format = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const groups = groupItems([
+      item({ id: 'future', due: due(format(tomorrow)) }),
+      item({ id: 'old', due: due('2020-01-01') }),
+      item({ id: 'older', due: due('2019-01-01') }),
+      item({ id: 'deadline-only', due: null, deadline: { date: '2020-02-01', lang: 'en' } }),
+      item({ id: 'undated', due: null }),
+    ], 'day', snapshot, { ...labels, overdue: 'Overdue', day: (date) => date ? format(date) : 'No date' });
+    expect(groups.map((group) => group.key)).toEqual(['overdue', format(tomorrow), 'none']);
+    expect(groups[0].items.map((task) => task.id)).toEqual(['old', 'older', 'deadline-only']);
+    expect(groups[1].title).toBe(format(tomorrow));
+  });
+});

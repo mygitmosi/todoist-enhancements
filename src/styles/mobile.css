@@ -1,0 +1,369 @@
+/*
+ * The phone, as one file (2.15.0).
+ *
+ * The phone rules used to be scattered through five stylesheets, each
+ * answering the one before it. Everything below is the phone's own answer,
+ * loaded last, so a rule written here is the rule that applies. Every value
+ * is a token of the app: the light and dark themes and every accent colour
+ * follow without a line of their own.
+ */
+/* The sheet furniture exists in the markup and is drawn on a phone only. */
+.sheet-grip,.sheet-x,.sheet-scrim,.sheet-done,.searchcancel,.coffee-short{display:none}
+
+/* The task panel's properties: a wrapper that draws nothing on a wide screen, where they
+   are the rows they always were (project, date, then the rest) (#294). */
+.propchips{display:contents}
+
+/* The send button's arrow is drawn on a phone only. */
+.sendicon{display:none}
+
+/* A phone's sign-in: a line instead of the privacy text, a short label on the demo button. */
+.connect-privacy-line,.demo-short{display:none}
+.connect-privacy-sheet .connect-version{margin:12px 0 0;text-align:center;color:var(--faint);font-size:12.5px}
+
+/* The dots under a phone's board. */
+.boarddots{display:none}
+
+/* The search field's icon, input and key hint: the same line they always were; a phone makes it a pill. */
+.searchpill{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+
+@media (max-width:720px){
+  /* ---- Shell: a plain bar, taller once the page has scrolled (#291) ---- */
+  .workspace{position:relative}
+  .screen.active{padding-top:calc(44px + env(safe-area-inset-top))}
+  .mobile-top{position:absolute;top:0;left:0;right:0;z-index:15;height:auto;
+    min-height:calc(44px + env(safe-area-inset-top));padding:env(safe-area-inset-top) 4px 0;
+    border-bottom:1px solid transparent;background:var(--bg);
+    transition:min-height .18s ease,padding-top .18s ease,border-color .18s ease}
+  /* Once the page has been scrolled the bar is a little taller and draws its edge. */
+  .mobile-top.scrolled{min-height:calc(54px + env(safe-area-inset-top));padding-top:calc(env(safe-area-inset-top) + 8px);
+    border-bottom-color:var(--border-strong)}
+  .mobile-top .iconbtn{width:44px;height:44px;border-radius:var(--r-full)}
+  .mobile-top .iconbtn .ic{width:22px;height:22px}
+  .mobile-top strong{position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 13px);max-width:52%;
+    font-size:16px;font-weight:700;transform:translate(-50%,4px)}
+  .mobile-top.scrolled strong{top:calc(env(safe-area-inset-top) + 17px)}
+  .mobile-top strong.shown{transform:translate(-50%,0)}
+  .mobile-top-end{display:flex;align-items:center;gap:2px;margin-left:auto}
+  .demochip{height:24px;padding:0 10px;border:0;border-radius:var(--r-full);background:var(--accent-soft);
+    color:var(--accent-dark);font-size:12px;font-weight:700}
+
+  /* ---- Tab bar: translucent, one-line labels, room for the home indicator ---- */
+  .mobile-nav{background:color-mix(in srgb,var(--bg) 84%,transparent);
+    -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-top-color:var(--border-strong)}
+  .mobile-nav button{height:56px;gap:2px;font-size:11px;white-space:nowrap}
+  .mobile-nav button .ic-lg{width:24px;height:24px}
+  /* Pages sit a little further in from both edges: a list reads better with air at its sides. */
+  .page{padding-inline:22px;padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+  .group.tinted-late,.group.tinted-quick,.group.accent-late,.group.accent-quick,.group.accent-dust{padding-inline:14px}
+  .pvscale .page{padding-inline:40px}
+
+  /* ---- Page title: the title and its controls on one line (#291) ---- */
+  .ptitle,[data-density="compact"] .ptitle{font-size:28px;letter-spacing:-.02em}
+  .phead{flex-wrap:nowrap;align-items:center;gap:var(--s2)}
+  .phead-text{flex:1 1 auto;min-width:0}
+  .pactions{flex:0 0 auto;margin-left:auto;gap:8px}
+  .pactions > .btn,.pactions > .displaywrap > .btn{width:40px;height:40px;min-height:40px;padding:0;border-radius:var(--r-full);position:relative}
+  .pactions .btn .tb-label{display:none}
+  .pactions .displaycount{position:absolute;top:-3px;right:-3px;margin:0}
+  .phead:has(.dash-layout-edit) .ptitle,[data-density="compact"] .phead:has(.dash-layout-edit) .ptitle{font-size:25px}
+  .phead:has(.dash-layout-edit) .pactions > .btn,.phead:has(.dash-layout-edit) .pactions > .displaywrap > .btn{width:36px;height:36px;min-height:36px}
+
+  /* The navigation page slides in from the left, as a drawer does, and the page behind dims. */
+  .overlay .sheet.sheet-full{width:100%;max-width:100%;opacity:1;transform:translateX(-100%);
+    transition:transform .32s cubic-bezier(.16,1,.3,1)}
+  .overlay.open .sheet.sheet-full{transform:none}
+  @media (prefers-reduced-motion:reduce){.overlay .sheet.sheet-full{transition:none;transform:none}}
+
+  /* ---- Navigation page: the desktop sidebar's colours, rows a thumb can hit (#291) ---- */
+  .browse,.browse .sidebar-sheet{background:var(--sidebar)}
+  .browse .sidebar-sheet .navitem{height:40px;min-height:40px;font-size:15.5px;gap:13px}
+  .browse .sidebar-sheet .navitem .ic{width:22px;height:22px}
+  .browse .sidebar-sheet .nav-gap{display:none}
+  .browse .sidebar-sheet .searchbtn kbd{display:none}
+  .browse .sidebar-sheet .searchbtn{height:42px;border-radius:var(--r-full);font-size:15px}
+  .browse-head{border-bottom:0;padding:var(--s2) var(--s2) 0 var(--s4)}
+  .browse-head strong{font-size:19px}
+
+  /* ---- Bottom sheets: every dialog but the pages (navigation, search, setup) (#293) ---- */
+  .overlay .sheet:not(.sheet-full):not(.sheet-search):not(:has(> .setup)),
+  .overlay .side-sheet{
+    position:relative;inset:auto;align-self:end;justify-self:stretch;
+    width:100%;max-width:100%;height:auto;min-height:0;margin:0;
+    max-height:calc(100dvh - 12px - env(safe-area-inset-top));
+    border:0;border-radius:26px 26px 0 0;opacity:1;
+    padding-bottom:env(safe-area-inset-bottom);
+    box-shadow:0 -6px 30px rgba(0,0,0,.22);
+    transform:translateY(100%);transition:transform .3s cubic-bezier(.16,1,.3,1);
+  }
+  .overlay .side-sheet{position:absolute;left:0;right:0;bottom:0;top:auto;background:var(--surface);padding-top:34px}
+  :root[data-layout] .overlay .side-sheet:has(.icard),:root .overlay .side-sheet:has(.icard){
+    top:auto;right:0;left:0;bottom:0;margin:0;width:100%;height:auto;max-height:calc(100dvh - 12px - env(safe-area-inset-top));
+    border:0;border-radius:26px 26px 0 0;background:var(--surface);box-shadow:0 -6px 30px rgba(0,0,0,.22);padding:34px 14px 16px}
+  /* Insights hangs beside the page on a wide screen and leaves it undimmed; a sheet dims what is behind it. */
+  :root .overlay.open .scrim{background:var(--scrim)}
+  .overlay.open .sheet:not(.sheet-full):not(.sheet-search):not(:has(> .setup)),
+  .overlay.open .side-sheet{transform:none}
+  /* A dialog is mounted already open, so a transition has nothing to run from: the way in is an animation. */
+  .overlay.open .sheet:not(.sheet-full):not(.sheet-search):not(:has(> .setup)),.overlay.open .side-sheet{
+    animation:sheet-up .34s cubic-bezier(.16,1,.3,1) backwards}
+  .overlay.open .sheet.sheet-full{animation:drawer-in .34s cubic-bezier(.16,1,.3,1) backwards}
+  .overlay.open .scrim{animation:scrim-in .28s ease-out backwards}
+  @keyframes drawer-in{from{transform:translateX(-100%)}to{transform:none}}
+  @keyframes scrim-in{from{opacity:0}to{opacity:1}}
+  @media (prefers-reduced-motion:reduce){
+    .overlay.open .sheet,.overlay.open .side-sheet,.overlay.open .scrim{animation:none}
+  }
+  .sheet-grip{display:block;position:sticky;top:0;z-index:7;height:26px;margin-bottom:-26px;touch-action:none}
+  .sheet-grip::before{content:"";position:absolute;left:50%;top:8px;width:40px;height:5px;margin-left:-20px;
+    border-radius:var(--r-full);background:var(--border-strong)}
+  .sheet-search .sheet-grip,.sheet-full .sheet-grip,.sheet:has(> .setup) .sheet-grip{display:none}
+  .overlay .sheet:not(.sheet-full):not(.sheet-search) > .sheet-head{padding-top:calc(var(--s4) + 10px)}
+
+  /* ---- Display and the menus like it: a sheet, a scrim, a Done (#293) ---- */
+  .displaywrap .sheet-scrim{display:block;position:fixed;inset:0;z-index:79;background:var(--scrim)}
+  .popover.displaypanel,.popover.displaypanel.anchor-left,.popover.displaypanel.anchor-right{
+    position:fixed;inset:auto 0 0 0;top:auto;width:auto;max-width:none;
+    max-height:min(88dvh,calc(100dvh - 24px));overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;z-index:80;
+    padding:0 18px 0;border:0;border-radius:26px 26px 0 0;
+    box-shadow:0 -6px 30px rgba(0,0,0,.22);animation:sheet-up .3s cubic-bezier(.16,1,.3,1)}
+  .popover.displaypanel .sheet-grip{position:sticky;top:0;height:34px;margin:0 -18px;background:var(--surface);z-index:7}
+  .popover.displaypanel .sheet-x{display:grid;position:sticky;top:0;z-index:8;float:right;margin:-34px -12px -44px 0;width:44px;height:44px}
+  .popover.displaypanel .panelhead{padding-right:44px;margin-bottom:12px}
+  .popover.displaypanel .panelhead h5{font-size:19px;letter-spacing:-.01em;color:var(--text);text-transform:none}
+  .popover.displaypanel .resetbtn{color:var(--accent-dark);font-weight:700}
+  .sheet-done{display:block;position:sticky;bottom:0;z-index:6;margin:14px -18px 0;
+    padding:10px 18px calc(14px + env(safe-area-inset-bottom));background:var(--surface);
+    border-top:1px solid var(--border-strong)}
+  .pactions .sheet-done .btn.primary,.sheet-done .btn{display:inline-flex}
+  .sheet-done .btn{width:100%;height:48px;border-radius:var(--r-full);font-size:15.5px;font-weight:700}
+  @keyframes sheet-up{from{transform:translateY(100%)}to{transform:none}}
+  @media (prefers-reduced-motion:reduce){
+    .popover.displaypanel{animation:none}
+    .overlay .sheet,.overlay .side-sheet,.mobile-top{transition:none}
+  }
+
+  /* ---- Search: a page of its own, with Cancel (#293) ---- */
+  .overlay .sheet-search{align-self:stretch;justify-self:stretch;width:100%;max-width:none;height:100dvh;max-height:100dvh;
+    margin:0;padding:env(safe-area-inset-top) 0 0;border-radius:0;box-shadow:none;opacity:1;transform:none;
+    display:flex;flex-direction:column;overflow:hidden}
+  .sheet-search .searchfield{height:auto;padding:8px 12px;gap:10px;border-bottom:0}
+  .sheet-search .searchpill{display:flex;align-items:center;gap:10px;flex:1;min-width:0;height:44px;padding:0 14px;border-radius:var(--r-full);background:var(--hover)}
+  .sheet-search .searchfield input{font-size:16px;background:transparent}
+  .sheet-search .searchfield kbd,.sheet-search .searchfoot{display:none}
+  .searchcancel{display:block;border:0;background:transparent;color:var(--accent);font-size:16px;font-weight:600;padding:0 4px;height:44px}
+  .sheet-search .sresults{flex:1;max-height:none;overflow-y:auto;padding:0 0 env(safe-area-inset-bottom)}
+  .sheet-search .sresults button{min-height:48px;padding:6px 18px}
+  .sheet-search .sresults strong{font-size:15.5px}
+
+  /* ---- What's new: badge above the title, a footer that no longer floats on the text (#293) ---- */
+  :root .sheet:has(> .whatsnew){overflow:hidden;display:flex;flex-direction:column}
+  :root .whatsnew.whatsnew-refresh{width:100%;max-height:none;height:calc(100dvh - 56px - env(safe-area-inset-top))}
+  :root .whatsnew-refresh .whatsnew-head{padding:20px 12px 6px 18px;gap:6px;flex-wrap:nowrap;background:var(--surface)}
+  :root .whatsnew-refresh .whatsnew-head h2{font-size:19px;letter-spacing:-.01em}
+  :root .whatsnew-refresh .whatsnew-head .iconbtn{width:44px;height:44px;flex:none}
+  :root .whatsnew-refresh .whatsnew-body{padding:4px 18px 16px;gap:22px}
+  :root .whatsnew-refresh .whatsnew-release h3{font-size:21px;margin-bottom:6px}
+  :root .whatsnew-refresh .whatsnew-change,
+  :root .whatsnew-refresh .whatsnew-change.whatsnew-illustrated{grid-template-columns:minmax(0,1fr);gap:12px;padding:14px 0}
+  :root .whatsnew-refresh .whatsnew-titleline{flex-direction:column;align-items:flex-start;gap:6px}
+  :root .whatsnew-refresh .whatsnew-change .whatsnew-badge{width:auto;padding:3px 10px;border-radius:var(--r-full);font-size:11.5px;font-weight:800}
+  :root .whatsnew-refresh .whatsnew-change.new .whatsnew-badge{color:var(--accent-dark)}
+  :root .whatsnew-refresh .whatsnew-change.design .whatsnew-badge{color:color-mix(in srgb,var(--info) 74%,var(--text))}
+  :root .whatsnew-refresh .whatsnew-change.fix .whatsnew-badge{color:color-mix(in srgb,var(--ok) 74%,var(--text))}
+  :root .whatsnew-refresh .whatsnew-title{font-size:17px;line-height:1.25}
+  :root .whatsnew-refresh .whatsnew-para{font-size:14.5px;line-height:1.5;color:var(--muted)}
+  :root .whatsnew-refresh .whatsnew-foot{position:static;flex:0 0 auto;padding:10px 16px calc(12px + env(safe-area-inset-bottom));
+    display:flex;flex-wrap:wrap;gap:8px;background:var(--surface);border-top:1px solid var(--border-strong)}
+  :root .whatsnew-refresh .whatsnew-foot::before{display:none}
+  :root .whatsnew-foot .whatsnew-end{display:flex;flex:1 1 100%;gap:10px;margin:0}
+  :root .whatsnew-foot .whatsnew-end .btn{flex:1;height:48px;border-radius:var(--r-full);font-size:15px;font-weight:700;white-space:nowrap}
+  :root .whatsnew-foot .btn.soft{flex:1 1 100%;height:44px;border-radius:var(--r-full)}
+  :root .whatsnew-foot .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .coffee-long{display:none}.coffee-short{display:inline}
+
+  /* ---- Task details: a sheet, laid out as Todoist's own phone app lays it out (#294) ----
+     Title, description, the date, one row for the other properties, then the
+     subtasks and the comments, with the comment bar held at the bottom. */
+  :root .overlay .sheet.sheet:has(> .detail-top){display:flex;flex-direction:column;overflow:hidden;
+    height:calc(100dvh - 44px - env(safe-area-inset-top));padding-bottom:0}
+  .sheet:has(> .detail-top) > .detail-top{position:static;flex:none;height:auto;min-height:52px;
+    padding:14px 6px 0 18px;border-bottom:0;background:var(--surface)}
+  .sheet:has(> .detail-top) .detail-top .iconbtn{width:44px;height:44px}
+  .sheet:has(> .detail-top) .detail-top .crumb{min-width:0;flex:1;overflow:hidden;white-space:nowrap;font-size:13.5px}
+  .sheet:has(> .detail-top) .detail-top .crumbself{display:none}
+  .sheet:has(> .detail-top) > .detail-body{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;
+    overflow-y:auto;overscroll-behavior:contain;padding:0 18px;grid-template-columns:none;grid-template-rows:none}
+  .sheet:has(> .detail-top) .detail-main{display:contents}
+  .sheet:has(> .detail-top) .detail-side{display:contents}
+  .sheet:has(> .detail-top) .detail-done{order:0}
+  .sheet:has(> .detail-top) .detail-headline{order:0;margin-top:4px}
+  .sheet:has(> .detail-top) .detail-side > .prop[data-prop="start"]{order:1;display:flex;flex-wrap:wrap;align-items:center;
+    gap:8px 14px;margin:14px 0 0 0;padding:0;width:auto}
+  .sheet:has(> .detail-top) .propchips{order:2;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;
+    margin:14px -18px 0;padding:0 18px 2px;align-items:flex-start}
+  .sheet:has(> .detail-top) .propchips::-webkit-scrollbar{display:none}
+  .sheet:has(> .detail-top) .propchips > .prop{order:0;flex:none;width:auto;margin:0;padding:0}
+  .sheet:has(> .detail-top) .detail-side .prop > .proplabel,
+  .sheet:has(> .detail-top) .detail-side .prophead .proplabel{display:none}
+  .sheet:has(> .detail-top) .detail-side .prop[data-prop="tags"]{display:flex;gap:6px;align-items:center}
+  .sheet:has(> .detail-top) .detail-side .prop[data-prop="tags"] .prophead{order:2}
+  .sheet:has(> .detail-top) .detail-side .prop[data-prop="tags"] .pills{display:flex;flex-wrap:nowrap}
+  .sheet:has(> .detail-top) .detail-section.boxed{order:3;margin:16px 0 0}
+  .sheet:has(> .detail-top) .detail-section.comments{display:contents}
+  .sheet:has(> .detail-top) .detail-section.comments > .sectionlabel{order:4;margin:16px 0 6px}
+  .sheet:has(> .detail-top) .detail-section.comments > .comment:not(.comment-new){order:5}
+  .sheet:has(> .detail-top) .detail-section.comments > .comment-new{order:9;position:sticky;bottom:0;margin:auto -18px 0;
+    padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:var(--surface);
+    border-top:1px solid var(--border-strong);z-index:5}
+
+  /* ---- Composer: docked on the keyboard, growing upward, send always in sight (#294) ---- */
+  :root .overlay .sheet.sheet.sheet-sm:has(> .composerbox){
+    margin-bottom:var(--kb,0px);padding-bottom:var(--sheet-inset,env(safe-area-inset-bottom));
+    max-height:calc(100dvh - var(--kb,0px) - 16px);overflow-y:auto;overscroll-behavior:contain;
+    transition:margin-bottom .18s ease,transform .3s cubic-bezier(.16,1,.3,1)}
+  .composerbox{padding-top:8px}
+  :is(.composerbox, .composer-fields) > .namefield{margin:var(--s3) 18px 0}
+  .composerbox .composer-desc{padding:0 18px}
+  .composer-chips{flex-wrap:nowrap;overflow-x:auto;padding:0 18px 12px;scrollbar-width:none;align-items:center}
+  .composer-chips::-webkit-scrollbar{display:none}
+  .composer-chips > *{flex:none}
+  .composer-chips .fselect-face.chipface{min-height:36px;padding:0 13px;font-size:14px}
+  .composer-chips .tagpicker{position:fixed;left:12px;right:12px;top:auto;bottom:calc(var(--kb,0px) + 76px);max-height:40dvh;z-index:90}
+  .composerbox .composer-subs{margin:0 18px}
+  .composerbox .composer-actions{justify-content:space-between;gap:10px;padding:10px 14px;border-top:1px solid var(--border-strong)}
+  .composerbox .composer-actions .btn.quiet,.composerbox .composer-actions .composer-hint{display:none}
+  .composer-place{display:flex;align-items:center;gap:6px;min-width:0;flex:1;overflow:hidden}
+  .composer-place .fselect-face.chipface{min-height:36px;max-width:100%}
+  .composerbox .composer-actions .btn.primary{flex:none;width:44px;height:44px;min-height:44px;padding:0;border-radius:var(--r-full)}
+  .composerbox .composer-actions .btn.primary .sendlabel{display:none}
+  .composerbox .composer-actions .btn.primary .sendicon{display:block;width:22px;height:22px}
+  /* The tag list opens over the sheet rather than inside the row of chips, which would clip it. */
+  .sheet:has(> .detail-top) .tagpicker{position:fixed;left:12px;right:12px;top:auto;bottom:calc(var(--kb,0px) + 84px);
+    max-height:45dvh;overflow:auto;z-index:90}
+  .sheet:has(> .detail-top) .propchips .estfield{width:132px}
+  .sheet:has(> .detail-top) .propchips .prop .estinput,
+  .sheet:has(> .detail-top) .propchips .prop .fselect-face{height:36px;min-height:36px;font-size:14px}
+  .sheet:has(> .detail-top) .propchips .fselect{width:auto}
+  .sheet:has(> .detail-top) .propchips .priopills{display:flex;gap:6px;flex-wrap:nowrap}
+  .sheet:has(> .detail-top) .propchips .priopill{flex:none;height:36px;padding:0 12px;font-size:14px}
+
+  /* ---- Sign-in: the promise and the app on top, the way in on a sheet (#292) ---- */
+  .signin{display:flex;flex-direction:column;height:100dvh;min-height:0;overflow:hidden;
+    background:linear-gradient(165deg,color-mix(in srgb,var(--accent) 78%,#fff),var(--accent) 42%,color-mix(in srgb,var(--accent) 66%,#000))}
+  .signin-lang{top:calc(14px + env(safe-area-inset-top));right:16px;background:rgba(255,255,255,.24)}
+  .signin-lang button{color:#fff}
+  .signin-lang button[aria-pressed="true"]{color:var(--text)}
+  .signin-bubble{order:0;display:flex;flex-direction:column;flex:1 1 auto;min-height:0;margin:0;border-radius:0;
+    padding:calc(76px + env(safe-area-inset-top)) 24px 0;background:transparent;overflow:hidden;gap:0}
+  .signin-bubble h2{margin:0;font-size:32px;line-height:1.12;letter-spacing:-.02em;color:#fff;max-width:11em;text-wrap:balance}
+  .signin-checks{display:none}
+  .signin-mock{flex:1 1 auto;min-height:0;margin:22px -240px 0 0;height:auto;border-radius:14px 0 0 0;overflow:hidden;
+    box-shadow:0 18px 40px rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.35);border-right:0;border-bottom:0}
+  .signin-main{order:1;flex:none;overflow:visible;background:var(--surface);border-radius:26px 26px 0 0;
+    padding:20px 20px calc(16px + env(safe-area-inset-bottom));box-shadow:0 -6px 30px rgba(0,0,0,.2);position:relative;z-index:2}
+  .signin .connect-form{gap:10px;margin:0;width:100%}
+  .signin .connect-form h1,.signin .connect-intro,.signin-main .connect-privacy,.signin-main .connect-legal,.signin .signin-brand,
+  .signin .macapp-line,.signin .macapp{display:none}
+  .signin .btn.lg{height:50px;font-size:15.5px;font-weight:700;border-radius:var(--r-full)}
+  .demo-long{display:none}.demo-short{display:inline}
+  .signin .connect-token{margin:0}
+  .signin .connect-token summary{color:var(--accent-dark);font-weight:600;font-size:15px;padding:8px 0}
+  .signin .connect-token input{font-size:16px;height:48px}
+  .connect-privacy-line{display:flex;gap:6px;align-items:center;justify-content:center;margin:2px 0 0;color:var(--muted);font-size:12.5px}
+  .connect-privacy-line button{border:0;background:none;padding:0;color:var(--muted);font:inherit;text-decoration:underline}
+  .connect-privacy-line a{color:var(--muted)}
+
+  /* ---- Table: the title pinned and narrow, the other columns slide under it (#295) ---- */
+  .task-table{--table-title-min:150px;--table-title-max:150px;min-width:0!important;width:max-content}
+  .task-table .task{min-height:58px}
+  .task-table .task .ttitle{-webkit-line-clamp:2;line-height:1.25}
+  .task-table .tmain{box-shadow:6px 0 10px -6px rgba(0,0,0,.28)}
+
+  /* ---- Calendar: the page is the one thing that scrolls (#295) ---- */
+  .calendar-body{min-height:0;max-height:none}
+  .calendar-main,.calendar-scroll{overflow:visible}
+  .calendar-scroll{scrollbar-gutter:auto}
+  .calendar-day-head{position:sticky;top:calc(54px + env(safe-area-inset-bottom) * 0 + env(safe-area-inset-top));z-index:6;background:var(--surface)}
+  .calendar-all-day{max-height:none}
+  .calendar-all-day>div:first-child{font-size:10.5px;font-weight:700;white-space:nowrap}
+
+  /* ---- Dashboard: the period is one control, the list reads top to bottom (#295) ---- */
+  .periodbar .periodright .fselect{width:100%}
+
+  /* ---- Board: a column at a time, the next one showing its edge, dots saying where you are (#295) ---- */
+  .mode:has(> .board){padding-top:20px}
+  .mode:has(> .boardnav){padding-top:6px}
+  .boardnav{display:flex;position:static;height:auto;margin:0 0 10px;justify-content:flex-end}
+  .boardnav .pager{position:static}
+  .board{scroll-padding-inline:0;padding-right:var(--s4)}
+  .boarddots{display:flex;justify-content:center;align-items:center;gap:7px;position:fixed;left:0;right:0;z-index:10;
+    bottom:calc(68px + env(safe-area-inset-bottom));pointer-events:none}
+  .boarddots i{width:8px;height:8px;border-radius:var(--r-full);background:var(--border-strong);transition:width .2s ease,background-color .2s ease}
+  .boarddots i.on{width:22px;background:var(--accent)}
+
+  /* ---- Invitation to install the app (#273) ---- */
+  .installprompt .sheet-head{border-bottom:0;padding:10px 6px 0 18px;min-height:48px}
+  .installprompt .sheet-body{padding:0 18px 14px}
+  .install-id{display:flex;gap:14px;align-items:center}
+  .install-id img{width:60px;height:60px;border-radius:15px;flex:none}
+  .install-id h2{margin:0;font-size:21px;letter-spacing:-.01em}
+  .install-id span{color:var(--muted);font-size:14px}
+  .install-why{margin:12px 0 0;color:var(--muted);line-height:1.45;font-size:15px}
+  .install-steps{margin:14px 0 0;padding:0;list-style:none;counter-reset:step;display:grid;gap:12px}
+  .install-steps li{counter-increment:step;display:flex;gap:12px;align-items:center;font-size:15px}
+  .install-steps li::before{content:counter(step);width:26px;height:26px;border-radius:var(--r-full);flex:none;
+    background:var(--accent-soft);color:var(--accent-dark);font-weight:700;display:grid;place-items:center;font-size:13px}
+  .install-steps .ico{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:8px;background:var(--hover);vertical-align:middle;margin-inline:2px}
+  .install-steps .ico .ic{width:18px;height:18px}
+  .install-foot{display:flex;gap:10px;padding:10px 18px calc(14px + env(safe-area-inset-bottom));border-top:1px solid var(--border-strong)}
+  .install-foot .btn{flex:1;height:48px;border-radius:var(--r-full);font-size:15.5px;font-weight:700}
+
+  /* The picture is a laptop window: the phone's own title and round buttons stay out of it. */
+  .pvscale .ptitle,.pvscale [data-density="compact"] .ptitle,[data-density="compact"] .pvscale .ptitle{font-size:27px}
+  .pvscale .pactions > .btn,.pvscale .pactions > .displaywrap > .btn{width:auto;height:auto;min-height:34px;padding:0 11px;border-radius:var(--r-ctl)}
+  .pvscale .pactions .btn .tb-label{display:inline}
+  .pvscale .page{padding-bottom:30px}
+
+  /* ---- First-run setup: the picture is the point of the step, so it is drawn big and follows the layout ---- */
+  .setup-track > .setup-preview,.setup-body .setup-preview{width:100%;max-height:none;overflow:visible}
+  /* The frame rules (layout and background) answer to the width of the window, not of the picture:
+     put them back inside the picture, as the setup rules above do for the rest. */
+  .pvscale .app{position:relative;background:var(--frame-back)}
+  .pvscale .sidebar{background:transparent;border-right:0}
+  .pvscale .workspace{margin:var(--frame-gap) var(--frame-gap) var(--frame-gap) 0;border-radius:var(--frame-r);
+    background:var(--surface);box-shadow:var(--frame-shadow)}
+  :root[data-layout="sidebar-float"] .pvscale .app{background:var(--surface)}
+  :root[data-layout="sidebar-float"] .pvscale .sidebar{position:absolute;z-index:5;top:var(--frame-gap);bottom:var(--frame-gap);
+    left:var(--frame-gap);grid-row:-2 / -1;grid-column:1;width:calc(var(--sidebar-w) - var(--frame-gap));
+    border-radius:var(--frame-r);background:var(--frame-card);box-shadow:0 0 0 1px rgba(0,0,0,.05),0 12px 36px -8px rgba(0,0,0,.18)}
+  :root[data-layout="sidebar-float"][data-background="colored"] .pvscale .sidebar{background:var(--frame-back)}
+  :root[data-layout="sidebar-float"] .pvscale .workspace{margin:0;border-radius:0;box-shadow:none;
+    grid-column:1 / -1;padding-left:calc(var(--sidebar-w) + var(--frame-gap))}
+  :root[data-background="colored"] .pvscale .sidebar{
+    --text:#fff;--muted:rgba(255,255,255,.82);--faint:rgba(255,255,255,.62);--hover:rgba(255,255,255,.14);
+    --subtle:rgba(255,255,255,.1);--border:rgba(255,255,255,.2);--border-strong:rgba(255,255,255,.3);
+    --field-muted:rgba(255,255,255,.82);--field-hover:rgba(255,255,255,.24);--kbd:rgba(255,255,255,.18);
+    --accent-soft:rgba(255,255,255,.26);--accent-dark:#fff;color:#fff}
+  :root[data-background="colored"] .pvscale .sidebar .searchbtn{background:rgba(255,255,255,.18)}
+  :root[data-background="colored"] .pvscale .sidebar .side-foot .addbtn{background:#fff;color:var(--accent)}
+  :root[data-background="colored"] .pvscale .sidebar .side-foot .addbtn .ic{color:var(--accent)}
+
+  /* The choices are what a setup step is for: a small head, and the picture is the first thing in the
+     scroll rather than a band pinned over it, so the whole height goes to the options once it is passed. */
+  .setup{padding-top:10px}
+  .setup-head{margin-top:44px}
+  .setup-head h2{font-size:22px;line-height:1.15}
+  .setup-head p{margin:4px 0 10px;font-size:13px;line-height:1.4}
+  .setup-track{display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+  .setup-track > .setup-preview{margin:0 0 12px}
+  .setup-body .setup-controls,.setup-track > .setup-controls{overflow:visible;flex:none;min-height:0;height:auto}
+}
+
+
+/* The smallest phones: the title and its two buttons still share a line. */
+@media (max-width:360px){
+  .ptitle,[data-density="compact"] .ptitle{font-size:24px}
+  .phead:has(.dash-layout-edit) .ptitle,[data-density="compact"] .phead:has(.dash-layout-edit) .ptitle{font-size:21px}
+  .whatsnew-refresh .whatsnew-release h3{font-size:19px}
+}

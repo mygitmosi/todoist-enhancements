@@ -1,3 +1,6 @@
+import { tableRowColor } from '@/domain/table';
+import { TableContext } from './TableContext';
+import { TableCells } from './TableCells';
 import { useDraggable } from '@dnd-kit/core';
 import { Fragment, createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
@@ -17,6 +20,7 @@ import { useT } from '@/hooks/useT';
 import { usePhoneBehaviour } from '@/hooks/useTouchLayout';
 import { useRowGesture } from '@/hooks/useRowGesture';
 import { useStore } from '@/store/store';
+import { completionTick } from '@/store/tick';
 import { displayTaskContent, isUncompletable, toDisplayPriority, type Item } from '@/domain/types';
 import { effectiveEstimate, formatDuration } from '@/domain/estimates';
 import { dateTone, deadlineDate, dueDate, formatRelativeDay, formatTime, hasTime, isOverdue, isToday, overdueBy } from '@/domain/dates';
@@ -76,6 +80,7 @@ export function TaskRow({
   item, childrenOf, onOpen, depth = 0, showProject = true, showSection = false, dust = false, dragHandleProps,
   nestable = false, dragRef, lifted = false,
 }: TaskRowProps) {
+  const table = useContext(TableContext);
   const { setRowRef, nestOver, landing, landingBefore } = useRowTarget(item.id, { nestable, disabled: !!item.projection });
   const list = useRowList();
   const rowEl = useRef<HTMLDivElement | null>(null);
@@ -179,6 +184,7 @@ export function TaskRow({
     if (item.projection) return;
     if (item.checked) { void toggleTask(item.id); return; }
     if (settling) return;
+    completionTick(item);
     setSettling(true);
     /* A row that is still there afterwards — a habit that stays in today's
        list, a repeating task in a project — is not "settling" any more, or it
@@ -350,8 +356,10 @@ export function TaskRow({
         data-tour-extend={
           showSubtasks && expanded && openChildren.length > 0 ? 'siblings' : undefined
         }
+        data-table-colored={table && tableRowColor(item, table.coloration, project?.color) ? '' : undefined}
         data-depth={depth > 0 ? depth : undefined}
         style={{
+          ...(table ? { '--table-row-color': tableRowColor(item, table.coloration, project?.color) } as React.CSSProperties : {}),
           ...(depth > 0 ? ({ '--depth': depth } as React.CSSProperties) : {}),
           ...gesture.style,
         }}
@@ -446,7 +454,7 @@ export function TaskRow({
             dangerouslySetInnerHTML={{ __html: renderTitle(displayTaskContent(item)) }}
           />
 
-          {preview && fields.description && (
+          {!table && preview && fields.description && (
             /* The row shows the formatted line, not the Markdown syntax, and
                never a checklist line: its boxes are in the task, not here (#157). */
             <span
@@ -455,7 +463,8 @@ export function TaskRow({
             />
           )}
 
-          <span className="meta">
+          {table && subtaskPill}
+          <span className="meta" style={table ? { display: 'none' } : undefined}>
             {/* The chips in the user's order (Display → Show on each task). The
                 sub-task pill is not one of them: it follows the deadline. */}
             {detailOrder.flatMap((chip) => [
@@ -476,6 +485,7 @@ export function TaskRow({
           </span>
         </span>
 
+        {table && <TableCells item={item} columns={table.columns} childrenOf={childrenOf} />}
         {!item.projection && <span className="trow-end">
           <TaskActions
             item={item}

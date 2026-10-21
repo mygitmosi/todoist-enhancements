@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import './whatsnew.css';
+import { ChangelogPreview } from './ChangelogPreview';
+import { changelogVisual } from '@/domain/changelogVisuals';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Overlay } from './Overlay';
 import { Icon } from '../Icon';
 import { Select } from '../Select';
 import { useT } from '@/hooks/useT';
 import { renderTitle } from '@/domain/markdown';
 import {
-  localisedReleases, parseChangelog, type ChangeKind, type Release,
+  changePresentation, localisedReleases, parseChangelog, type ChangeKind, type Release,
 } from '@/domain/changelog';
 import { tourStops } from '@/domain/tour';
 import { COFFEE_URL } from '@/app-info';
@@ -20,6 +23,7 @@ export type WhatsNewScope = { versions: string[] } | 'all';
 interface WhatsNewProps {
   scope: WhatsNewScope | null;
   onClose: () => void;
+  onSeeChangelog: () => void;
   /** Closes the window and runs the tour over what these releases brought. */
   onShowMe?: (versions: string[]) => void;
 }
@@ -58,28 +62,37 @@ const KIND_LABEL: Record<ChangeKind, TranslationKey> = {
   fix: 'whatsNew.kind.fix',
 };
 
-/** The id a release's section carries, for the pills that jump to it. */
+/** Stable section anchors for the version selector. */
 const anchorOf = (version: string) => `whatsnew-${version.replace(/\./g, '-')}`;
 
 /**
  * What changed, said inside the app (#115).
  *
  * Shown once after an update that brings something new, and on demand from
- * Settings. A list, not a showcase: the same lines the changelog on GitHub
- * carries, with the same three marks, in the reader's language where the
- * release has been translated. The title and the buttons hold still while
+ * Settings. The Calendar release pairs its text with an illustration; older
+ * entries keep the same source text and change categories, localised when
+ * the release has been translated. The title and the buttons hold still while
  * the list scrolls between them.
  *
  * After an update the title says "since your last visit" and every release
  * keeps its own heading, a single one included: with several releases a
  * title naming only the latest was misleading (#227). The whole history, from
- * Settings, adds a row of pills to jump from one release to the next.
+ * Settings, adds a version selector to jump from one release to the next.
  */
-export function WhatsNew({ scope, onClose, onShowMe }: WhatsNewProps) {
+export function WhatsNew({ scope, onClose, onShowMe, onSeeChangelog }: WhatsNewProps) {
   const { t, locale } = useT();
   const open = scope !== null;
   const all = useChangelog(open, locale);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const footerRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const footer = footerRef.current;
+    if (!open || !footer) return;
+    const measure = () => footer.parentElement?.style.setProperty('--whatsnew-footer-height', `${footer.offsetHeight}px`);
+    measure();
+    const observer = new ResizeObserver(measure); observer.observe(footer);
+    return () => observer.disconnect();
+  }, [open]);
   const [current, setCurrent] = useState<string | null>(null);
 
   const shown = useMemo(() => {
@@ -126,8 +139,8 @@ export function WhatsNew({ scope, onClose, onShowMe }: WhatsNewProps) {
   };
 
   return (
-    <Overlay open={open} onClose={onClose} label={titleText} size="sm">
-      <div className="whatsnew">
+    <Overlay open={open} onClose={onClose} label={titleText} size="md">
+      <div className="whatsnew whatsnew-refresh">
         <div className="sheet-head whatsnew-head">
           <h2>{titleText}</h2>
           {history && shown.length > 1 && (
@@ -170,31 +183,23 @@ export function WhatsNew({ scope, onClose, onShowMe }: WhatsNewProps) {
               </h3>
               <ul>
                 {release.changes.map((change, at) => (
-                  <li className={`whatsnew-change ${change.kind}`} key={at}>
-                    <span
-                      className="whatsnew-mark"
-                      role="img"
-                      aria-label={t(KIND_LABEL[change.kind])}
-                      title={t(KIND_LABEL[change.kind])}
-                    >
-                      {change.mark}
-                    </span>
-                    <span className="whatsnew-badge" aria-hidden="true">{t(KIND_LABEL[change.kind])}</span>
+                  <li className={`whatsnew-change ${change.kind}${changelogVisual(release.version, at) ? ' whatsnew-illustrated' : ''}`} key={at}>
+                    <div className="whatsnew-copy">
+                    <span className="whatsnew-mark" hidden>{change.mark}</span>
                     {/* A bold lead is the title; what follows it is the one paragraph that explains.
                         The file is ours, and the renderer escapes it before adding the few inline tags it knows. */}
                     {(() => {
-                      const lead = /^\*\*(.+?)\*\*\s*([\s\S]*)$/.exec(change.text.trim());
-                      return lead ? (
-                        <span className="whatsnew-text">
-                          <strong className="whatsnew-title" dangerouslySetInnerHTML={{ __html: renderTitle(lead[1].replace(/[.:]$/, '')) }} />
-                          {lead[2] && <span className="whatsnew-para" dangerouslySetInnerHTML={{ __html: renderTitle(lead[2]) }} />}
+                      const { title, description } = changePresentation(change.text);
+                      return <span className="whatsnew-text">
+                        <span className="whatsnew-titleline">
+                          <span className="whatsnew-badge">{t(KIND_LABEL[change.kind])}</span>
+                          <strong className="whatsnew-title" dangerouslySetInnerHTML={{ __html: renderTitle(title) }} />
                         </span>
-                      ) : (
-                        <span className="whatsnew-text">
-                          <span className="whatsnew-para" dangerouslySetInnerHTML={{ __html: renderTitle(change.text) }} />
-                        </span>
-                      );
+                        {description && <span className="whatsnew-para" dangerouslySetInnerHTML={{ __html: renderTitle(description) }} />}
+                      </span>;
                     })()}
+                    </div>
+                    <ChangelogPreview kind={changelogVisual(release.version, at)} />
                   </li>
                 ))}
               </ul>
@@ -202,18 +207,25 @@ export function WhatsNew({ scope, onClose, onShowMe }: WhatsNewProps) {
           ))}
         </div>
 
-        <div className="sheet-foot whatsnew-foot">
+        <div className="sheet-foot whatsnew-foot" ref={footerRef}>
           {/* Only when this update changed what the tour shows. The whole tour is one click away in Settings. */}
           {showable && (
             <button className="btn soft" onClick={() => onShowMe(scope.versions)}>
-              <Icon name="week" size="sm" />
+              <Icon name="week" size="md" />
               {t('whatsNew.showMe')}
             </button>
           )}
+          {!history && <button className="btn soft" onClick={() => {
+            bodyRef.current?.scrollTo({ top: 0 });
+            onSeeChangelog();
+            footerRef.current?.querySelector<HTMLButtonElement>('[data-autofocus]')?.focus();
+          }}>{t('whatsNew.seeChangelog')}</button>}
           <span className="whatsnew-end">
-            <a className="btn coffee" href={COFFEE_URL} target="_blank" rel="noreferrer noopener">
-              <Icon name="coffee" size="sm" />
-              {t('coffee.offer')}
+            {/* The full words are the name; a phone has room for two. */}
+            <a className="btn coffee" href={COFFEE_URL} target="_blank" rel="noreferrer noopener" aria-label={t('coffee.offer')} title={t('coffee.offer')}>
+              <Icon name="coffee" size="md" />
+              <span className="coffee-long">{t('coffee.offer')}</span>
+              <span className="coffee-short">{t('coffee.offerShort')}</span>
             </a>
             <button className="btn primary" data-autofocus onClick={onClose}>
               {t('whatsNew.continue')}

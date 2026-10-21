@@ -5,8 +5,8 @@ import {
   type SortKey, type ViewFilters,
 } from '@/domain/types';
 import { estimateOf, effectiveEstimate } from '@/domain/estimates';
-import { dueDate } from '@/domain/dates';
-import { startOfMonth, startOfWeek } from 'date-fns';
+import { dueDate, deadlineDate } from '@/domain/dates';
+import { differenceInCalendarDays, startOfMonth, startOfWeek } from 'date-fns';
 import { bucketOf, hasLabel, isOpen, splitQuick } from '@/domain/views';
 import type { RowOrder } from '@/domain/dnd';
 import { PREFERENCES_TASK_CONTENT } from './prefs';
@@ -245,6 +245,12 @@ export function sortItems(
         // Same priority, then the sooner date: two P1s read in the order
         // they are due, not in whatever order they happen to sit in.
         return b.priority - a.priority || compareDue(a, b) || manualCompare(a, b, order, ranks);
+      case 'deadline':
+        return (a.deadline?.date ?? '9999').localeCompare(b.deadline?.date ?? '9999') || manualCompare(a, b, order);
+      case 'project':
+        return (snapshot?.projects[a.project_id]?.name ?? '').localeCompare(snapshot?.projects[b.project_id]?.name ?? '') || manualCompare(a, b, order);
+      case 'description':
+        return (a.description ?? '').localeCompare(b.description ?? '') || manualCompare(a, b, order);
       case 'due':
         return compareDue(a, b) || manualCompare(a, b, order, ranks);
       case 'added-asc':
@@ -332,6 +338,7 @@ export function groupItems(
   snapshot: Snapshot,
   labels: {
     none: string;
+    overdue?: string;
     noProject: string;
     noSection: string;
     noEstimate: string;
@@ -403,9 +410,13 @@ export function groupItems(
       case 'month': {
         /* A week runs Monday to Sunday and is named for itself, not for
            whichever of its days came first; so is a month (#98). */
-        const d = dueDate(item);
+        const d = dueDate(item) ?? (labels.overdue ? deadlineDate(item) : null);
+        if (group === 'day' && labels.overdue && d && differenceInCalendarDays(d, new Date()) < 0) {
+          push('overdue', labels.overdue, item);
+          break;
+        }
         const key = d ? bucketDateKey(d, group) : 'none';
-        const start = d && (group === 'week' ? startOfWeek(d, { weekStartsOn: 1 }) : startOfMonth(d));
+        const start = d && (group === 'day' ? d : group === 'week' ? startOfWeek(d, { weekStartsOn: 1 }) : startOfMonth(d));
         const title = !start ? labels.day(null)
           : group === 'week' ? (labels.week ?? labels.day)(start)
           : (labels.month ?? labels.day)(start);
@@ -434,7 +445,7 @@ export function groupItems(
   }
   // Date groups read chronologically; tag groups follow the order maintained in Todoist.
   if (group === 'day' || group === 'week' || group === 'month') {
-    result.sort((a, b) => (a.key === 'none' ? 1 : b.key === 'none' ? -1 : a.key.localeCompare(b.key)));
+    result.sort((a, b) => (a.key === b.key ? 0 : a.key === 'overdue' ? -1 : b.key === 'overdue' ? 1 : a.key === 'none' ? 1 : b.key === 'none' ? -1 : a.key.localeCompare(b.key)));
   } else if (group === 'label') {
     result.sort((a, b) => {
       if (a.key === 'none') return 1;

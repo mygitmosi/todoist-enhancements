@@ -82,6 +82,18 @@ describe('mergeSynced', () => {
   });
 });
 
+describe('the completion sound (#282)', () => {
+  it('starts on none, and keeps a chosen sound', () => {
+    expect(defaultPreferences('en').completionSoundChoice).toBe('none');
+    expect(hydratePreferences({}, 'en').completionSoundChoice).toBe('none');
+    expect(hydratePreferences({ completionSoundChoice: 'glass' }, 'en').completionSoundChoice).toBe('glass');
+  });
+
+  it('ignores a sound that no longer exists', () => {
+    expect(hydratePreferences({ completionSoundChoice: 'tuba' }, 'en').completionSoundChoice).toBe('none');
+  });
+});
+
 describe('the Gathering dust settings (#161)', () => {
   it('start on, at three months', () => {
     expect(defaultPreferences('en')).toMatchObject({ showDustGroup: true, dustAfterMonths: 3 });

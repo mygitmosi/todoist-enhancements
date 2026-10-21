@@ -87,7 +87,7 @@ test('link cancellation returns to the editor, shortcut stays inside it and Esca
 for(const width of [1280,390])test(`header keeps the published title size at either density at ${width}px`,async({demo:page})=>{
   await page.setViewportSize({width,height:844});await go(page,'#/settings');
   for(const density of ['Comfortable','Compact']){
-    await page.getByRole('radio',{name:density,exact:true}).click();await go(page,'#/week');await expect(page.locator('.screen.active .ptitle')).toHaveCSS('font-size',width>720?'27px':'22px');await go(page,'#/settings');
+    await page.getByRole('radio',{name:density,exact:true}).click();await go(page,'#/week');await expect(page.locator('.screen.active .ptitle')).toHaveCSS('font-size',width>720?'27px':'28px');await go(page,'#/settings');
   }
 });
 

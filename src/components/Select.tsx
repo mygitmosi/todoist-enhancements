@@ -21,6 +21,8 @@ export interface SelectOption {
   hint?: string;
   /** A destructive entry, drawn in red ("Remove from project"). */
   danger?: boolean;
+  /** A small button at the right of the row that does something without choosing it (a preview). */
+  action?: { icon: IconName; label: string; run: () => void };
 }
 
 interface SelectProps {
@@ -264,6 +266,16 @@ export function Select({
             ? <span className="listbox-text"><span className="listbox-label">{option.label}</span><small>{option.hint}</small></span>
             : <span className="listbox-label">{option.label}</span>}
           {option.value === value && <Icon name="check" size="sm" />}
+          {option.action && (
+            <span
+              role="button"
+              tabIndex={-1}
+              className="opt-action"
+              aria-label={option.action.label}
+              title={option.action.label}
+              onMouseDown={(event) => { event.preventDefault(); event.stopPropagation(); option.action?.run(); }}
+            ><Icon name={option.action.icon} size="sm" /></span>
+          )}
         </button>
       ))}
       </div>

@@ -1,4 +1,5 @@
 import type { Locale } from '@/i18n';
+import { DEFAULT_COMPLETION_CHOICE, isCompletionChoice, type CompletionChoice } from '@/lib/completionSound';
 import type { EstimateStorage, ViewId } from '@/domain/types';
 import { DEFAULT_WEEK_LABEL, defaultViewPrefs, type ViewPrefs } from '@/domain/types';
 import { defaultConflictSettings, type ConflictSettings } from '@/domain/conflicts';
@@ -39,6 +40,7 @@ export interface SyncedView {
   sort: ViewPrefs['sort'];
   showSubtasks: boolean;
   showCompleted: boolean;
+  calendar?: ViewPrefs['calendar'];
   /* A `wide` written by a 1.x build is still in some comments and is ignored:
      a board is always the width of the page now. */
 }
@@ -64,6 +66,7 @@ export function syncedPreferences(prefs: Preferences): SyncedPreferences {
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([key, view]): [string, SyncedView] => [key, {
       mode: view.mode,
+      ...(view.calendar ? { calendar: view.calendar } : {}),
       group: view.group,
       sort: view.sort,
       showSubtasks: view.filters.showSubtasks,
@@ -130,6 +133,7 @@ export function mergeSynced(
     views[key] = {
       ...mine,
       mode: shared.mode ?? mine.mode,
+      calendar: shared.calendar ?? mine.calendar,
       group: shared.group ?? mine.group,
       sort: shared.sort ?? mine.sort,
       filters: {
@@ -305,6 +309,8 @@ export interface Preferences {
   dailyCapacity: DailyCapacity;
   weeklyCapacityOverride: number | null;
   showQuickGroup: boolean;
+  /** The sound that plays when a task is ticked off, or none (#282). */
+  completionSoundChoice: CompletionChoice;
   /** The Gathering dust group at the top of Someday (#161). */
   showDustGroup: boolean;
   /** How many months a task sits in Someday before it is said to gather dust. */
@@ -420,6 +426,7 @@ export const defaultPreferences = (locale: Locale): Preferences => ({
   dailyCapacity: defaultCapacity(),
   weeklyCapacityOverride: null,
   showQuickGroup: true,
+  completionSoundChoice: DEFAULT_COMPLETION_CHOICE,
   showDustGroup: true,
   dustAfterMonths: DEFAULT_DUST_MONTHS,
   conflicts: defaultConflictSettings(),
@@ -542,6 +549,7 @@ export function hydratePreferences(stored: unknown, locale: Locale): Preferences
     eisenhowerIncludeSomeday: s.eisenhowerIncludeSomeday === true,
     eisenhowerWorkspace: typeof s.eisenhowerWorkspace === 'string' ? s.eisenhowerWorkspace : null,
     showDustGroup: s.showDustGroup !== false,
+    completionSoundChoice: isCompletionChoice(s.completionSoundChoice) ? s.completionSoundChoice : base.completionSoundChoice,
     // Only the delays the Settings offers: anything else reads as the default.
     dustAfterMonths: isDustMonths(s.dustAfterMonths) ? s.dustAfterMonths : base.dustAfterMonths,
     onboarded: s.onboarded === true,

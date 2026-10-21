@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '@/store/store';
+import { completionTick } from '@/store/tick';
 import { viewPrefs } from '@/store/prefs';
 import { useConfirm } from '@/components/overlays/Confirm';
 import { useT } from './useT';
@@ -539,6 +540,7 @@ export function useKeyboard(bridge: KeyboardBridge) {
                every task back, rather than a click on each row and an undo
                per task. */
             store.clearSelection();
+            completionTick();
             void store.completeTasks(picked);
           } else {
             current.querySelector<HTMLElement>('.check')?.click();

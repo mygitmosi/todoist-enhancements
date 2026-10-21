@@ -630,6 +630,7 @@ test('#159 the pill is lit only while the panel is open, and a new session start
   await page.keyboard.press('Escape');
 
   // Leaving the demo and coming back asks nothing of the new account.
+  await page.locator('.side-top .profile').click();
   await page.getByRole('button', { name: 'Leave demo' }).click();
   await page.getByRole('button', { name: 'Explore with demo data' }).click();
   await expect(pill(page)).toContainText('I have time');

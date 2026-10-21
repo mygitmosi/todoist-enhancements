@@ -202,8 +202,13 @@ untouched, because it never lived anywhere else.
   into a corner of this app. Every destination has one fixed meaning, every drop
   says what it did, and every drop can be undone.
 
-- **List and board views:** with grouping, sorting and filtering behind one
-  Display control, remembered separately for each page.
+- **List, board and calendar views:** with sorting and filtering behind one
+  Display control, remembered separately for each page. Calendar offers 3 days,
+  week and month, an undated-tasks sidebar, drag and drop, and resizing in
+  15-minute steps. Tag estimates work on Free accounts and stay in tags;
+  Todoist’s own calendar only reads native durations. Recurring forecasts are
+  read-only. Completed history is shown on completion day; saved filters retain
+  locally completed matches, since Todoist’s query endpoint returns open tasks.
 
 - **Natural language in the task composer:** `Call Marc tomorrow at 9h p1 #Work
   @quick (25)` — the date, project, priority, tag and estimate are marked
