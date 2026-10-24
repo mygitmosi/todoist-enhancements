@@ -86,17 +86,22 @@ export function ProjectRowSortable({
     id: projectSlotId(projectId, 'after'), disabled: !sortable || taskDragging,
   });
   const nesting = useStore((s) => s.nesting);
-  const { active, over } = useDndContext();
+  const { active, over, activatorEvent } = useDndContext();
 
   if (!sortable) return <div className={`navrow${className}`}>{children}</div>;
 
   const landing = (isOver || beforeOver || afterOver) && !isDragging && !taskDragging;
   const translated = active?.rect.current.translated;
   const overMiddle = over ? over.rect.top + over.rect.height / 2 : null;
-  const activeMiddle = translated ? translated.top + translated.height / 2 : null;
+  const initial = active?.rect.current.initial;
+  const pointerY = translated && initial && activatorEvent && 'clientY' in activatorEvent
+    ? (activatorEvent as PointerEvent).clientY + translated.top - initial.top : null;
+  const sourceAbove = initial && over ? initial.top < over.rect.top : false;
   const position = landing && !nesting
     ? (beforeOver ? 'before' : afterOver ? 'after'
-      : activeMiddle !== null && overMiddle !== null && activeMiddle > overMiddle ? 'after' : 'before')
+      : pointerY !== null && overMiddle !== null
+        ? Math.abs(pointerY - overMiddle) < 1 ? (sourceAbove ? 'after' : 'before') : pointerY > overMiddle ? 'after' : 'before'
+        : sourceAbove ? 'after' : 'before')
     : null;
 
   return (

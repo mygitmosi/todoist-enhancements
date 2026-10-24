@@ -52,6 +52,9 @@ import type { DetailChip } from '@/domain/taskDetails';
  */
 export const COMPLETION_LINGER_MS = 420;
 
+/** How long a fold waits for another click before it is sent to Todoist. */
+const FOLD_SETTLE_MS = 400;
+
 const ShowSubtasks = createContext(true);
 
 export const SubtasksProvider = ShowSubtasks.Provider;
@@ -170,7 +173,35 @@ export function TaskRow({
      pull it aside for its buttons, hold it down for their names. */
   const gesture = useRowGesture(phone && !item.projection);
 
-  const [expanded, setExpanded] = useState(true);
+  /* Whether the subtasks are folded is Todoist's own flag on the task, so it
+     survives a reload and reads the same in the official app (#238). A synced
+     task carries `is_collapsed`; one read through the REST API, `collapsed`. */
+  const updateTask = useStore((s) => s.updateTask);
+  const storedFold = Boolean(item.is_collapsed ?? item.collapsed);
+  /* A click folds at once, and only the last of a quick run of clicks is sent:
+     each answer from Todoist carries the task as that one command left it, so
+     answers to earlier clicks used to land after a later one and fold the
+     row back and forth. */
+  const [wantedFold, setWantedFold] = useState<boolean | null>(null);
+  const foldTimer = useRef<{ timer: ReturnType<typeof setTimeout>; send: () => void } | null>(null);
+  const storedFoldRef = useRef(storedFold);
+  storedFoldRef.current = storedFold;
+  const expanded = !(wantedFold ?? storedFold);
+  const toggleFold = () => {
+    const next = expanded;
+    setWantedFold(next);
+    if (foldTimer.current) clearTimeout(foldTimer.current.timer);
+    const send = () => {
+      foldTimer.current = null;
+      const sent = next !== storedFoldRef.current ? updateTask(item.id, { is_collapsed: next }) : Promise.resolve();
+      void sent.finally(() => setWantedFold((wanted) => (wanted === next ? null : wanted)));
+    };
+    foldTimer.current = { timer: setTimeout(send, FOLD_SETTLE_MS), send };
+  };
+  /* A row that goes away mid-run (another page) still sends the last choice. */
+  useEffect(() => () => {
+    if (foldTimer.current) { clearTimeout(foldTimer.current.timer); foldTimer.current.send(); }
+  }, []);
   /** Ticked here, not yet ticked at Todoist: the pause between the two. */
   const [settling, setSettling] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -203,9 +234,11 @@ export function TaskRow({
   const deadline = deadlineDate(item);
   const late = isOverdue(item);
   const project = snapshot.projects[item.project_id];
+  const parent = item.parent_id ? snapshot.items[item.parent_id] : undefined;
+  const projectVisible = showProject && !(depth > 0 && parent?.project_id === item.project_id);
   const projectIcon = project ? readProjectIcon(project.description) : null;
   const preview = useMemo(() => withoutChecklist(item.description), [item.description]);
-  const section = showSection && item.section_id ? snapshot.sections[item.section_id] : undefined;
+  const section = (showSection || showProject) && item.section_id ? snapshot.sections[item.section_id] : undefined;
 
   /**
    * The DOM is the final truth about range order.
@@ -286,12 +319,12 @@ export function TaskRow({
         {formatRelativeDay(deadline, locale)}
       </span>
     ),
-    project: showProject && project && (
-      <span className="proj" key="project" style={markerStyle(project.color)}>
+    project: projectVisible && project && (
+      <span className="proj" key="project" style={markerStyle(project.color)} title={section ? `${project.name} / ${section.name}` : project.name}>
         {project.inbox_project
           ? <Icon name="inbox" size="sm" />
           : projectIcon ? <ProjectIcon iconId={projectIcon} size="sm" /> : '#'}
-        {project.name}
+        <span className="project-section-name">{project.name}{section ? ` / ${section.name}` : ''}</span>
       </span>
     ),
     labels: (
@@ -318,7 +351,7 @@ export function TaskRow({
         title={t('detail.subtasks')}
         onClick={(e) => {
           e.stopPropagation();
-          setExpanded((v) => !v);
+          toggleFold();
         }}
         onKeyDown={(e) => e.stopPropagation()}
       >
@@ -449,10 +482,26 @@ export function TaskRow({
 
         <span className="tmain">
           {/* Formatted as Todoist formats a title: a link is a link. */}
-          <span
-            className="ttitle"
-            dangerouslySetInnerHTML={{ __html: renderTitle(displayTaskContent(item)) }}
-          />
+          <span className="trow-title">
+            <span
+              className="ttitle"
+              dangerouslySetInnerHTML={{ __html: renderTitle(displayTaskContent(item)) }}
+            />
+            {showSubtasks && openChildren.length > 0 && !item.projection && !table && (
+              /* Outside the title, which stops at two lines: a long one must
+                 not push the button out of sight. */
+              <button
+                className="fold-chev"
+                aria-expanded={expanded}
+                aria-label={t(expanded ? 'task.foldSubtasks' : 'task.unfoldSubtasks')}
+                title={t(expanded ? 'task.foldSubtasks' : 'task.unfoldSubtasks')}
+                onClick={(e) => { e.stopPropagation(); toggleFold(); }}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                <Icon name="caret" size="sm" />
+              </button>
+            )}
+          </span>
 
           {!table && preview && fields.description && (
             /* The row shows the formatted line, not the Markdown syntax, and
@@ -474,7 +523,7 @@ export function TaskRow({
 
             {dust && <DustAge item={item} />}
 
-            {section && (
+            {section && !showProject && (
               <span className="sect">
                 <Icon name="section" size="sm" />
                 {section.name}
@@ -485,7 +534,7 @@ export function TaskRow({
           </span>
         </span>
 
-        {table && <TableCells item={item} columns={table.columns} childrenOf={childrenOf} />}
+        {table && <TableCells item={item} hideProject={!projectVisible} columns={table.columns} childrenOf={childrenOf} />}
         {!item.projection && <span className="trow-end">
           <TaskActions
             item={item}

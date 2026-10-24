@@ -11,6 +11,9 @@ import { avatarUrl } from '@/domain/colors';
 import { formatRelativeDay } from '@/domain/dates';
 import { renderMarkdown } from '@/domain/markdown';
 import type { Note, NoteAttachment } from '@/domain/types';
+import { assignees } from '@/domain/sharing';
+import { encodeMentions, mentionQuery, mentionedUids, renderWithMentions } from '@/domain/mentions';
+import { MultiSelect } from './MultiSelect';
 
 /* The full palette and its data load the first time somebody reacts (#27). */
 const EmojiPalette = lazy(() => import('./EmojiPalette').then((module) => ({ default: module.EmojiPalette })));
@@ -60,12 +63,38 @@ function Attachment({ file }: { file: NoteAttachment }) {
   );
 }
 
+/** The field's text cut into plain runs and the picked "@Name"s, in order. */
+function mirrorParts(text: string, picked: Array<{ name: string }>): Array<{ text: string; mention: boolean }> {
+  const names = picked.map((p) => `@${p.name}`).sort((a, b) => b.length - a.length);
+  const parts: Array<{ text: string; mention: boolean }> = [];
+  let rest = text;
+  while (rest) {
+    let at = -1; let found = '';
+    for (const name of names) {
+      const i = rest.indexOf(name);
+      if (i >= 0 && (at < 0 || i < at)) { at = i; found = name; }
+    }
+    if (at < 0) { parts.push({ text: rest, mention: false }); break; }
+    if (at > 0) parts.push({ text: rest.slice(0, at), mention: false });
+    parts.push({ text: found, mention: true });
+    rest = rest.slice(at + found.length);
+  }
+  return parts;
+}
+
+/** "Alex Martin" → "AM", "anne" → "A": what stands in for a missing picture. */
+function initials(name: string | undefined): string {
+  const words = (name ?? '').trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  return (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase();
+}
+
 function Avatar({ picture, name }: { picture: string | null; name: string | undefined }) {
   return (
     <span className="comment-avatar" aria-hidden="true">
       {picture
         ? <img src={picture} alt="" referrerPolicy="no-referrer" />
-        : (name ?? '?').slice(0, 1).toUpperCase()}
+        : initials(name)}
     </span>
   );
 }
@@ -179,7 +208,7 @@ function CommentRow({ note, itemId }: { note: Note; itemId: string }) {
             </span>
           </div>
         ) : (
-          note.content && <div className="md" dangerouslySetInnerHTML={{ __html: renderMarkdown(note.content) }} />
+          note.content && <div className="md" dangerouslySetInnerHTML={{ __html: renderWithMentions(note.content, renderMarkdown) }} />
         )}
 
         {note.file_attachment && <Attachment file={note.file_attachment} />}
@@ -309,12 +338,66 @@ export function CommentThread({ itemId }: { itemId: string }) {
 
   const [draft, setDraft] = useState('');
   const [attachment, setAttachment] = useState<NoteAttachment | null>(null);
+
+  /* A shared project: "@" suggests its people, and "Notify" says who hears
+     about the comment (#254). A project nobody else is in shows neither. */
+  const item = useStore((s) => s.snapshot.items[itemId]);
+  const snapshot = useStore((s) => s.snapshot);
+  const people = useMemo(
+    () => item ? assignees(snapshot, item.project_id).filter((p) => p.id !== me?.id) : [],
+    [snapshot, item, me?.id],
+  );
+  /* Todoist's own default, as far as it shows: the people already in the
+     task — whoever it is assigned to and whoever commented — or everyone when
+     nobody is yet. */
+  const participants = useMemo(() => {
+    const ids = new Set<string>();
+    if (item?.responsible_uid) ids.add(item.responsible_uid);
+    for (const note of comments) ids.add(note.posted_uid);
+    return people.filter((p) => ids.has(p.id)).map((p) => p.id);
+  }, [item?.responsible_uid, comments, people]);
+  /* `null` is everyone, as in the other people pickers; a list is just them. */
+  const [notifyChoice, setNotifyChoice] = useState<string[] | null | undefined>(undefined);
+  const notifyValue = notifyChoice !== undefined ? notifyChoice : participants.length > 0 ? participants : null;
+  const [picked, setPicked] = useState<Array<{ id: string; name: string }>>([]);
+  const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
+  const [mentionActive, setMentionActive] = useState(0);
+  const suggestions = useMemo(() => {
+    if (!mention) return [];
+    const q = mention.query.toLowerCase();
+    /* You can mention yourself, as in Todoist; you are never notified. */
+    const everyone = me && people.length > 0 ? [{ id: me.id, name: me.full_name }, ...people] : people;
+    return everyone.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 6);
+  }, [mention, people, me]);
+  const pick = (person: { id: string; name: string }) => {
+    if (!mention) return;
+    const end = mention.start + 1 + mention.query.length;
+    const next = `${draft.slice(0, mention.start)}@${person.name} ${draft.slice(end)}`;
+    setDraft(next);
+    setPicked((all) => all.some((p) => p.id === person.id) ? all : [...all, person]);
+    setMention(null);
+    pendingCaret.current = mention.start + person.name.length + 2;
+  };
+  /* The caret goes after the inserted name before the next key lands, not a
+     frame later, or fast typing ends up on the wrong side of it. */
+  const pendingCaret = useRef<number | null>(null);
+  const mirror = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    if (pendingCaret.current === null) return;
+    field.current?.setSelectionRange(pendingCaret.current, pendingCaret.current);
+    pendingCaret.current = null;
+  }, [draft]);
+  const notifyIds = (text: string): string[] => {
+    const chosen = notifyValue === null ? people.map((p) => p.id) : notifyValue;
+    /* Mentioning someone always tells them, whatever Notify says. */
+    return [...new Set([...chosen, ...mentionedUids(text)])].filter((id) => id !== me?.id);
+  };
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const field = useRef<HTMLTextAreaElement>(null);
 
   /* A different task is a different conversation. */
-  useEffect(() => { setDraft(''); setAttachment(null); }, [itemId]);
+  useEffect(() => { setDraft(''); setAttachment(null); setPicked([]); setNotifyChoice(undefined); setMention(null); }, [itemId]);
 
   const ready = Boolean(draft.trim() || attachment);
 
@@ -322,10 +405,12 @@ export function CommentThread({ itemId }: { itemId: string }) {
     if (!ready || uploading) return;
     const text = draft;
     const file = attachment;
+    const stored = encodeMentions(text, picked);
     setDraft('');
     setAttachment(null);
+    setMention(null);
     /* Refused, the comment comes back into the field rather than being lost (#28). */
-    void addComment(itemId, text, file).then((saved) => {
+    void addComment(itemId, stored, file, people.length > 0 ? notifyIds(stored) : []).then((saved) => {
       if (saved) return;
       setDraft((now) => now || text);
       setAttachment((now) => now ?? file);
@@ -363,6 +448,19 @@ export function CommentThread({ itemId }: { itemId: string }) {
       <div className="comment comment-new">
         <Avatar picture={avatarUrl(me)} name={me?.full_name} />
         <div className={`comment-box${ready ? ' ready' : ''}`}>
+          {people.length > 0 && (
+            <div className="comment-notify">
+              <MultiSelect
+                label={t('comment.notify')}
+                allLabel={t('comment.notifyEveryone')}
+                popupClassName="notify-options"
+                value={notifyValue}
+                onChange={setNotifyChoice}
+                options={people.map((p) => ({ value: p.id, label: p.name, visual: <Avatar picture={avatarUrl(snapshot.collaborators[p.id] ?? null)} name={p.name} /> }))}
+                face={<><Icon name="bell" size="sm" /><span>{t('comment.notify')} {notifyValue === null ? t('comment.notifyEveryone') : notifyValue.length === 0 ? t('comment.notifyNobody') : people.filter((p) => notifyValue.includes(p.id)).map((p) => p.name).join(', ')}</span><Icon name="caret" size="sm" /></>}
+              />
+            </div>
+          )}
           {attachment && (
             <span className="comment-attached" title={attachment.file_name}>
               <Icon name={IMAGE.test(attachment.file_type ?? '') ? 'image' : 'paperclip'} size="sm" />
@@ -373,21 +471,63 @@ export function CommentThread({ itemId }: { itemId: string }) {
             </span>
           )}
           <div className="comment-row">
-            {/* Enter posts it, Shift+Enter is a new line. */}
+            {/* Enter posts it, Shift+Enter is a new line. A picked mention is
+                marked behind the text, so it reads as taken into account: the
+                field itself cannot style part of its text. */}
+            <span className="comment-input">
+            {picked.length > 0 && (
+              <span className="comment-mirror comment-field" aria-hidden="true" ref={mirror}>
+                {mirrorParts(draft, picked).map((part, index) => part.mention
+                  ? <mark key={index}>{part.text}</mark>
+                  : <span key={index}>{part.text}</span>)}
+                {'\u200b'}
+              </span>
+            )}
             <textarea
               ref={field}
+              onScroll={(event) => { if (mirror.current) mirror.current.scrollTop = event.currentTarget.scrollTop; }}
               className="comment-field"
               rows={1}
               value={draft}
               placeholder={t('detail.commentPlaceholder')}
               aria-label={t('detail.commentPlaceholder')}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                const next = people.length > 0 ? mentionQuery(event.target.value, event.target.selectionStart ?? event.target.value.length) : null;
+                setMention(next);
+                setMentionActive(0);
+              }}
               onKeyDown={(event) => {
                 event.stopPropagation();
+                if (mention && suggestions.length > 0) {
+                  if (event.key === 'ArrowDown') { event.preventDefault(); setMentionActive((i) => (i + 1) % suggestions.length); return; }
+                  if (event.key === 'ArrowUp') { event.preventDefault(); setMentionActive((i) => (i - 1 + suggestions.length) % suggestions.length); return; }
+                  if (event.key === 'Enter' || event.key === 'Tab') { event.preventDefault(); pick(suggestions[mentionActive]); return; }
+                }
+                if (event.key === 'Escape' && mention) { event.preventDefault(); setMention(null); return; }
                 if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send(); }
                 if (event.key === 'Escape' && ready) { event.preventDefault(); cancel(); }
               }}
+              onBlur={() => setTimeout(() => setMention(null), 150)}
             />
+            </span>
+            {mention && suggestions.length > 0 && (
+              <div className="popover mention-list" role="listbox" aria-label={t('comment.mention')}>
+                {suggestions.map((person, index) => (
+                  <button
+                    key={person.id}
+                    type="button"
+                    role="option"
+                    aria-selected={index === mentionActive}
+                    className={`opt${index === mentionActive ? ' active' : ''}`}
+                    onMouseDown={(event) => { event.preventDefault(); pick(person); }}
+                  >
+                    <Avatar picture={person.id === me?.id ? avatarUrl(me) : avatarUrl(snapshot.collaborators[person.id] ?? null)} name={person.name} />
+                    <span>{person.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <span className="comment-tools">
               <input
                 ref={fileInput} type="file" hidden

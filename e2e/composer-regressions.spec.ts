@@ -1,4 +1,4 @@
-import { test, expect, rows } from './demo';
+import { test, expect, fillProjectName, rows } from './demo';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 const captureDir = process.env.ARTIFACT_OUTPUT_DIR ?? 'test-results/composer-captures';
@@ -75,7 +75,7 @@ test('a project draft survives a snapshot refresh while the composer is open', a
   await page.getByRole('option', { name: 'New project…' }).click();
   const sheet = page.getByRole('dialog', { name: 'New project' });
   const name = sheet.getByRole('textbox', { name: 'Project name' });
-  await name.fill('Garden shed');
+  await fillProjectName(sheet, 'Garden shed');
   await inboxCannotAssign(page); // A real sync also replaces the snapshot reference.
   await expect(name).toHaveValue('Garden shed');
   await sheet.getByRole('button', { name: 'Add project', exact: true }).click();

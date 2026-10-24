@@ -1,3 +1,4 @@
+import { STEPS, stepOf, type Step } from '@/domain/steps';
 import { matchesAssignee, assigneeName } from '@/domain/assignees';
 import {
   toDisplayPriority,
@@ -6,7 +7,7 @@ import {
 } from '@/domain/types';
 import { estimateOf, effectiveEstimate } from '@/domain/estimates';
 import { dueDate, deadlineDate } from '@/domain/dates';
-import { differenceInCalendarDays, startOfMonth, startOfWeek } from 'date-fns';
+import { differenceInCalendarDays, startOfMonth, startOfWeek, startOfYear } from 'date-fns';
 import { bucketOf, hasLabel, isOpen, splitQuick } from '@/domain/views';
 import type { RowOrder } from '@/domain/dnd';
 import { PREFERENCES_TASK_CONTENT } from './prefs';
@@ -224,7 +225,7 @@ export function sortItems(
   // once per comparison.
   /* Same for the project ranks: only the two sorts that read like Todoist's
      Today use them, and only on a list drawn from several projects. */
-  const ranks = byProject && snapshot && order === 'day' && (sort === 'priority' || sort === 'due')
+  const ranks = byProject && snapshot && order === 'day' && (sort === 'priority' || sort === 'due' || sort === 'smart')
     ? projectRanks(snapshot)
     : undefined;
   const labelPositions = snapshot ? labelOrderByName(snapshot) : new Map<string, number>();
@@ -240,6 +241,13 @@ export function sortItems(
 
   const compare = (a: Item, b: Item): number => {
     switch (sort) {
+      case 'smart':
+        /* Todoist's own order for Today and Upcoming: date and time, or the
+           deadline when there is no date; then priority, deadline, manual
+           order and finally the day the task was added. */
+        return compareDue(a, b) || b.priority - a.priority
+          || (a.deadline?.date ?? '9999').localeCompare(b.deadline?.date ?? '9999')
+          || manualCompare(a, b, order, ranks) || (a.added_at ?? '').localeCompare(b.added_at ?? '');
       case 'priority':
         // Todoist stores 4 as the most urgent, so the higher number comes first.
         // Same priority, then the sooner date: two P1s read in the order
@@ -337,6 +345,7 @@ export function groupItems(
   group: GroupKey,
   snapshot: Snapshot,
   labels: {
+    step?: (step: Step) => string;
     none: string;
     overdue?: string;
     noProject: string;
@@ -350,10 +359,12 @@ export function groupItems(
     /** A week's title, from its Monday; a month's, from its first day. */
     week?: (monday: Date) => string;
     month?: (first: Date) => string;
+    year?: (first: Date) => string;
     scheduled: string;
     available: string;
   },
 ): Group[] {
+  if (group === 'step') return STEPS.map((step) => ({ key: step, title: labels.step?.(step) ?? step, items: items.filter((item) => stepOf(item) === step) }));
   if (group === 'none') return [{ key: 'all', title: '', items }];
 
   const labelOrder = group === 'label' ? labelOrderByName(snapshot) : null;
@@ -407,7 +418,8 @@ export function groupItems(
       }
       case 'day':
       case 'week':
-      case 'month': {
+      case 'month':
+      case 'year': {
         /* A week runs Monday to Sunday and is named for itself, not for
            whichever of its days came first; so is a month (#98). */
         const d = dueDate(item) ?? (labels.overdue ? deadlineDate(item) : null);
@@ -416,10 +428,12 @@ export function groupItems(
           break;
         }
         const key = d ? bucketDateKey(d, group) : 'none';
-        const start = d && (group === 'day' ? d : group === 'week' ? startOfWeek(d, { weekStartsOn: 1 }) : startOfMonth(d));
+        const start = d && (group === 'day' ? d : group === 'week' ? startOfWeek(d, { weekStartsOn: 1 }) : group === 'month' ? startOfMonth(d) : startOfYear(d));
         const title = !start ? labels.day(null)
           : group === 'week' ? (labels.week ?? labels.day)(start)
-          : (labels.month ?? labels.day)(start);
+          : group === 'month' ? (labels.month ?? labels.day)(start)
+          : group === 'year' ? (labels.year ?? labels.day)(start)
+          : labels.day(start);
         push(key, title, item);
         break;
       }
@@ -444,8 +458,10 @@ export function groupItems(
     result.sort((a, b) => a.key.localeCompare(b.key));
   }
   // Date groups read chronologically; tag groups follow the order maintained in Todoist.
-  if (group === 'day' || group === 'week' || group === 'month') {
-    result.sort((a, b) => (a.key === b.key ? 0 : a.key === 'overdue' ? -1 : b.key === 'overdue' ? 1 : a.key === 'none' ? 1 : b.key === 'none' ? -1 : a.key.localeCompare(b.key)));
+  if (group === 'day' || group === 'week' || group === 'month' || group === 'year') {
+    /* Overdue first, then the tasks with no date, then the dated ones in order. */
+    const rank = (key: string) => key === 'overdue' ? 0 : key === 'none' ? 1 : 2;
+    result.sort((a, b) => rank(a.key) - rank(b.key) || a.key.localeCompare(b.key));
   } else if (group === 'label') {
     result.sort((a, b) => {
       if (a.key === 'none') return 1;
@@ -464,8 +480,9 @@ export function groupItems(
   return result;
 }
 
-function bucketDateKey(date: Date, group: 'day' | 'week' | 'month'): string {
+function bucketDateKey(date: Date, group: 'day' | 'week' | 'month' | 'year'): string {
   const y = date.getFullYear();
+  if (group === 'year') return String(y);
   const m = String(date.getMonth() + 1).padStart(2, '0');
   if (group === 'month') return `${y}-${m}`;
   if (group === 'week') {

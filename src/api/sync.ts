@@ -8,10 +8,11 @@ import type {
 export const SYNC_RESOURCE_TYPES = [
   'items', 'projects', 'sections', 'labels', 'notes', 'project_notes',
   'reminders', 'user', 'collaborators', 'workspaces', 'live_notifications',
-  'filters',
+  'filters', 'completed_info',
 ] as const;
 
 export interface SyncResponse {
+  completed_info?: Array<{ project_id?: string; section_id?: string; item_id?: string; completed_items: number }>;
   sync_token: string;
   full_sync: boolean;
   items?: Item[];
@@ -135,6 +136,11 @@ export function applySync(snapshot: Snapshot, response: SyncResponse): Snapshot 
     notifications: mergeCollection(snapshot.notifications ?? {}, response.live_notifications, full),
     collaboratorStates: mergeStates(snapshot.collaboratorStates ?? [], response.collaborator_states ?? response.collaborators_states, full),
     user: response.user ?? snapshot.user,
+    completedProjectCounts: {
+      ...(full ? {} : snapshot.completedProjectCounts),
+      ...Object.fromEntries((response.completed_info ?? []).filter((info) => info.project_id && !info.section_id && !info.item_id && Number.isFinite(info.completed_items))
+        .map((info) => [info.project_id!, info.completed_items])),
+    },
     syncToken: response.sync_token,
     syncedAt: Date.now(),
   };

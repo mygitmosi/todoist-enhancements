@@ -33,7 +33,7 @@ export function parseRoute(hash: string): Route {
   if (view === 'dashboard') return { view: 'insights' };
   const known: ViewId[] = [
     'inbox', 'week', 'today', 'upcoming', 'someday', 'review',
-    'settings', 'project', 'label', 'labels', 'filter', 'filters', 'matrix', 'insights', 'search',
+    'settings', 'workspace', 'project', 'label', 'labels', 'filter', 'filters', 'matrix', 'insights', 'search',
   ];
   if (!known.includes(view as ViewId)) return { view: 'week' };
   if (view === 'search') return { view: 'search', query: new URLSearchParams(query).get('q') ?? '' };

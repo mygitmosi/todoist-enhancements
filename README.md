@@ -14,7 +14,7 @@ and get a lot of new features and visual enhancements.
 [Open the app](https://todoistenhanced.julesbertolino.fr) ·
 [Mac app](#mac-app) ·
 [Changelog](CHANGELOG.md) ·
-[Report a bug or an idea](https://tally.so/r/WOLkVN) ·
+[Report a bug or an idea](https://forms.fillout.com/t/79WYJmkgqkus) ·
 [Buy me a coffee](https://buymeacoffee.com/julesbertolino)
 
 **Enhanced for Todoist is an independent project. It is not created by,
@@ -282,7 +282,7 @@ Todoist Inbox, so they follow you to another browser.
 ## Links
 
 - **[Open the app](https://todoistenhanced.julesbertolino.fr)**
-- **[Report a bug or an idea](https://tally.so/r/WOLkVN)** — a short form, no
+- **[Report a bug or an idea](https://forms.fillout.com/t/79WYJmkgqkus)** — a short form, no
   GitHub account needed. It is the one the app links to from the user menu.
 - **[Changelog](CHANGELOG.md)** — each version is also a
   [release](https://github.com/julesvbertolino/todoist-enhancements/releases)
@@ -355,3 +355,7 @@ me. If anyone at Todoist would like something here changed, open an issue and
 I will change it.
 
 **License:** [MIT](LICENSE).
+
+### Privacy
+
+No analytics SDK, usage counters or tracking cookies are included. Settings → Privacy explains local storage and Todoist synchronization. The same information is available before sign-in.

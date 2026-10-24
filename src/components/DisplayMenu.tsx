@@ -52,13 +52,15 @@ const MODE_ICON: Record<DisplayMode, IconName> = {
 
 /** An icon for every grouping and sort, so the list reads at a glance. */
 const GROUP_ICON: Partial<Record<GroupKey, IconName>> = {
-  none: 'list', scheduled: 'calendar', day: 'calendar', week: 'week', month: 'calendar',
+  none: 'list', scheduled: 'calendar', day: 'calendar', week: 'week', month: 'calendar', year: 'calendar',
   assignee: 'user', workspace: 'project', project: 'project', section: 'section', priority: 'flag',
-  label: 'tag', estimate: 'clock',
+  label: 'tag', estimate: 'clock', step: 'board',
 };
+/* The same order on every page, whatever order the page listed its groups in. */
+const GROUP_ORDER: GroupKey[] = ['none', 'project', 'section', 'workspace', 'priority', 'assignee', 'label', 'step', 'scheduled', 'estimate', 'day', 'week', 'month', 'year'];
 const SORT_ICON: Record<SortKey, IconName> = {
   deadline: 'deadline', project: 'project', description: 'list',
-  assignee: 'user',
+  assignee: 'user', smart: 'sparkles',
   manual: 'drag', priority: 'flag', due: 'calendar', 'added-desc': 'sort', 'added-asc': 'sort',
   alphabetical: 'sort', 'estimate-asc': 'clock', 'estimate-desc': 'clock', label: 'tag',
 };
@@ -106,9 +108,8 @@ export function DisplayMenu({
   }, [open]);
 
   const sorts: SortKey[] = [
-    ...(viewKey.startsWith('project:') ? ['assignee' as const] : []),
-    'manual', 'priority', 'due', 'deadline', 'project', 'description', 'added-desc', 'added-asc', 'alphabetical',
-    'estimate-asc', 'estimate-desc', 'label',
+    ...(viewKey.startsWith('project:') ? [] : ['smart' as const]), 'manual', 'priority', 'due', 'deadline', 'assignee', 'project', 'added-desc', 'added-asc',
+    'estimate-asc', 'estimate-desc', 'alphabetical',
   ];
 
   /* A grouping this page no longer offers reads as its first one, which is
@@ -235,7 +236,7 @@ export function DisplayMenu({
               label={t('toolbar.group')}
               value={shownGroup}
               onChange={(value) => setViewPrefs(viewKey, { group: value as GroupKey })}
-              options={groups.map((group) => ({
+              options={[...groups].sort((a, b) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b)).map((group) => ({
                 value: group,
                 label: t(`group.${group}` as TranslationKey),
                 icon: GROUP_ICON[group],
@@ -248,7 +249,7 @@ export function DisplayMenu({
               onChange={(value) => setViewPrefs(viewKey, { sort: value as SortKey })}
               options={sorts.map((sort) => ({
                 value: sort,
-                label: t(`sort.${sort}` as TranslationKey),
+                label: sort === 'manual' && !viewKey.startsWith('project:') ? t('sort.manualOrder') : t(`sort.${sort}` as TranslationKey),
                 icon: SORT_ICON[sort],
               }))}
             />

@@ -8,7 +8,7 @@ test('#105 a selection dragged between rows lands there as one block, shown as a
   // A drop arranges the list by hand, so it is compared under the manual order.
   await page.getByRole('button', { name: 'Display' }).click();
   await page.locator('.panelgrid .fselect-face').nth(1).click();
-  await page.getByRole('option', { name: 'Manual' }).click();
+  await page.getByRole('option', { name: /^(Manual order|Default)/ }).click();
   await page.keyboard.press('Escape');
   const before = await ids(page);
   expect(before.length).toBeGreaterThanOrEqual(5);

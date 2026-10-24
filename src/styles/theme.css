@@ -257,7 +257,7 @@
 .task:hover{background:transparent}
 
 /* One statement, one colour. */
-.task{--row-marked:color-mix(in srgb, var(--accent) 13%, var(--surface));}
+.task,.taskwrap{--row-marked:color-mix(in srgb, var(--accent) 13%, var(--surface));}
 
 /*
  * The cursor is a border, picked is a fill.
@@ -3022,3 +3022,39 @@ html.desktop-app.quickadd body::before{display:none}
 
 /* A person given by `+name` is marked like a tag: a name handed to a field. */
 .nmark.assignee{--mark:var(--accent-dark)}
+
+/* The title and the button that folds its subtasks (#238). The title keeps its
+   two-line clamp; the button sits beside the block, on the first line. */
+.trow-title{display:flex;align-items:flex-start;gap:2px;min-width:0}
+.trow-title .ttitle{min-width:0}
+.fold-chev{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;margin-top:-1px;border:0;border-radius:var(--r-full);background:transparent;color:var(--faint);cursor:pointer;padding:0}
+.fold-chev:hover{background:var(--hover);color:var(--text)}
+.fold-chev .ic{transition:transform .15s}
+.fold-chev[aria-expanded="false"] .ic{transform:rotate(-90deg)}
+.fold-chev[aria-expanded="false"]{color:var(--muted)}
+
+/* Mentions and who to notify, in a shared task's comments (#254). */
+/* A little more room above than below: the box's round corner makes the
+   same distance look tighter at the top. */
+.comment-notify{display:flex;padding:4px 0 0 2px;margin:0 0 -4px}
+/* The multi-select's own 8px margin and hover border are for a form row. */
+.comment-notify .multiselect{margin:0}
+.comment-notify .multiselect>.fselect-face:hover{box-shadow:none;background:var(--hover)}
+/* The same size as the @ list beside it. */
+.notify-options{font-size:13px;padding:4px;width:max-content!important;min-width:200px;max-width:min(320px,calc(100vw - 16px))!important}
+.notify-options label .multiselect-label{flex:1;margin-right:12px}
+.notify-options label,.notify-options .multiselect-all{padding:5px 8px;gap:8px;min-height:32px}
+.notify-options .comment-avatar{width:22px;height:22px;font-size:10px}
+.comment-notify .fselect-face{border:0;background:transparent;box-shadow:none;padding:6px 10px;margin-left:-10px;line-height:1;align-items:center;border-radius:var(--r-full);min-height:0;gap:6px;white-space:nowrap;width:auto;color:var(--muted);font-size:13px;font-weight:500}
+.comment-notify .fselect-face:hover{color:var(--text)}
+.comment-row{position:relative}
+.mention-list{position:absolute;left:0;bottom:calc(100% + 4px);z-index:30;min-width:220px;max-width:100%;padding:4px}
+.popover.mention-list button.opt{justify-content:flex-start;gap:8px}
+.mention-list .opt.active{background:var(--hover)}
+.mention-list .comment-avatar{width:22px;height:22px;font-size:10px;flex:none;margin:0}
+.md .mention{display:inline-block;padding:0 6px;border-radius:var(--r-full);background:var(--accent-soft,var(--subtle));color:var(--accent-dark,var(--accent));font-weight:600}
+.comment-input{position:relative;flex:1;min-width:0;display:grid}
+.comment-input>*{grid-area:1/1}
+.comment-box .comment-mirror{pointer-events:none;white-space:pre-wrap;overflow-wrap:break-word;overflow:hidden;color:transparent;width:auto}
+.comment-mirror mark{background:var(--accent-soft,var(--subtle));color:transparent;border-radius:4px;box-shadow:0 0 0 2px var(--accent-soft,var(--subtle))}
+.comment-input textarea{position:relative;background:transparent}

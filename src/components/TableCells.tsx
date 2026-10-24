@@ -10,9 +10,11 @@ import { dateTone, isOverdue } from '@/domain/dates';
 import { toDisplayPriority, toTodoistPriority, type Item, type TableColumn, type DisplayPriority } from '@/domain/types';
 import { tableColumnLabel } from '@/domain/table';
 import { markerStyle } from '@/domain/colors';
+import { ProjectIcon } from './ProjectIconPicker';
+import { readProjectIcon } from '@/domain/projectIcons';
 
 /** Inline values use the same controls and store commands as task details. */
-export function TableCells({ item, columns, childrenOf }: { item: Item; columns: TableColumn[]; childrenOf: (id: string) => Item[] }) {
+export function TableCells({ item, columns, childrenOf, hideProject = false }: { hideProject?: boolean; item: Item; columns: TableColumn[]; childrenOf: (id: string) => Item[] }) {
   const { t, locale } = useT();
   const snapshot = useStore((s) => s.snapshot);
   const updateTask = useStore((s) => s.updateTask);
@@ -51,7 +53,17 @@ export function TableCells({ item, columns, childrenOf }: { item: Item; columns:
       options={Object.values(snapshot.labels).filter((label) => !label.is_deleted && !label.name.startsWith('est-')).map((label) => ({ value: label.name, label: label.name }))}
       onChange={(labels) => void setTaskLabels(item.id, [...item.labels.filter((label) => label.startsWith('est-')),
         ...(labels ?? Object.values(snapshot.labels).filter((label) => !label.is_deleted && !label.name.startsWith('est-')).map((label) => label.name))])} />;
-    else if (column === 'project') content = snapshot.projects[item.project_id]?.name ?? '';
+    else if (column === 'project') {
+      const project = snapshot.projects[item.project_id];
+      const section = item.section_id ? snapshot.sections[item.section_id] : undefined;
+      const projectIcon = project ? readProjectIcon(project.description) : null;
+      content = project && !hideProject ? (
+        <span className="meta"><span className="proj" style={markerStyle(project.color)} title={section ? `${project.name} / ${section.name}` : project.name}>
+          {project.inbox_project ? <Icon name="inbox" size="sm" /> : projectIcon ? <ProjectIcon iconId={projectIcon} size="sm" /> : '#'}
+          <span className="project-section-name">{project.name}{section ? ` / ${section.name}` : ''}</span>
+        </span></span>
+      ) : '';
+    }
     else content = item.description;
     return <div key={column} className={`table-cell table-${column}${column === 'date' ? ` tone-${isOverdue(item) ? 'late' : dateTone(item) ?? 'later'}` : ''}`}
       onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>{content}</div>;

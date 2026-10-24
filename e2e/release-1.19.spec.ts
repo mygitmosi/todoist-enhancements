@@ -80,8 +80,8 @@ test('#154 the Inbox, a tag and Someday lead with their quick tasks, saying wher
      Inbox, which now names itself too (#175): the Home one is among them. */
   await expect(someday.locator('[data-task-id]').filter({ hasText: 'Pay the parking ticket' }).locator('.proj', { hasText: 'Home' }))
     .toHaveCount(1);
-  await expect(someday.locator('[data-task-id]').filter({ hasText: 'Reply to the printer' }).locator('.sect'))
-    .toHaveText('To do');
+  await expect(someday.locator('[data-task-id]').filter({ hasText: 'Reply to the printer' }).locator('.proj'))
+    .toContainText('Website / To do');
   // An old quick task is listed here, not under Gathering dust.
   await expect(someday.locator('[data-task-id]').filter({ hasText: 'Sell the old monitor' })).toHaveCount(1);
   await expect(group(page, 'Gathering dust').locator('[data-task-id]').filter({ hasText: 'Sell the old monitor' }))

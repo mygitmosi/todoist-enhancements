@@ -1,3 +1,4 @@
+import { stepLabel, type Step } from '@/domain/steps';
 import { TableSurface } from '@/components/TableSurface';
 import { pageClass } from '@/domain/pageLayout';
 import { CalendarSurface } from '@/components/CalendarSurface';
@@ -383,7 +384,7 @@ function ProjectBody({
               viewKey={viewKey}
               pageItems={pool0}
               modes={['list', 'board', 'table', 'calendar']}
-              groups={['none', 'assignee', 'scheduled', 'priority', 'label', 'estimate', 'day']}
+              groups={['none', 'assignee', 'scheduled', 'priority', 'label', 'step', 'estimate', 'day', 'month', 'year']}
               completedToggle
               showWorkspaces={false}
             />
@@ -460,6 +461,7 @@ function ProjectBody({
             ? (name) => { void createSection(projectId, sections.length, name); }
             : undefined}
           addToGroup={(key) => {
+            if (current.group === 'step') return () => onAddTaskTo({ projectId, labels: [stepLabel(key as Step)] });
             if (current.group === 'assignee') return () => onAddTaskTo({ projectId, responsibleUid: key === 'none' ? null : key });
             if (current.group === 'day' && key !== 'none') {
               return () => onAddTaskTo({ projectId, date: key });
@@ -575,6 +577,7 @@ function ProjectBody({
              no sense on the one page where both halves of the answer are
              known. */
           addToGroup={(key) => {
+            if (current.group === 'step') return () => onAddTaskTo({ projectId, labels: [stepLabel(key as Step)] });
             if (current.group === 'assignee') return () => onAddTaskTo({ projectId, responsibleUid: key === 'none' ? null : key });
             if (current.group === 'day' && key !== 'none') {
               return () => onAddTaskTo({ projectId, date: key });

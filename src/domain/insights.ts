@@ -192,3 +192,40 @@ export function completionBuckets(
     return { at, key, value: counts.get(key) ?? 0 };
   });
 }
+
+/** What a project page shows as its totals, matching what Todoist counts (#239). */
+export interface ProjectProgress {
+  completed: number;
+  active: number;
+  /** Share of the project's tasks already done, as a whole percentage. */
+  percentage: number;
+}
+
+/**
+ * A project's progress over its whole life.
+ *
+ * `completedTotal` is every completed task of the project, subtasks included,
+ * recurring tasks never (see `useProjectCompletedCount`). `active` is every open
+ * task of the project, subtasks included. Both as Todoist's project Insights
+ * count them, so the percentage is theirs too. Until the count has loaded
+ * there is no figure: a guessed zero would read as "0%".
+ */
+export function projectProgress(completedTotal: number | undefined, open: Item[]): ProjectProgress | null {
+  if (completedTotal === undefined) return null;
+  const active = open.length;
+  const total = completedTotal + active;
+  return { completed: completedTotal, active, percentage: total > 0 ? Math.round((completedTotal / total) * 100) : 0 };
+}
+
+/**
+ * Completed tasks, each once: a task completed, reopened and completed again
+ * is one task, as Todoist counts it.
+ */
+export function completedTaskCount(items: Array<{ id: string; task_id?: string }>): number {
+  return new Set(items.map((item) => item.task_id ?? item.id)).size;
+}
+
+/** Completions on or after the first day of the user's calendar week. */
+export function completedSince(items: Array<{ completed_at: string }>, since: Date): number {
+  return items.filter((item) => new Date(item.completed_at) >= since).length;
+}

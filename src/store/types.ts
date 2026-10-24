@@ -21,6 +21,8 @@ export interface Toast {
    * other toast waits for its turn.
    */
   tone?: 'error';
+  /** A button of its own that is not an undo, such as Reload after an update. */
+  action?: { label: string; run: () => void };
 }
 
 /**
@@ -157,7 +159,7 @@ export interface AppState {
   updateTask: (id: string, args: Record<string, unknown>) => Promise<void>;
   /** Posts a comment on a task, with a file already uploaded when there is one. */
   /** False when Todoist refused it, so the field can give the draft back. */
-  addComment: (itemId: string, content: string, attachment?: NoteAttachment | null) => Promise<boolean>;
+  addComment: (itemId: string, content: string, attachment?: NoteAttachment | null, notify?: string[]) => Promise<boolean>;
   /** Rewrites a comment's text. */
   updateComment: (id: string, content: string) => Promise<void>;
   deleteComment: (id: string) => Promise<void>;
@@ -333,7 +335,7 @@ export interface AppState {
   duplicateSection: (id: string, name: string) => Promise<void>;
 
   /* Toasts */
-  toast: (message: string, undo?: () => void, options?: { tone?: 'error' }) => void;
+  toast: (message: string, undo?: () => void, options?: { tone?: 'error'; action?: { label: string; run: () => void }; sticky?: boolean }) => void;
   dismissToast: (id: string) => void;
 
   /* Undo */

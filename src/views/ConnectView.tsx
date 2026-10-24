@@ -1,3 +1,4 @@
+import { PrivacyInformation } from '@/components/PrivacyInformation';
 import { useState } from 'react';
 import { Icon } from '@/components/Icon';
 import { MacAppLine } from '@/components/MacApp';
@@ -83,8 +84,7 @@ export function ConnectView() {
         <h1>{t('connect.login')}</h1>
         <p className="connect-intro">{t('connect.intro')}</p>
 
-        <button
-          className="btn primary lg connect-submit"
+        <button className="btn primary lg connect-submit"
           disabled={leaving}
           onClick={() => {
             const expected = builtForElsewhere();
@@ -139,14 +139,13 @@ export function ConnectView() {
             placeholder={t('connect.tokenPlaceholder')}
             value={token}
             onChange={(e) => { setToken(e.target.value); setStatus('idle'); }}
-            onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { void submit(); } }}
           />
 
           {status === 'invalid' && <p className="connect-error">{t('connect.invalid')}</p>}
           {status === 'malformed' && <p className="connect-error">{t('connect.malformed')}</p>}
 
-          <button
-            className="btn lg connect-token-submit"
+          <button className="btn lg connect-token-submit"
             disabled={status === 'checking'}
             onClick={() => void submit()}
           >
@@ -174,11 +173,11 @@ export function ConnectView() {
         <p className="connect-privacy">
           <Icon name="eye" size="sm" />
           <span><strong>{t('connect.privacyLead')}</strong>{' '}
-          {t('connect.privacyBody')}{' '}
+          {t('connect.privacyBody')} <> {t('connect.privacyAnalytics')}</>{' '}
           <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
             <Icon name="external" size="sm" />
             {t('connect.github')}
-          </a></span>
+          </a>{' '}<button type="button" className="privacy-link" onClick={() => setPrivacyOpen(true)}>{t('connect.privacyLink')}</button></span>
         </p>
 
         <p className="connect-legal">
@@ -197,9 +196,10 @@ export function ConnectView() {
           <button className="iconbtn" aria-label={t('common.close')} onClick={() => setPrivacyOpen(false)}><Icon name="close" /></button>
         </div>
         <div className="sheet-body connect-privacy-sheet">
+          <PrivacyInformation />
           <p className="connect-privacy">
             <Icon name="eye" size="sm" />
-            <span><strong>{t('connect.privacyLead')}</strong>{' '}{t('connect.privacyBody')}{' '}
+            <span><strong>{t('connect.privacyLead')}</strong>{' '}{t('connect.privacyBody')} <> {t('connect.privacyAnalytics')}</>{' '}
               <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">{t('connect.github')}</a></span>
           </p>
           <p className="connect-legal">{legal[0]}<strong>{AUTHOR}</strong>{legal[1]}</p>

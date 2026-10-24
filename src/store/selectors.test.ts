@@ -260,8 +260,18 @@ describe('filter date grouping', () => {
       item({ id: 'deadline-only', due: null, deadline: { date: '2020-02-01', lang: 'en' } }),
       item({ id: 'undated', due: null }),
     ], 'day', snapshot, { ...labels, overdue: 'Overdue', day: (date) => date ? format(date) : 'No date' });
-    expect(groups.map((group) => group.key)).toEqual(['overdue', format(tomorrow), 'none']);
+    expect(groups.map((group) => group.key)).toEqual(['overdue', 'none', format(tomorrow)]);
     expect(groups[0].items.map((task) => task.id)).toEqual(['old', 'older', 'deadline-only']);
-    expect(groups[1].title).toBe(format(tomorrow));
+    expect(groups[2].title).toBe(format(tomorrow));
+  });
+});
+
+describe('date group titles', () => {
+  it('names each group at its own grain, with undated tasks first', () => {
+    const named = { ...labels, day: (date: Date | null) => date ? `day ${date.getDate()}` : 'No date', month: (date: Date) => `month ${date.getMonth() + 1}`, year: (date: Date) => `year ${date.getFullYear()}` };
+    const items = [item({ id: 'a', due: due('2031-05-02') }), item({ id: 'b', due: due('2031-05-09') }), item({ id: 'c', due: null })];
+    expect(groupItems(items, 'day', snapshot, named).map((g) => g.title)).toEqual(['No date', 'day 2', 'day 9']);
+    expect(groupItems(items, 'month', snapshot, named).map((g) => g.title)).toEqual(['No date', 'month 5']);
+    expect(groupItems(items, 'year', snapshot, named).map((g) => g.title)).toEqual(['No date', 'year 2031']);
   });
 });

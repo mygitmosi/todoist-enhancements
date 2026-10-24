@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { addDays, endOfDay, format, startOfDay } from 'date-fns';
+import { addDays, endOfDay, format, startOfDay, startOfWeek } from 'date-fns';
 import { Overlay } from './Overlay';
 import { Icon } from '../Icon';
 import { Bars, SplitBar, type BarDatum, type SliceDatum } from '../charts';
@@ -8,7 +8,10 @@ import { useData } from '@/hooks/useData';
 import { useCompleted } from '@/hooks/useCompleted';
 import { daysOf } from '@/domain/periods';
 import { navigate } from '@/hooks/useRoute';
-import { summariseInsights } from '@/domain/insights';
+import { completedSince, projectProgress, summariseInsights } from '@/domain/insights';
+import { openItems } from '@/store/selectors';
+import { useProjectCompletedCount } from '@/hooks/useProjectCompletedCount';
+import { weekStartsOnOf } from '@/domain/dates';
 import { effectiveEstimate, formatDuration } from '@/domain/estimates';
 import { isOverdue, overdueBy } from '@/domain/dates';
 import type { Item } from '@/domain/types';
@@ -49,6 +52,32 @@ export function InsightsPanel({
     () => summariseInsights(completed, items, snapshot),
     [completed, items, snapshot],
   );
+
+  /* A project page reports the project's whole life, from Todoist's own count,
+     so it can be set beside Todoist's figures. Every other page has no such
+     count: it says which period its completed figure covers instead (#239). */
+  const projectTotal = useProjectCompletedCount(projectId, open);
+  const progress = useMemo(
+    () => projectId ? projectProgress(projectTotal, openItems(snapshot).filter((item) => item.project_id === projectId)) : null,
+    [projectId, projectTotal, snapshot],
+  );
+  const weekStart = useMemo(
+    () => startOfWeek(new Date(`${today}T12:00:00`), { weekStartsOn: weekStartsOnOf(snapshot.user?.start_day) }),
+    [today, snapshot.user?.start_day],
+  );
+  /* Every page counts open work the way a project page does, which is
+     Todoist's way: the tasks it lists and their open subtasks (#239). */
+  const activeCount = useMemo(() => {
+    const seen = new Set<string>();
+    const walk = (item: Item) => {
+      if (seen.has(item.id) || item.checked || item.is_deleted) return;
+      seen.add(item.id);
+      childrenOf(item.id).forEach(walk);
+    };
+    items.forEach(walk);
+    return seen.size;
+  }, [items, childrenOf]);
+  const thisWeek = useMemo(() => completedSince(completed, weekStart), [completed, weekStart]);
 
   const late = useMemo(
     () => items.filter((i) => isOverdue(i)).sort((a, b) => overdueBy(b) - overdueBy(a)),
@@ -122,12 +151,28 @@ export function InsightsPanel({
 
       <div className="icard">
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--s4)' }}>
-          <div className="ring" style={{ '--ring': `${summary.progressPercentage}%`, width: 72, height: 72 } as React.CSSProperties}>
-            <div><strong style={{ fontSize: 'var(--fs-16)' }}>{summary.progressPercentage}%</strong></div>
-          </div>
+          {projectId && (
+            <div className="ring" style={{ '--ring': `${progress?.percentage ?? 0}%`, width: 72, height: 72 } as React.CSSProperties}>
+              <div><strong style={{ fontSize: 'var(--fs-16)' }}>{progress ? `${progress.percentage}%` : '…'}</strong></div>
+            </div>
+          )}
           <div className="ilist">
-            <span><strong>{summary.completedCount}</strong> {t('insights.completed')}</span>
-            <span><strong>{summary.activeCount}</strong> {t('insights.active')}</span>
+            {projectId ? (
+              progress ? (
+                <>
+                  <span><strong>{progress.completed}</strong> {t('insights.completedTotal')}</span>
+                  <span><strong>{progress.active}</strong> {t('insights.active')}</span>
+                  <span><strong>{thisWeek}</strong> {t('insights.completedWeek')}</span>
+                </>
+              ) : (
+                <span role="status">{t('insights.countsPending')}</span>
+              )
+            ) : (
+              <>
+                <span><strong>{summary.completedCount}</strong> {t('insights.completedRecent')}</span>
+                <span><strong>{activeCount}</strong> {t('insights.active')}</span>
+              </>
+            )}
             <span>{t('insights.streakRecent', { count: summary.currentStreak })}</span>
           </div>
         </div>

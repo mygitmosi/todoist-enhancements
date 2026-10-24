@@ -1,4 +1,4 @@
-import { test, expect, go, rows } from './demo';
+import { test, expect, fillProjectName, go, rows } from './demo';
 
 test.describe('editing a task (v2)', () => {
   test('a task opens as a window until Settings says a panel', async ({ demo: page }) => {
@@ -30,7 +30,7 @@ test.describe('editing a task (v2)', () => {
     await go(page, '#/week');
     await page.getByRole('button', { name: 'Add project' }).first().click();
     const sheet = page.getByRole('dialog', { name: 'New project' });
-    await sheet.getByRole('textbox', { name: 'Project name' }).fill('Photo studio');
+    await fillProjectName(sheet, 'Photo studio');
     await sheet.getByRole('textbox', { name: 'Description' }).fill('Prints, frames and a spring show.');
     // Twenty colours, Todoist's own, ending on the two the sheet used to leave out.
     await expect(sheet.locator('.swatches').getByRole('radio')).toHaveCount(20);
@@ -75,7 +75,7 @@ test.describe('editing a task (v2)', () => {
     await composer.getByRole('button', { name: 'Project' }).click();
     await page.getByRole('option', { name: 'New project…' }).click();
     const sheet = page.getByRole('dialog', { name: 'New project' });
-    await sheet.getByRole('textbox', { name: 'Project name' }).fill('Garden shed');
+    await fillProjectName(sheet, 'Garden shed');
     await sheet.getByRole('button', { name: 'Add project', exact: true }).click();
     await expect(sheet).toHaveCount(0);
     await expect(composer.getByRole('button', { name: 'Project' })).toContainText('Garden shed');
@@ -85,7 +85,7 @@ test.describe('editing a task (v2)', () => {
     await go(page, '#/week');
     await page.getByRole('button', { name: 'Add project' }).first().click();
     const sheet = page.getByRole('dialog', { name: 'New project' });
-    await sheet.getByRole('textbox', { name: 'Project name' }).fill('Board first');
+    await fillProjectName(sheet, 'Board first');
     await sheet.getByRole('group', { name: 'Default view' }).getByRole('button', { name: 'Board' }).click();
     await sheet.getByRole('button', { name: 'Add project', exact: true }).click();
     await page.locator('.sidebar').getByText('Board first').first().click();

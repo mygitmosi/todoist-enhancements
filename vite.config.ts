@@ -21,7 +21,7 @@ const SECURITY_HEADERS = {
     "manifest-src 'self'",
     "worker-src 'self'",
     "base-uri 'self'",
-    "frame-src https://tally.so",
+    "frame-src 'none'",
     "form-action 'self'",
     "frame-ancestors 'none'",
     "object-src 'none'",
@@ -103,7 +103,9 @@ export default defineConfig({
     react(),
     oauthClientDocument(PUBLIC_URL),
     VitePWA({
-      registerType: 'autoUpdate',
+      /* The app decides when a new build takes over (src/lib/appUpdate.ts):
+         at once, unless something is being written. */
+      registerType: 'prompt',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       /* The service worker is a build artefact only. The plugin can serve a
          development one, but under this app's relative `base` it fails to
@@ -148,9 +150,8 @@ export default defineConfig({
         // The share card is fetched by link scrapers, never by the app. There
         // is no reason to spend a fifth of the offline cache on it.
         globIgnores: ['og-image.png'],
-        // A new build takes effect on the next reload instead of sitting behind
-        // the old one until every tab has been closed.
-        skipWaiting: true,
+        // The new worker waits for the page's go-ahead (SKIP_WAITING from
+        // registerSW), then claims every tab, so no tab runs on two builds.
         clientsClaim: true,
         cleanupOutdatedCaches: true,
         // The Todoist API is never cached: the app owns its own offline cache in IndexedDB.

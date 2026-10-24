@@ -1327,7 +1327,6 @@ img.notifav{display:block;width:34px;height:34px;object-fit:cover}
 .side-group{margin-top:8px}
 
 /* The feedback form, in a frame under its title. */
-.feedbackframe{display:block;width:100%;height:min(560px,64vh);border:0;background:transparent}
 
 /* The review's row choices: a pill with a pill-shaped thumb that slides. */
 .reviewactions.seg-slide::before{border-radius:999px}
@@ -1644,7 +1643,7 @@ img.notifav{display:block;width:34px;height:34px;object-fit:cover}
   .sheet:has(> .detail-body) > .detail-body{flex:1 1 auto;min-height:0;grid-template-rows:minmax(0,1fr);overflow:hidden}
   .sheet:has(> .detail-body) .detail-main,.sheet:has(> .detail-body) .detail-side{min-height:0;overflow-y:auto;overscroll-behavior:contain}
 }
-.fselect-face.quiet:focus-visible,.fselect-face.quiet:focus{outline:0;box-shadow:none}
+.fselect-face.quiet:focus-visible,.fselect-face.quiet:focus{outline:0}
 .notifanswered{display:block;margin-top:6px;color:var(--muted);font-size:12.5px}
 
 /* #29 Insights on a coloured frame with the page floating: the head and the bottom button sit on the frame
@@ -1800,7 +1799,12 @@ img.notifav{display:block;width:34px;height:34px;object-fit:cover}
 @keyframes estimate-pulse{0%,100%{opacity:.35}50%{opacity:.8}}
 @media(prefers-reduced-motion:reduce){.est-feedback.accepted,.est-pulse{animation:none}}
 .label-rename-error{display:block;font-size:var(--fs-12);color:var(--accent);font-weight:400;margin-top:8px}
-.task .check.forecast-check{border-style:dashed;background:transparent;opacity:.55;cursor:default}
+/* A future occurrence: a tight dashed outline in the priority colour. A CSS dashed border cannot be shortened, so the outline is a mask. */
+.task .check.forecast-check{--forecast-c:var(--p3);border-color:transparent;background:var(--forecast-c);opacity:.6;cursor:default;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='.9' y='.9' width='14.2' height='14.2' rx='3.6' fill='none' stroke='black' stroke-width='1.6' stroke-dasharray='1.6 1.5'/%3E%3C/svg%3E") center/100% 100% no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='.9' y='.9' width='14.2' height='14.2' rx='3.6' fill='none' stroke='black' stroke-width='1.6' stroke-dasharray='1.6 1.5'/%3E%3C/svg%3E") center/100% 100% no-repeat}
+.task .check.forecast-check:hover{background:var(--forecast-c)}
+.task .check.forecast-check.p1{--forecast-c:var(--p1)}.task .check.forecast-check.p2{--forecast-c:var(--p2)}.task .check.forecast-check.p4{--forecast-c:var(--check-quiet)}
 
 /* Equal page width for task lists, boards and their headers. */
 .page > :is(.phead,.metrics,.viewbar,.tabs,.mode,.empty),
@@ -2066,3 +2070,106 @@ html{-webkit-tap-highlight-color:transparent}
     --side-icon-sel:var(--accent);--side-hover:rgba(0,0,0,.045);--side-bar:rgba(0,0,0,.1);
   }
 }
+
+/* Priority edges remain legible at the small task and subtask sizes. */
+.check,.subtasks .check,.composer-sub .check{border-width:2px}
+.meta .proj{min-width:0;max-width:240px}
+.project-section-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+/* Selection fills the card shell as well as its inner task row. */
+.col .taskwrap:has(> .task:first-child.picked){background:var(--row-marked)}
+.col .taskwrap > .task:first-child.picked,.col .taskwrap > .task:first-child.picked:hover,.col .taskwrap > .task:first-child.picked:focus-visible{background:transparent;box-shadow:none}
+.col .taskwrap:has(> .task:first-child.picked) .task{--card-bg:var(--row-marked)}
+/* Keep text-field focus styling; suppress only navigation outlines after pointer/dismissal. */
+html[data-navigation="pointer"] :focus-visible{outline:none !important}
+html[data-navigation="pointer"] .task:focus-visible::after{content:none}
+
+.workspace-page{max-width:1100px;margin:0 auto;padding:24px}
+.workspace-head{display:flex;align-items:center;justify-content:flex-start;gap:12px}.workspace-head .workspace-avatar{width:32px;height:32px;border-radius:8px;font-size:14px}
+.workspace-project{display:grid;grid-template-columns:minmax(180px,1fr) 100px 104px 160px;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid var(--border);font-size:var(--fs-13)}
+.workspace-columns{color:var(--muted);font-weight:600;font-size:var(--fs-12);padding:8px 0}
+.workspace-columns span:last-child{text-align:right}
+.workspace-when{text-align:right;color:var(--muted);font-size:var(--fs-12);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.workspace-project-name{padding:0;display:flex;align-items:center;gap:10px;min-width:0;text-align:left}
+.workspace-icon{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;flex:none;font-weight:700;font-size:14px;line-height:1;color:var(--marker);background:color-mix(in srgb,var(--marker) 14%,var(--surface))}
+.workspace-icon .ic{width:15px;height:15px}
+.workspace-name{display:flex;flex-direction:row;align-items:baseline;gap:8px;min-width:0;flex:1}
+.workspace-meta{display:inline-flex;align-items:baseline;gap:8px;flex:none;font-weight:400;font-size:var(--fs-13);color:var(--text);white-space:nowrap}
+.workspace-meta i{font-style:normal;color:var(--faint)}.workspace-meta b{font-weight:400;color:var(--muted)}
+.workspace-name>span:not(.workspace-meta){overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--text)}
+.workspace-section{margin-top:28px}
+.workspace-section h2{margin:0 0 4px;font-size:var(--fs-18,18px);font-weight:700;color:var(--text)}
+.workspace-toolbar{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin:20px 0 8px}
+.workspace-tabs{display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:var(--subtle)}
+.workspace-tabs button{padding:6px 16px;border-radius:8px;font-size:var(--fs-13);font-weight:600;color:var(--muted);display:inline-flex;gap:6px;align-items:center}
+.workspace-tabs button span{font-weight:500;color:var(--faint)}
+.workspace-tabs [aria-selected="true"]{background:var(--surface);color:var(--text);box-shadow:0 1px 2px rgb(0 0 0/.12)}
+.workspace-switch{display:inline-flex;align-items:center;gap:8px;font-size:var(--fs-13);color:var(--muted)}
+.workspace-switch i{width:30px;height:18px;border-radius:99px;background:var(--border);position:relative;transition:background .15s}
+.workspace-switch i::after{content:"";position:absolute;left:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px #0003;transition:left .15s}
+.workspace-switch.on i{background:var(--accent)}.workspace-switch.on i::after{left:14px}
+.workspace-archive{opacity:.85}.workspace-archive .ic:last-child{justify-self:end;color:var(--faint)}
+.workspace-spark{display:flex;align-items:flex-end;gap:3px;height:22px;color:var(--faint)}
+.workspace-spark i{width:8px;border-radius:2px;background:color-mix(in srgb,var(--marker,var(--accent)) 72%,var(--surface))}
+.workspace-progress{display:flex;flex-direction:column;align-items:stretch;gap:5px;font-size:var(--fs-12);color:var(--muted);font-variant-numeric:tabular-nums}
+.workspace-progress-track{height:4px;flex:none;width:100%;min-width:24px;background:var(--border);border-radius:4px;overflow:hidden}
+.workspace-progress-track i{display:block;height:100%;background:var(--accent);border-radius:inherit}
+.workspace-meta>i:first-child{display:none}
+.workspace-progress>span:last-child{text-align:center}
+.workspace-folder .workspace-name{flex-direction:column;gap:5px}
+.workspace-folder{position:relative;display:flex;align-items:center;gap:10px;width:100%;padding:18px 0 10px;text-align:left;color:var(--text)}
+.workspace-folder .workspace-folder-caret{position:absolute;left:-15px;top:calc(50% - 7px);width:12px;color:var(--muted)}
+.workspace-folder-icon{color:var(--muted);background:transparent}
+.workspace-folder strong{font-size:var(--fs-13);font-weight:600}
+.workspace-folder small{font-size:var(--fs-12);color:var(--muted)}
+.workspace-person{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
+.workspace-who strong{font-size:var(--fs-14);font-weight:600}
+.workspace-person .workspace-avatar{width:34px;height:34px;font-size:13px}
+.workspace-who{display:flex;flex-direction:column;min-width:0}.workspace-who small{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.workspace-role{margin-left:auto;border:1px solid var(--border);border-radius:8px;padding:5px 10px;background:var(--surface);color:var(--text);font:inherit;font-size:var(--fs-13)}
+.workspace-role.static{border-color:transparent;color:var(--muted)}
+.workspace-archive{color:var(--text);text-decoration:none}.workspace-archive:hover{color:var(--accent)}
+@media(max-width:600px){
+  .workspace-page{padding:16px 16px 28px}
+  .workspace-toolbar{gap:12px;justify-content:space-between}
+  .workspace-tabs{flex:1 1 100%}.workspace-tabs button{flex:1;justify-content:center;padding:8px 12px}
+  .workspace-columns{display:none}
+  .workspace-project{grid-template-columns:minmax(0,1fr) 76px;grid-template-areas:"name name" "spark progress" "when progress";gap:10px 12px;padding:18px 0;align-items:center}
+  .workspace-project>.workspace-project-name{grid-area:name;align-items:flex-start;gap:10px;width:100%}
+  .workspace-project .workspace-name>span:not(.workspace-meta){font-size:var(--fs-14);font-weight:650;min-width:0}
+  .workspace-project .workspace-meta{gap:4px;font-size:var(--fs-12);white-space:nowrap}
+  .workspace-meta>span:last-child{color:var(--muted)}
+  .workspace-project>.workspace-progress{grid-area:progress;align-self:center;gap:5px;font-size:11px}
+  .workspace-project>.workspace-spark{grid-area:spark;height:22px;margin-left:36px}
+  .workspace-project>.workspace-when{grid-area:when;text-align:left;margin-left:36px;font-size:11px;color:var(--faint);white-space:normal}
+  .workspace-archive{grid-template-areas:"name name" "when progress"}.workspace-archive>span:empty{display:none}.workspace-archive>.workspace-when{text-align:left;margin-left:36px}
+  .workspace-person{padding:14px 0}.workspace-role{max-width:46%}
+}
+
+.reschedule-overdue{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;flex:none;border:0;border-radius:50%;background:#d1453b;color:#fff;cursor:pointer}
+.reschedule-overdue:hover{filter:brightness(.9)}
+
+
+
+/* Keep the overdue command next to the section's duration, including on phones. */
+.ghead:has(.reschedule-overdue){flex-wrap:nowrap}
+.ghead:has(.reschedule-overdue) .gtoggle{flex:0 1 auto}
+.ghead:has(.reschedule-overdue) .gactions{order:initial;width:auto;margin:0;flex:0 0 auto;justify-content:flex-start}
+.ghead:has(.reschedule-overdue) .gname{white-space:normal}
+.group .ghead:has(.reschedule-overdue) .gactions{margin-left:auto}
+.task-table .group .ghead:has(.reschedule-overdue) .gactions{margin-left:0}
+.sidebar .navrow:is(.drop-before,.drop-after,.nesting)::after{height:3px;background:var(--text);box-shadow:0 0 0 1px var(--accent);z-index:5;pointer-events:none}
+
+.privacy-disclosure{border:0;border-radius:0;background:transparent}
+.privacy-disclosure>summary{list-style:none;display:flex;align-items:center;justify-content:flex-start;gap:8px;padding:12px 0;font-size:var(--fs-14);font-weight:600;cursor:pointer}
+.privacy-disclosure>summary .ic{flex:none;color:var(--muted)}
+.privacy-disclosure>summary::-webkit-details-marker{display:none}
+.privacy-disclosure[open]>summary .ic{transform:rotate(180deg)}
+.privacy-disclosure .privacy-information{padding:0 0 16px}
+.privacy-information{font-size:var(--fs-13);line-height:1.6;color:var(--muted);overflow-wrap:anywhere}
+.privacy-information h3{font-size:var(--fs-14);color:var(--text);margin:20px 0 6px}
+.privacy-information p{margin:8px 0}
+.privacy-information a,.privacy-link{color:var(--accent-dark);text-decoration:underline}
+.privacy-choice{gap:16px}.privacy-choice .switch{flex-shrink:0}
+.privacy-status{padding:10px 12px;border-radius:var(--r-sm);background:var(--subtle);color:var(--text)}
+.privacy-links{display:flex;flex-wrap:wrap;gap:8px 16px}
+@media(max-width:720px){.settings{grid-template-columns:minmax(0,1fr);gap:var(--s4)}.privacy-disclosure{min-width:0;width:100%}}

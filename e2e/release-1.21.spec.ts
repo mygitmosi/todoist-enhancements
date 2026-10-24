@@ -123,7 +123,7 @@ test('#166 a selection dragged inside a task becomes its subtasks, in order, and
   await go(page, '#/project/personal');
   await page.getByRole('button', { name: 'Display' }).click();
   await page.locator('.panelgrid .fselect-face').nth(1).click();
-  await page.getByRole('option', { name: 'Manual' }).click();
+  await page.getByRole('option', { name: /^(Manual order|Default)/ }).click();
   await page.keyboard.press('Escape');
   const before = await ids(page);
   expect(before.length).toBeGreaterThanOrEqual(4);

@@ -32,8 +32,55 @@ translation lives in CHANGELOG.fr.md.
 - An entry, title included, is at most 350 characters. A title is understood
   at a glance, by someone who does not know the feature: "Choose the width of
   your lists", not "Comfortable width".
+- Every entry has a bold title AND a description, never a title alone and
+  never a description alone. The title is short (about 6 words), starts with a
+  verb or names the thing, and means something to someone who has never used
+  the feature: no jargon, no "Project / Section"-style notation, no "to see
+  its X" chains.
 - Only what a person using the app can see or do. No technical work, no
   intermediate states of the same release.
+
+## 2.18.0
+
+🆕 **Mention someone in a comment.** In a shared project, type @ in a task's comment to pick a person from the list. Notify, above the field, chooses who hears about it: everyone, or one person. Someone you mention is always told.
+
+🎨 **Fold subtasks from the title.** The arrow after a parent task's title hides or shows its subtasks. Todoist keeps your choice, so the task stays folded after a reload and in the Todoist apps.
+
+🐛 **Insights match Todoist.** Insights now counts subtasks on every page. On a project or the Inbox, the completed total and the percentage are the ones Todoist shows. Other pages say their completed figure covers all projects, over the last 7 days.
+
+🐛 **Project counts match Todoist.** The number beside each project and the Inbox in the sidebar now includes subtasks, like in Todoist.
+
+🐛 **Updates arrive on their own.** After a new version is out, the app switches to it a few seconds after you open it, with no need to reload several times. If you are writing something, a Reload button waits for you instead.
+
+## 2.17.0
+
+🆕 **Privacy explained.** A dedicated Settings section explains local data storage, Todoist synchronization and the absence of usage tracking.
+
+🎨 **Workspace refinements.** Projects follow the sidebar order, with folders you can expand and collapse. Icons line up on the left, and progress appears beside each project.
+
+🎨 **Quieter subtasks.** A subtask no longer repeats the project of the parent shown above it. When it appears on its own, its project stays visible.
+
+🎨 **Reschedule overdue tasks at a glance.** The Behind schedule heading has a red calendar button to move everything to today. Confirmation and Undo work as before.
+
+🐛 **Add a section without a jump.** The Board keeps a name field that is already visible in place. New columns scroll into view only when needed.
+
+🐛 **Selects keep their outline.** Grouping and Sort retain their normal outline after a mouse choice. Keyboard navigation still shows the focus ring.
+
+## 2.16.0
+
+🆕 **Group tasks by status.** In Display, choose Group by, then Status: To do, In progress and Done. It works with or without sections, in List and Board. Marking a task Done keeps it open until you complete it.
+
+🆕 **See a workspace at a glance.** Open a workspace from the sidebar to see its projects, how many tasks are open or done, and their progress. Archived projects and team members are listed below.
+
+🎨 **See the section of a task in your lists.** A task now shows its project and its section, like "Website / Design", with the full name when you hover it.
+
+🎨 **Clearer priority checkboxes.** The border is a little bolder, so you can tell a priority 1 from a priority 3 at a glance.
+
+🎨 **A feedback form that opens in its own tab.** Send a bug or an idea from the new form, without a window inside a window.
+
+🐛 **Selected cards keep their colour on the Board.** After you select cards with Cmd+click and move the pointer away, each card keeps one even colour.
+
+🐛 **No stray outline after using the mouse.** Clicking, or closing a menu with Escape, no longer leaves an outline. Tab and the arrow keys still show where you are.
 
 ## 2.15.0
 

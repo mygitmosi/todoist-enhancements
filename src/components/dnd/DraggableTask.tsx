@@ -1,3 +1,4 @@
+import { useRowList } from './RowList';
 import { ProjectedTask } from '../ProjectedTask';
 import { useDraggable } from '@dnd-kit/core';
 import { TaskRow } from '../TaskRow';
@@ -29,6 +30,7 @@ interface DraggableTaskProps {
 export function DraggableTask({
   item, childrenOf, onOpen, showProject, showSection, dust, surface = 'row',
 }: DraggableTaskProps) {
+  const list = useRowList();
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({ id: item.id, disabled: !!item.projection });
   if (item.projection) return <ProjectedTask item={item} childrenOf={childrenOf} onOpen={onOpen} />;
   const card = surface === 'card';
@@ -52,7 +54,7 @@ export function DraggableTask({
         dragHandleProps={{ ...attributes, ...listeners }}
         /* A board card is moved sideways between columns all the time; a
            drift to the right there must not read as "put it inside". */
-        nestable={!card}
+        nestable={!card && list?.target?.kind !== 'step'}
         lifted={isDragging}
       />
     </div>

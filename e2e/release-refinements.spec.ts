@@ -36,7 +36,7 @@ test('French weekday wording creates one unified chip and projects weekdays as o
   const forecasts = page.locator('[data-projection-id]').filter({ hasText: 'test' });
   expect(await forecasts.count()).toBeGreaterThan(5);
   await expect(forecasts.first().getByRole('checkbox')).toHaveAttribute('aria-disabled','true');
-  await expect(forecasts.first().locator('.check')).toHaveCSS('border-top-style','dashed');
+  await expect(forecasts.first().locator('.check.forecast-check')).toHaveCSS('border-top-color','rgba(0, 0, 0, 0)');
   await expect(page.getByText(/Future occurrences are forecasts|Some recurrence rules/)).toHaveCount(0);
   if (process.env.CAPTURE_REFINEMENTS === '1') await page.screenshot({ path: resolve(process.env.ARTIFACT_OUTPUT_DIR ?? '../../outputs', 'occurrences-revisees.png'), animations: 'disabled' });
 });

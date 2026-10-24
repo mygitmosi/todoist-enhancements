@@ -55,3 +55,16 @@ export async function go(page: Page, hash: string): Promise<void> {
   await page.evaluate((to) => { window.location.hash = to; }, hash);
   await expect(page.locator('.screen.active')).toBeVisible();
 }
+
+/**
+ * Types the name into the "New project" sheet and waits for "Add project" to
+ * come alive. The sheet takes focus as it opens; on a slow runner a fill sent
+ * before that has settled can be answered after the button was last checked.
+ */
+export async function fillProjectName(sheet: Locator, name: string): Promise<void> {
+  const field = sheet.getByRole('textbox', { name: 'Project name' });
+  await expect(field).toBeFocused();
+  await field.fill(name);
+  await expect(field).toHaveValue(name);
+  await expect(sheet.getByRole('button', { name: 'Add project', exact: true })).toBeEnabled();
+}

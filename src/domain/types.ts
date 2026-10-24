@@ -52,6 +52,8 @@ export interface Item {
   order_key?: string | null;
   day_order: number;
   collapsed: boolean;
+  /** The same flag as Todoist's sync names it; `collapsed` is the REST spelling. */
+  is_collapsed?: boolean;
   checked: boolean;
   is_deleted: boolean;
   added_at: string | null;
@@ -98,6 +100,9 @@ export interface Project {
   /** What the signed-in user is in this project: `CREATOR`, `ADMIN`, `READ_WRITE`… */
   role?: string;
   folder_id?: string | null;
+  /** When the project was made, and, for an archived workspace project, when it was archived. */
+  created_at?: string;
+  archived_date?: string;
   /** Legacy/demo folder represented as a project. */
   is_folder?: boolean;
   collapsed?: boolean;
@@ -283,6 +288,7 @@ export interface Snapshot {
   notes: Record<string, Note>;
   reminders: Record<string, Reminder>;
   user: TodoistUser | null;
+  completedProjectCounts?: Record<string, number>;
   syncToken: string;
   syncedAt: number | null;
 }
@@ -372,6 +378,7 @@ export type ViewId =
   | 'dashboard'
   | 'settings'
   | 'project'
+  | 'workspace'
   | 'label'
   | 'labels'
   /** One saved filter, by id. */
@@ -400,14 +407,17 @@ export type GroupKey =
   | 'day'
   | 'week'
   | 'month'
+  | 'year'
   | 'workspace'
   | 'project'
   | 'section'
   | 'priority'
   | 'label'
-  | 'estimate';
+  | 'estimate'
+  | 'step';
 
 export type SortKey =
+  | 'smart'
   | 'assignee'
   | 'manual'
   | 'priority'

@@ -40,12 +40,16 @@ test('the sidebar editor says whether My week holds today\u2019s tasks (#195)', 
   await expect(week).toContainText('Includes today\u2019s tasks');
   const height = (await week.boundingBox())!.height;
 
-  await today.locator('input').check({ force: true });
+  // Wait for the opening dialog to settle before clicking the real control.
+  const todayCheckbox = today.getByRole('checkbox');
+  await todayCheckbox.check();
+  await expect(todayCheckbox).toBeChecked();
   await expect(week).toContainText('Includes today\u2019s tasks');
   // The list does not move when the tick is turned.
   expect((await week.boundingBox())!.height).toBe(height);
 
-  await today.locator('input').uncheck({ force: true });
+  await todayCheckbox.uncheck();
+  await expect(todayCheckbox).not.toBeChecked();
   await expect(week).toContainText('Includes today\u2019s tasks');
 });
 

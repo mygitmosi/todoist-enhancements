@@ -1,3 +1,4 @@
+import { withStep, stepLabel, STEPS, type Step } from './steps';
 import { SYSTEM_LABELS, weekLabel, type Item } from './types';
 import { toApiDate } from './dates';
 import { dueForDate } from './recurrence';
@@ -12,6 +13,7 @@ import { byChildOrder } from './orderKey';
  */
 
 export type DropTarget =
+  | { kind: 'step'; step: Step }
   | { kind: 'today' }
   /** Today, and tagged quick: the Quick group is defined by that tag. */
   | { kind: 'quick' }
@@ -91,6 +93,7 @@ export interface TaskPlacement {
 
 export function placementFor(target: DropTarget, now = new Date()): TaskPlacement {
   switch (target.kind) {
+    case 'step': return { labels: [stepLabel(target.step)] };
     case 'today':
       return { date: toApiDate(now) };
     case 'quick':
@@ -146,6 +149,7 @@ export function placementForPage(
 
 export function dropMutation(item: Item, target: DropTarget): DropMutation | null {
   switch (target.kind) {
+    case 'step': return { update: { labels: withStep(item.labels, target.step) } };
     case 'today':
       // Today's date, the week label dropped, the time of day and reminders kept.
       return { update: { due: dueOn(item, new Date()), labels: withoutWeek(item.labels) } };
@@ -444,6 +448,7 @@ export function encodeTarget(target: DropTarget, scope?: string): string {
 
 function encodeKind(target: DropTarget): string {
   switch (target.kind) {
+    case 'step': return `step:${target.step}`;
     case 'day': return `day:${toApiDate(target.date)}`;
     case 'project': return `project:${target.projectId}`;
     case 'section': return `section:${target.projectId}:${target.sectionId ?? ''}`;
@@ -466,6 +471,7 @@ export function decodeTarget(encoded: string): DropTarget | null {
   if (kind === 'section') {
     return { kind: 'section', projectId: rest[0], sectionId: rest[1] || null };
   }
+  if (kind === 'step' && STEPS.includes(rest[0] as Step)) return { kind: 'step', step: rest[0] as Step };
   if (kind === 'label') return { kind: 'label', label: rest.join(':') };
   return null;
 }

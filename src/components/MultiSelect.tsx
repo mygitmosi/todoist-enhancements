@@ -13,10 +13,12 @@ interface MultiSelectProps {
   onChange: (value: string[] | null) => void;
   /** Draws the closed control's content in place of the label and summary. */
   face?: ReactNode;
+  /** A class on the floating list, for a list that must match its surroundings. */
+  popupClassName?: string;
 }
 
 /** A compact multi-selection with real keyboard-operable checkboxes. */
-export function MultiSelect({ label, value, options, onChange, allLabel, icon, variant = 'field', face }: MultiSelectProps) {
+export function MultiSelect({ label, value, options, onChange, allLabel, icon, variant = 'field', face, popupClassName }: MultiSelectProps) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -70,7 +72,7 @@ export function MultiSelect({ label, value, options, onChange, allLabel, icon, v
         aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((previous) => !previous)}>
         {face ?? <>{icon && <Icon name={icon} size="sm" />}<span>{label}</span><span className="fselect-value">{summary}</span><Icon name="caret" size="sm" /></>}
       </button>
-      {open && createPortal(<div ref={popup} className="multiselect-options" role="dialog" aria-label={label}
+      {open && createPortal(<div ref={popup} className={`multiselect-options${popupClassName ? ` ${popupClassName}` : ''}`} role="dialog" aria-label={label}
         onMouseDown={(event) => event.stopPropagation()}
         style={{ position: 'fixed', zIndex: 1000, width: position?.width, left: position?.left ?? -9999, top: position?.top ?? -9999, maxWidth: 'calc(100vw - 16px)', maxHeight: 'min(240px, calc(100vh - 16px))' }}>
         <button type="button" className="multiselect-all" aria-pressed={allSelected} onClick={() => onChange(null)}><Icon name="check" size="sm" />{allLabel ?? t('assignee.everyone')}</button>

@@ -1,11 +1,14 @@
 export type ChangelogVisual =
-  'composerImage' | 'viewChoices' | 'table' | 'sidebarResize' | 'calendar' | 'assign' | 'subtasks' | 'sidebarFilters' | 'filterEditor' | 'favourites' | 'tags' | 'tagColours' | 'bulkTags' | 'sharing' | 'access' | 'assigneeFilter' | 'workspaces' | 'forecast' | 'skipRepeat' | 'search' | 'searchSections' | 'parser' | 'rejectParser' | 'duration' | 'estimates' | 'bulkEstimate' | 'estimateStorage' | 'estimateConversion' | 'metadata' | 'datePicker' | 'projectView' | 'board' | 'boardSection' | 'layouts' | 'sidebar' | 'projectNesting' | 'mobileBrowse' | 'today' | 'appearance' | 'dark' | 'accent' | 'setup' | 'notifications' | 'projectPicker' | 'projectMenu' | 'sectionMenu' | 'taskNavigation' | 'time' | 'quick' | 'dust' | 'dashboard' | 'period' | 'dashboardLayout' | 'review' | 'subtaskTotal' | 'nesting' | 'checklist' | 'conflicts' | 'paste' | 'upcomingGroups' | 'logbook' | 'bulk' | 'keyboard' | 'projectEmail' | 'signIn' | 'mac' | 'undo' | 'sync' | 'offline' | 'projectIcons' | 'completed' | 'matrix' | 'swipe' | 'load' | 'week' | 'density';
+  'workspacePage' | 'mentions' | 'composerImage' | 'viewChoices' | 'table' | 'sidebarResize' | 'calendar' | 'assign' | 'subtasks' | 'sidebarFilters' | 'filterEditor' | 'favourites' | 'tags' | 'tagColours' | 'bulkTags' | 'sharing' | 'access' | 'assigneeFilter' | 'workspaces' | 'forecast' | 'skipRepeat' | 'search' | 'searchSections' | 'parser' | 'rejectParser' | 'duration' | 'estimates' | 'bulkEstimate' | 'estimateStorage' | 'estimateConversion' | 'metadata' | 'datePicker' | 'projectView' | 'board' | 'boardSection' | 'layouts' | 'sidebar' | 'projectNesting' | 'mobileBrowse' | 'today' | 'appearance' | 'dark' | 'accent' | 'setup' | 'notifications' | 'projectPicker' | 'projectMenu' | 'sectionMenu' | 'taskNavigation' | 'time' | 'quick' | 'dust' | 'dashboard' | 'period' | 'dashboardLayout' | 'review' | 'subtaskTotal' | 'nesting' | 'checklist' | 'conflicts' | 'paste' | 'upcomingGroups' | 'logbook' | 'bulk' | 'keyboard' | 'projectEmail' | 'signIn' | 'mac' | 'undo' | 'sync' | 'offline' | 'projectIcons' | 'completed' | 'matrix' | 'swipe' | 'load' | 'week' | 'density';
 
 /** Editorial illustrations for features that benefit from a concrete UI example.
  * Keys refer to the release and its impact-sorted entry, shared by both languages.
  * Add a preview deliberately, including an occasional design entry with a concrete UI change.
  */
 export const CHANGELOG_VISUALS = {
+  '2.18.0:0': 'mentions', // Mention someone in a comment.
+  '2.16.0:0': 'board',
+  '2.16.0:1': 'workspacePage',
   '2.11.0:0': 'table', // Table view for your lists.
   '2.11.0:1': 'sidebarResize', // Resize your sidebar.
   '2.11.0:2': 'composerImage', // Paste images from the composer.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { completionBuckets, summariseInsights } from './insights';
+import { completedSince, completedTaskCount, completionBuckets, projectProgress, summariseInsights } from './insights';
 import { rangeFor } from './periods';
 import { emptySnapshot, type CompletedItem } from './types';
 
@@ -46,5 +46,34 @@ describe('completions per bucket (#174)', () => {
     expect(days).toHaveLength(31);
     expect(days.find((d) => d.key === '2026-10-02')?.value).toBe(2);
     expect(days.reduce((sum, d) => sum + d.value, 0)).toBe(3);
+  });
+});
+
+describe('project progress (#239)', () => {
+  const open = (id: string, parent_id: string | null = null) => ({ id, parent_id } as never);
+
+  it("takes the completed total from Todoist's count and counts every open task, subtasks included", () => {
+    expect(projectProgress(3, [open('a'), open('s1', 'a'), open('s2', 'a')])).toEqual({ completed: 3, active: 3, percentage: 50 });
+  });
+
+  it('has no figure until the count has loaded, instead of reading 0%', () => {
+    expect(projectProgress(undefined, [open('a')])).toBeNull();
+  });
+
+  it('is 0% for a project with nothing in it, not a division by zero', () => {
+    expect(projectProgress(0, [])).toEqual({ completed: 0, active: 0, percentage: 0 });
+  });
+
+  it('counts completions of the calendar week from its first day, inclusive', () => {
+    const entries = [done({ completed_at: '2026-10-18T23:59:00' }), done({ completed_at: '2026-10-19T00:00:00' }), done({ completed_at: '2026-10-22T09:00:00' })];
+    expect(completedSince(entries, new Date('2026-10-19T00:00:00'))).toBe(2);
+  });
+});
+
+describe('completed tasks of a project (#239)', () => {
+  it('counts a task completed twice, after a reopen, once', () => {
+    expect(completedTaskCount([
+      done({ id: 'e1', task_id: 'b' }), done({ id: 'e2', task_id: 'b' }), done({ id: 'e3', task_id: 'a' }),
+    ])).toBe(2);
   });
 });

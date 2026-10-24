@@ -8,8 +8,10 @@
  * cannot drift apart.
  */
 export const APP_NAME = 'Enhanced for Todoist';
-export const VERSION = '2.15.0';
+export const VERSION = '2.18.0';
 export const AUTHOR = 'julesbertolino';
+/** Public contact already used by the maintainer in the app. */
+export const PRIVACY_EMAIL = 'jules.bertolino@alias-digital.fr';
 /* A copy served with the app: the GitHub address redirects to another host first, which is why the photo arrived late. */
 export const AUTHOR_AVATAR_URL = `${import.meta.env.BASE_URL}author.png`;
 
@@ -29,6 +31,6 @@ export const MAC_APP_DOWNLOAD_URL = {
   x64: `${MAC_APP_URL}/releases/latest/download/Enhanced-for-Todoist-x64.dmg`,
 } as const;
 /** Where a bug or an idea goes. The same form the README and GitHub point at. */
-export const FEEDBACK_URL = 'https://tally.so/r/WOLkVN';
+export const FEEDBACK_URL = 'https://forms.fillout.com/t/79WYJmkgqkus';
 export const TODOIST_DEVELOPER_URL =
   'https://app.todoist.com/app/settings/integrations/developer';

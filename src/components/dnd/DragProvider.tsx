@@ -147,9 +147,11 @@ const collisionsForKind: CollisionDetection = (args) => {
      droppables, which made a project appear to land but left the order
      unchanged. Moving right still turns the same target into nesting. */
   if (dragKind(String(args.active.id)) === 'project') {
-    const projectSlots = hits.filter((c) => String(c.id).startsWith('project-slot:'));
+    const source = String(args.active.id).slice('project-row:'.length);
+    const otherHits = hits.filter((c) => String(c.id) !== args.active.id && !String(c.id).startsWith(`project-slot:${source}:`));
+    const projectSlots = otherHits.filter((c) => String(c.id).startsWith('project-slot:'));
     if (projectSlots.length) return nearestVertical(projectSlots);
-    const projectRows = hits.filter((c) => String(c.id).startsWith('project-row:'));
+    const projectRows = otherHits.filter((c) => String(c.id).startsWith('project-row:'));
     if (projectRows.length) return nearestVertical(projectRows);
   }
 
@@ -305,6 +307,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
         return target.sectionId
           ? t('drop.toSection', { name: snapshot.sections[target.sectionId]?.name ?? '' })
           : t('drop.toProject', { name: snapshot.projects[target.projectId]?.name ?? '' });
+      case 'step': return t(`step.${target.step}`);
       case 'label':
         return t('drop.tagged', { label: target.label });
       default:
@@ -321,6 +324,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
       case 'quick': return t('group.quick');
       case 'anytime': return t('group.anytime');
       case 'someday': return t('nav.someday');
+      case 'step': return t(`step.${target.step}`);
       case 'label': return `@${target.label}`;
       case 'project': return snapshot.projects[target.projectId]?.name ?? '';
       case 'section': {
@@ -866,6 +870,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
 
   /** A block dropped between rows of a project, a section or a parent's subtasks. */
   async function reorderMany(block: Item[], dragged: Item, row: Item, list: RowList, slot?: 'before' | 'after') {
+    if (list.target?.kind === 'step') { await useStore.getState().sendManyTo(block.map((item) => item.id), list.target, t(`step.${list.target.step}`)); return; }
     const container = { project_id: row.project_id, section_id: row.section_id, parent_id: row.parent_id };
     const joins = (it: Item) => it.project_id !== container.project_id
       || (it.section_id ?? null) !== (container.section_id ?? null)
@@ -1003,6 +1008,7 @@ export function DragProvider({ children }: { children: ReactNode }) {
     item: Item, row: Item, list: RowList, landAfter = false, skipUnchanged = false,
     slot?: 'before' | 'after' | 'first',
   ) {
+    if (list.target?.kind === 'step') { await useStore.getState().sendTo(item.id, list.target, t(`step.${list.target.step}`)); return; }
     const container = {
       project_id: row.project_id,
       section_id: row.section_id,

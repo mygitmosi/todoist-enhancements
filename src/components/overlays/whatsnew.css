@@ -25,9 +25,9 @@
 
 
 
-/* An entry reads: title and badge on one line, then its description. */
+/* An entry reads: badge, then title, then its description. */
 .whatsnew-refresh .whatsnew-change .whatsnew-text{display:grid;gap:5px}
-.whatsnew-refresh .whatsnew-titleline{display:flex;align-items:baseline;flex-wrap:nowrap;gap:10px}
+.whatsnew-refresh .whatsnew-titleline{display:flex;flex-direction:column;align-items:flex-start;gap:7px}
 .whatsnew-refresh .whatsnew-titleline .whatsnew-badge{flex:none}
 .whatsnew-refresh .whatsnew-titleline .whatsnew-title{min-width:0}
 .whatsnew-refresh .whatsnew-change .whatsnew-badge{margin:0;vertical-align:baseline}
@@ -36,5 +36,4 @@
 .changelog-preview .cv-title,.changelog-preview .cv-footnote{display:none}
 /* The coffee button's icon takes the colour of its text, in both themes. */
 :root .whatsnew-foot .btn.coffee,:root[data-theme] .whatsnew-foot .btn.coffee .ic,:root .whatsnew-foot .btn.coffee .ic{color:#202020}
-/* The three badges share one width, so every title starts on the same line. */
-.whatsnew-refresh .whatsnew-change .whatsnew-badge{box-sizing:border-box;width:84px;text-align:center;padding-inline:0}
+.whatsnew-refresh .whatsnew-change .whatsnew-badge{box-sizing:border-box;width:auto;text-align:center;padding-inline:9px}

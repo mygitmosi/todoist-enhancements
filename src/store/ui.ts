@@ -48,10 +48,11 @@ export const createUiSlice: Slice<UiSlice> = (set, get) => ({
       message,
       undo: undo ? () => { void get().consumeUndo(id); } : undefined,
       tone: options?.tone,
+      action: options?.action,
     };
     set({ toasts: [...get().toasts, entry] });
     const stays = options?.tone === 'error' ? ERROR_TOAST_MS : undo ? UNDO_TOAST_MS : TOAST_MS;
-    setTimeout(() => get().dismissToast(entry.id), stays);
+    if (!options?.sticky) setTimeout(() => get().dismissToast(entry.id), stays);
   },
   dismissToast(id) {
     set({ toasts: get().toasts.filter((t) => t.id !== id) });

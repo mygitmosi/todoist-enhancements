@@ -24,6 +24,7 @@ import { WeekView } from './views/WeekView';
 import { SearchView } from './views/SearchView';
 import { UpcomingView } from './views/UpcomingView';
 import { SimpleListView } from './views/SimpleListView';
+import { WorkspaceView } from './views/WorkspaceView';
 import { ProjectView } from './views/ProjectView';
 import { LabelsView } from './views/LabelsView';
 import { FiltersView } from './views/FiltersView';
@@ -465,6 +466,11 @@ export function App() {
                     {t('common.undo')}
                   </button>
                 )}
+                {toast.action && (
+                  <button onClick={() => { toast.action?.run(); dismissToast(toast.id); }}>
+                    {toast.action.label}
+                  </button>
+                )}
                 {/* Only puts the toast away. What Undo would do stays reachable
                     with ⌘Z, and a deletion still goes out when its own wait is
                     over: closing it neither sends it early nor cancels it. */}
@@ -806,6 +812,7 @@ function AppShell({
     onProjectSheet: setProjectSheet,
   };
 
+  const insightsProject = route.view === 'project' ? route.id : route.view === 'inbox' ? snapshot.user?.inbox_project_id : undefined;
   return (
     <div
       className={`app${demo ? ' demo' : ''}${sidebarCollapsed ? ' collapsed' : ''}`}
@@ -853,6 +860,7 @@ function AppShell({
           {route.view === 'week' && (
             <WeekView {...viewProps} scope="all" />
           )}
+          {route.view === 'workspace' && <WorkspaceView key={`${snapshot.user?.id}:${route.id}`} workspaceId={route.id ?? 'personal'} />}
           {route.view === 'today' && <WeekView {...viewProps} scope="today" />}
           {route.view === 'search' && <SearchView query={route.query ?? ''} onOpen={openTask} />}
           {route.view === 'upcoming' && <UpcomingView {...viewProps} />}
@@ -988,12 +996,13 @@ function AppShell({
       <InstallPrompt />
 
       <InsightsPanel
-        projectId={route.view === 'project' ? route.id : undefined}
-        viewKey={route.view === 'project' ? undefined : route.view === 'label' ? `label:${route.id}` : route.view === 'filter' ? `filter:${route.id}` : route.view}
+        /* The Inbox is a project too, and gets the same totals as one (#239). */
+        projectId={insightsProject}
+        viewKey={insightsProject ? undefined : route.view === 'label' ? `label:${route.id}` : route.view === 'filter' ? `filter:${route.id}` : route.view}
         open={insightsOpen}
         onClose={() => setInsightsOpen(false)}
         contextLabel={contextLabel}
-        items={route.view === 'project' ? rootItems(openItems(snapshot)).filter((item) => item.project_id === route.id) : contextItems}
+        items={insightsProject ? rootItems(openItems(snapshot)).filter((item) => item.project_id === insightsProject) : contextItems}
         onOpenTask={openTask}
       />
     </div>

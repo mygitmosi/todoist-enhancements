@@ -79,3 +79,17 @@ describe('collaborator sync variants and deletion', () => {
     expect(next.collaboratorStates).toEqual([]);
   });
 });
+
+describe('workspace completion totals', () => {
+  it('keeps project counts across incremental sync and accepts zero without mixing section counts', () => {
+    const initial = applySync(emptySnapshot(), { full_sync: true, sync_token: 'first', completed_info: [
+      { project_id: 'p', completed_items: 12 }, { project_id: 'p', section_id: 'section', completed_items: 4 },
+    ] });
+    expect(initial.completedProjectCounts).toEqual({ p: 12 });
+    const unchanged = applySync(initial, { full_sync: false, sync_token: 'second' });
+    expect(unchanged.completedProjectCounts).toEqual({ p: 12 });
+    const zero = applySync(unchanged, { full_sync: false, sync_token: 'third', completed_info: [{ project_id: 'p', completed_items: 0 }] });
+    expect(zero.completedProjectCounts).toEqual({ p: 0 });
+    expect(applySync(zero, { full_sync: true, sync_token: 'fourth', completed_info: [] }).completedProjectCounts).toEqual({});
+  });
+});

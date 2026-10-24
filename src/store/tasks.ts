@@ -246,14 +246,19 @@ export const createTasksSlice: Slice<TasksSlice> = (set, get) => ({
       return 'offline';
     }
   },
-  async addComment(itemId, content, attachment = null) {
+  async addComment(itemId, content, attachment = null, notify = []) {
     const text = content.trim();
     if ((!text && !attachment) || !get().snapshot.items[itemId]) return false;
     const tempId = newUuid();
     const mapping = await get().apply(
       [{
         type: 'note_add', uuid: newUuid(), temp_id: tempId,
-        args: { item_id: itemId, content: text, ...(attachment ? { file_attachment: attachment } : {}) },
+        args: {
+          item_id: itemId, content: text,
+          ...(attachment ? { file_attachment: attachment } : {}),
+          /* Who Todoist notifies, checked from a second account (#254). */
+          ...(notify.length > 0 ? { uids_to_notify: notify } : {}),
+        },
       }],
       (snapshot) => ({
         ...snapshot,

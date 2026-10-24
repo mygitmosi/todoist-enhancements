@@ -1,3 +1,4 @@
+import { stepLabel, type Step } from '@/domain/steps';
 import { filterRoots } from '@/domain/filterSelection';
 import { pageClass } from '@/domain/pageLayout';
 import { CalendarSurface } from '@/components/CalendarSurface';
@@ -199,6 +200,7 @@ function SimpleListBody({
      is a range, and "under 15 minutes" is not a number the composer can be
      opened with. */
   const addToGroup = (key: string): (() => void) | undefined => {
+    if (current.group === 'step') return () => onAddTaskTo({ ...addition, labels: [...(addition.labels ?? []), stepLabel(key as Step)] });
     if (current.group === 'none') return () => onAddTaskTo(addition);
     if (current.group === 'project') return () => onAddTaskTo({ ...addition, projectId: key });
     if (current.group === 'label' && key !== 'none') {
@@ -261,7 +263,7 @@ function SimpleListBody({
               viewKey={viewKey}
               pageItems={pool0}
               modes={['list', 'board', 'table', 'calendar']}
-              groups={['none', 'project', 'priority', 'label', 'estimate']}
+              groups={['none', 'project', 'priority', 'label', 'step', 'estimate', 'day', 'month', 'year']}
             />
             <InsightsButton onClick={onInsights} />
             {filter && <FilterMenu filter={filter} onEdit={() => setFilterSheet({ mode: 'edit', filterId: filter.id })} />}
