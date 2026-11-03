@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import {
-  Image as ImageGlyph, Table2,
+  Image as ImageGlyph, Table2, Sun, Sofa, CalendarX, TextWrap, ChevronsLeftRight,
   ArrowLeft, ArrowRight, ArrowUpDown, BarChart3, Bell, Calendar, CalendarClock,
   CalendarDays, Check, ChevronDown, ChevronUp, Clock, Coffee, CornerDownRight,
   ExternalLink, Filter, Flag, Flame, Folder, GripVertical, Group, Inbox,
@@ -8,13 +8,13 @@ import {
   MessageSquare, MoreHorizontal, PanelLeft, PanelTop, Pencil, Plus, Repeat,
   Search, Settings, SlidersHorizontal, Star, Tag, Target, TrendingUp,
   TriangleAlert, Upload, X, Lock, Globe, ListChecks, Bold, Italic, Strikethrough, Heading1, Heading2, Quote, Code, ListOrdered,
-  Volume2, User, Eye, Sparkles, Info, Palette, Paperclip, SquareCheck, SmilePlus, Copy, Trash2, ArrowUp, FileText,
+  RotateCcw, Volume2, User, Eye, Sparkles, Info, Palette, Paperclip, SquareCheck, SmilePlus, Copy, Trash2, ArrowUp, FileText, Download,
   type LucideIcon,
 } from 'lucide-react';
 
 /** Every glyph in the product, named exactly as it was under the old sprite. */
 export type IconName =
-  | 'volume'
+  | 'wrap-text' | 'full-width' | 'sun' | 'sofa' | 'calendar-arrow-right' | 'calendar-x' | 'volume' | 'reset'
   | 'arrow-left' | 'arrow-right' | 'bars' | 'bell' | 'board' | 'calendar'
   | 'caret' | 'caret-up' | 'check' | 'clock' | 'close' | 'coffee' | 'comment'
   | 'dashboard' | 'deadline' | 'drag' | 'edit' | 'export' | 'external'
@@ -22,15 +22,17 @@ export type IconName =
   | 'plus' | 'project' | 'repeat' | 'search' | 'settings' | 'sidebar'
   | 'section' | 'sliders' | 'someday' | 'sort' | 'stack' | 'star' | 'subtask'
   | 'table' | 'tag' | 'tasks' | 'user' | 'eye' | 'sparkles' | 'info' | 'palette'
-  | 'checkbox' | 'paperclip' | 'react' | 'copy' | 'trash' | 'arrow-up' | 'file' | 'image'
+  | 'checkbox' | 'paperclip' | 'react' | 'copy' | 'trash' | 'arrow-up' | 'file' | 'image' | 'download'
   | 'trend' | 'upcoming' | 'warning' | 'week' | 'lock' | 'globe'
   | 'bold' | 'italic' | 'strike' | 'heading1' | 'heading2' | 'quote' | 'code' | 'list-ordered';
 
 /** Lucide (MIT, lucide.dev) — chosen to replace the app's hand-drawn sprite. */
 const ICONS: Record<IconName, LucideIcon> = {
-  volume: Volume2,
+  'wrap-text': TextWrap, 'full-width': ChevronsLeftRight,
+  sun: Sun, sofa: Sofa, 'calendar-arrow-right': Calendar, 'calendar-x': CalendarX, volume: Volume2,
+  reset: RotateCcw,
   table: Table2,
-  checkbox: SquareCheck, paperclip: Paperclip, react: SmilePlus, copy: Copy, trash: Trash2, 'arrow-up': ArrowUp, file: FileText, image: ImageGlyph,
+  checkbox: SquareCheck, paperclip: Paperclip, react: SmilePlus, copy: Copy, trash: Trash2, 'arrow-up': ArrowUp, file: FileText, image: ImageGlyph, download: Download,
   user: User, eye: Eye, sparkles: Sparkles, info: Info, palette: Palette, bold: Bold, italic: Italic, strike: Strikethrough, heading1: Heading1, heading2: Heading2, quote: Quote, code: Code, 'list-ordered': ListOrdered,
   'arrow-left': ArrowLeft,
   'arrow-right': ArrowRight,
@@ -96,6 +98,7 @@ interface IconProps {
 
 export function Icon({ name, size = 'md', className, style, title }: IconProps) {
   const sizeClass = size === 'sm' ? ' ic-sm' : size === 'lg' ? ' ic-lg' : '';
+  if (name === 'calendar-arrow-right') return <svg className={`ic${sizeClass}${className ? ` ${className}` : ''}`} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16 2v4M8 2v4M3 10h18M11 22H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6M14 18h8m-3-3 3 3-3 3" /></svg>;
   const Glyph = ICONS[name];
   return (
     <Glyph

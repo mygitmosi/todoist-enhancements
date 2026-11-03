@@ -1,8 +1,11 @@
+import { useDataSnapshot } from '@/hooks/useDataSnapshot';
+import { useProjectCompletionCounts } from '@/hooks/useProjectCompletionCounts';
+import { isUncompletable } from '@/domain/types';
 import { openItems } from './store/selectors';
 import { useLabelRenames } from './hooks/useLabelRenames';
 import { seesHireNote } from '@/domain/hireNote';
 import { EstimateConversion } from '@/components/overlays/EstimateConversion';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './components/Icon';
 import { Sidebar } from './components/Sidebar';
 import { BulkBar } from './components/BulkBar';
@@ -19,22 +22,26 @@ import { ProjectSheet, type ProjectSheetTarget } from './components/overlays/Pro
 import { Unestimated } from './components/overlays/Unestimated';
 import { ConfirmProvider } from './components/overlays/Confirm';
 import { Overlay } from './components/overlays/Overlay';
+import { IconTooltips } from './components/IconTooltips';
 import { QUICK_ADD, QuickAdd } from './QuickAdd';
 import { WeekView } from './views/WeekView';
 import { SearchView } from './views/SearchView';
 import { UpcomingView } from './views/UpcomingView';
 import { SimpleListView } from './views/SimpleListView';
-import { WorkspaceView } from './views/WorkspaceView';
+const WorkspaceView = lazy(() => import('./views/WorkspaceView').then((module) => ({ default: module.WorkspaceView })));
 import { ProjectView } from './views/ProjectView';
-import { LabelsView } from './views/LabelsView';
-import { FiltersView } from './views/FiltersView';
-import { InsightsView } from './views/InsightsView';
-import { ReviewView } from './views/ReviewView';
-import { SettingsView } from './views/SettingsView';
-import { EisenhowerView } from './views/EisenhowerView';
+const LabelsView = lazy(() => import('./views/LabelsView').then((module) => ({ default: module.LabelsView })));
+const FiltersView = lazy(() => import('./views/FiltersView').then((module) => ({ default: module.FiltersView })));
+const InsightsView = lazy(() => import('./views/InsightsView').then((module) => ({ default: module.InsightsView })));
+const ReviewView = lazy(() => import('./views/ReviewView').then((module) => ({ default: module.ReviewView })));
+const SettingsView = lazy(() => import('./views/SettingsView').then((module) => ({ default: module.SettingsView })));
+const EisenhowerView = lazy(() => import('./views/EisenhowerView').then((module) => ({ default: module.EisenhowerView })));
 import { ConnectView } from './views/ConnectView';
 import { EstimateStorageDialog } from './components/overlays/EstimateStorageDialog';
 import { Walkthrough } from './components/overlays/Walkthrough';
+import { PomodoroFocus } from './components/overlays/PomodoroFocus';
+import { PomodoroAsk } from './components/overlays/PomodoroAsk';
+import { usePomodoro } from './store/pomodoro';
 import { Tour } from './components/overlays/Tour';
 import { InstallPrompt } from './components/overlays/InstallPrompt';
 import { WhatsNew, type WhatsNewScope } from './components/overlays/WhatsNew';
@@ -42,21 +49,24 @@ import { compareVersions, hasChanges, parseChangelog, unseenReleases } from './d
 import { VERSION } from './app-info';
 import { hasOnboarded, shouldAskEstimateStorage } from './domain/onboarding';
 import { useStore } from './store/store';
-import type { Accent, Theme } from './store/prefs';
+import type { Accent, DarkStyle, Theme } from './store/prefs';
 import { ACCENT_TOKENS, accentFamily, backdropGradient, hexToHsl } from './domain/accent';
 import { useT } from './hooks/useT';
 import { useSelectionBlocks } from './hooks/useSelectionBlocks';
 import { useKeyboard } from './hooks/useKeyboard';
 import { useData } from './hooks/useData';
 import { navigate, useRoute, type Route } from './hooks/useRoute';
-import { rootItems } from './store/selectors';
+import { labelRoots, rootItems } from './store/selectors';
 import { detectConflicts } from './domain/conflicts';
 import { placementForPage } from './domain/dnd';
 import { useParentEstimates } from './hooks/useParentEstimates';
-import { bucketOf, hasLabel, somedayItems, upcomingItems, weekItems } from './domain/views';
+import { bucketOf, monthItems, somedayItems, upcomingItems, weekItems } from './domain/views';
 import { effectiveEstimate } from './domain/estimates';
 import type { Item } from './domain/types';
 import type { TranslationKey } from './i18n';
+import { useUpdateReady } from './lib/appUpdate';
+import { usePhone } from './hooks/usePhone';
+import { UpdateCard } from './components/UpdateCard';
 
 export function App() {
   useLabelRenames();
@@ -68,6 +78,7 @@ export function App() {
   const locale = useStore((s) => s.prefs.locale);
   const homepage = useStore((s) => s.prefs.homepage);
   const theme = useStore((s) => s.prefs.theme);
+  const darkStyle = useStore((s) => s.prefs.darkStyle);
   const accent = useStore((s) => s.prefs.accent);
   const accentCustom = useStore((s) => s.prefs.accentCustom);
   const taskChips = useStore((s) => s.prefs.taskChips);
@@ -90,6 +101,8 @@ export function App() {
   const toasts = useStore((s) => s.toasts);
   const dismissToast = useStore((s) => s.dismissToast);
   const syncState = useStore((s) => s.syncState);
+  const settingsChecked = useStore((s) => s.settingsChecked);
+  const settingsUnavailable = useStore((s) => s.settingsUnavailable);
   const whatsNewOn = useStore((s) => s.prefs.whatsNew);
   const seenVersion = useStore((s) => s.prefs.seenVersion);
   const setPrefs = useStore((s) => s.setPrefs);
@@ -185,7 +198,7 @@ export function App() {
   const [scheme, setScheme] = useState<'light' | 'dark'>(
     () => document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light',
   );
-  useEffect(() => applyTheme(theme, setScheme), [theme]);
+  useEffect(() => applyTheme(theme, darkStyle, setScheme), [theme, darkStyle]);
   /* Also on `scheme`: a custom accent is two families, and which one is
      written depends on the scheme that ended up resolved. */
   useEffect(() => applyAccent(accent, accentCustom), [accent, accentCustom, scheme]);
@@ -238,7 +251,7 @@ export function App() {
     /* The render that closes the tour still carries the demo's user, put back
        by the time this runs: the store is asked, not the render (#212). */
     const liveUserId = useStore.getState().snapshot.user?.id;
-    if (!QUICK_ADD && !tourOpen && ready && (connected || demo) && !hasOnboarded(liveUserId) && !onboardingStarted) {
+    if (!QUICK_ADD && !tourOpen && ready && (connected || demo) && (demo || settingsChecked) && !hasOnboarded(liveUserId) && !onboardingStarted) {
       setOnboardingStarted(true);
       /* Somebody meeting the app for the first time is getting the tour; a
          list of what changed since a version they never used is not news. */
@@ -246,7 +259,7 @@ export function App() {
       navigate('week');
       setWalkthrough(true);
     }
-  }, [ready, connected, demo, userId, tourOpen, onboardingStarted, setPrefs, setWalkthrough]);
+  }, [ready, connected, demo, settingsChecked, userId, tourOpen, onboardingStarted, setPrefs, setWalkthrough]);
 
   /* An account set up before 2.0 is asked once for the choices that came with
      it (the look, the sidebar, what a task shows). Not the demo, which only
@@ -257,11 +270,11 @@ export function App() {
        has the demo's user and the tour's settings, which looked like an account
        that had never seen the Setup (#212). */
     const live = useStore.getState();
-    if (QUICK_ADD || tourOpen || !ready || !connected || demo || !settled || !hasOnboarded(live.snapshot.user?.id)) return;
+    if (QUICK_ADD || tourOpen || !ready || !connected || demo || !settingsChecked || !hasOnboarded(live.snapshot.user?.id)) return;
     if (live.prefs.setupDone || setupAsked.current) return;
     setupAsked.current = true;
     setWalkthrough(true);
-  }, [ready, connected, demo, settled, userId, tourOpen, setupDone, setWalkthrough]);
+  }, [ready, connected, demo, settingsChecked, userId, tourOpen, setupDone, setWalkthrough]);
 
   /* The first sync after loading is what brings the account's settings — and
      with them the version already seen on another device. Asked before it,
@@ -293,6 +306,27 @@ export function App() {
     return () => { cancelled = true; };
   }, [ready, connected, demo, settled, userId, tourOpen, walkthroughOpen, whatsNew,
     seenVersion, whatsNewOn, setPrefs, setupDone]);
+
+  /* The task the full screen carries is edited there: the window behind it would be a second editor of the same task. */
+  const pomodoroFullscreen = usePomodoro((s) => s.fullscreen);
+  useEffect(() => { if (pomodoroFullscreen) setOpenTaskId(null); }, [pomodoroFullscreen]);
+  useEffect(() => {
+    const open = (event: Event) => { const id = (event as CustomEvent<string>).detail; if (id) setOpenTaskId(id); };
+    window.addEventListener('pomodoro:open-task', open);
+    return () => window.removeEventListener('pomodoro:open-task', open);
+  }, []);
+  /* A timer left by another account is not this one's. */
+  useEffect(() => { if (ready && userId) usePomodoro.getState().claim(String(userId)); }, [ready, userId]);
+
+  /* The Pomodoro arrived after the setup: whoever already went through it is
+     asked how it should open, once, after What's new. */
+  const pomodoroAsked = useStore((s) => s.prefs.pomodoroAsked);
+  const [askPomodoro, setAskPomodoro] = useState(false);
+  useEffect(() => {
+    if (QUICK_ADD || demo || !ready || !connected || !settled || !hasOnboarded(userId)) return;
+    if (tourOpen || walkthroughOpen || whatsNew || !setupDone || seenVersion !== VERSION) return;
+    if (!pomodoroAsked) setAskPomodoro(true);
+  }, [ready, connected, demo, settled, userId, tourOpen, walkthroughOpen, whatsNew, setupDone, seenVersion, pomodoroAsked]);
 
   /* A note for Todoist's own people, once. Put up only when nothing else has
      the page — no tour, no first run, no What's new — so it is not lost behind
@@ -353,7 +387,7 @@ export function App() {
      neutral screen rather than the views, which the Setup would then cover a
      few seconds later (#7). An account this browser already knows as set up
      goes straight in; a failed sync shows the app and its error. */
-  const setupUnknown = !demo && !tourOpen && !settled && !walkthroughOpen && syncState !== 'error'
+  const setupUnknown = !demo && !tourOpen && !settingsChecked && !settingsUnavailable && !walkthroughOpen && syncState !== 'error' && syncState !== 'offline'
     && (!userId || !hasOnboarded(userId) || !setupDone);
   if (setupUnknown) {
     return (
@@ -366,6 +400,7 @@ export function App() {
 
   return (
     <>
+      <IconTooltips />
       <ConfirmProvider>
         <DragProvider>
           <AppShell
@@ -401,6 +436,8 @@ export function App() {
       <EstimateStorageDialog onConvert={(target) => setConversionRequest((previous) => ({ target, request: previous.request + 1 }))} open={storageOpen && !demo && !tourOpen && !walkthroughOpen && !whatsNew} onClose={() => { setStorageDismissed(userId ?? null); }} />
       <EstimateConversion target={conversionRequest.target} openRequest={conversionRequest.request} hideTrigger />
       <ShareSheet projectId={shareProject} onClose={() => setShareProject(null)} />
+      <PomodoroFocus />
+      <PomodoroAsk open={askPomodoro && !pomodoroAsked} onClose={() => setAskPomodoro(false)} />
       <Walkthrough
         open={walkthroughOpen}
         onDone={() => setWalkthrough(false)}
@@ -543,15 +580,18 @@ export interface ComposerPlacement {
  * a moment later, once preferences have loaded out of IndexedDB.
  */
 function applyTheme(
-  theme: Theme, onResolved: (scheme: 'light' | 'dark') => void,
+  theme: Theme, darkStyle: DarkStyle, onResolved: (scheme: 'light' | 'dark') => void,
 ): (() => void) | undefined {
   const root = document.documentElement;
   const media = window.matchMedia('(prefers-color-scheme: dark)');
   const apply = () => {
     const resolved = theme === 'system' ? (media.matches ? 'dark' : 'light') : theme;
     root.dataset.theme = resolved;
+    /* Pure black is a way of being dark, so it only exists while the scheme is dark (#346). */
+    if (resolved === 'dark' && darkStyle === 'amoled') root.dataset.dark = 'amoled';
+    else delete root.dataset.dark;
     onResolved(resolved);
-    try { localStorage.setItem('theme', theme); } catch { /* storage may be blocked */ }
+    try { localStorage.setItem('theme', theme); localStorage.setItem('darkStyle', darkStyle); } catch { /* storage may be blocked */ }
     paintBrowserChrome();
   };
   apply();
@@ -584,6 +624,8 @@ function applyAccent(accent: Accent, custom: string): void {
     for (const [token, value] of Object.entries(accentFamily(custom, scheme))) {
       root.style.setProperty(`--${token}`, value);
     }
+    /* The sidebar is black in AMOLED, whatever the custom accent would tint it. */
+    if (root.dataset.dark === 'amoled') root.style.setProperty('--sidebar', '#000');
   }
 
   /* The coloured background is drawn from whatever `--accent` ended up being,
@@ -620,13 +662,15 @@ function applyAccent(accent: Accent, custom: string): void {
 function paintBrowserChrome(): void {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (!meta) return;
-  const accent = getComputedStyle(document.documentElement)
-    .getPropertyValue('--accent').trim();
+  /* Pure black blends the status bar into the page; otherwise it wears the accent. */
+  const accent = document.documentElement.dataset.dark === 'amoled'
+    ? '#000000'
+    : getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
   if (accent) meta.setAttribute('content', accent);
 }
 
 /** The pages that list tasks to work through, which is where "I have time" is offered (#159). */
-const TIME_PAGES = new Set<Route['view']>(['week', 'today', 'project', 'label', 'inbox', 'someday']);
+const TIME_PAGES = new Set<Route['view']>(['week', 'today', 'project', 'label', 'inbox', 'month', 'someday']);
 
 function AppShell({
   route, openTaskId, setOpenTaskId, composerOpen, setComposerOpen,
@@ -638,14 +682,24 @@ function AppShell({
 }: ShellProps) {
   const { t } = useT();
   const { snapshot, items, childrenOf } = useData(route.view === 'project' ? `project:${route.id}` : route.view === 'label' ? `label:${route.id}` : route.view === 'filter' ? `filter:${route.id}` : route.view);
+  const completedProjectCounts = useProjectCompletionCounts(snapshot);
+  const projectProgressCounts = useMemo(() => {
+    const open: Record<string, number> = {};
+    for (const item of openItems(snapshot)) {
+      if (!isUncompletable(item)) open[item.project_id] = (open[item.project_id] ?? 0) + 1;
+    }
+    return { open, completed: completedProjectCounts };
+  }, [snapshot, completedProjectCounts]);
   const conflictSettings = useStore((s) => s.prefs.conflicts);
   const demo = useStore((s) => s.demo);
+  const updateReady = useUpdateReady();
+  const phone = usePhone();
   const sidebarCollapsed = useStore((s) => s.prefs.sidebarCollapsed);
   const density = useStore((s) => s.prefs.density);
   const clearSelection = useStore((s) => s.clearSelection);
 
   const roots = useMemo(() => rootItems(items), [items]);
-  const snapshotForBell = useStore((s) => s.snapshot);
+  const snapshotForBell = useDataSnapshot();
   const conflictCount = useMemo(
     () => detectConflicts(roots, childrenOf, conflictSettings).length + unreadCount(snapshotForBell),
     [roots, childrenOf, conflictSettings, snapshotForBell],
@@ -663,7 +717,7 @@ function AppShell({
       }
       case 'label':
         return {
-          contextItems: route.id ? roots.filter((i) => hasLabel(i, route.id!)) : [],
+          contextItems: route.id ? labelRoots(items, route.id, snapshot) : [],
           contextLabel: route.id ?? '',
         };
       case 'week':
@@ -687,6 +741,8 @@ function AppShell({
         return { contextItems: upcomingItems(roots), contextLabel: t('nav.upcoming') };
       case 'review':
         return { contextItems: weekItems(roots), contextLabel: t('nav.review') };
+      case 'month':
+        return { contextItems: monthItems(roots), contextLabel: t('nav.month') };
       case 'someday':
         return { contextItems: somedayItems(roots), contextLabel: t('nav.someday') };
       case 'inbox': {
@@ -701,7 +757,7 @@ function AppShell({
       default:
         return { contextItems: roots, contextLabel: t(`nav.${route.view}` as TranslationKey) };
     }
-  }, [route, roots, snapshot.projects, snapshot.user?.inbox_project_id, t]);
+  }, [route, roots, items, snapshot, t]);
 
   const unestimatedItems = useMemo(
     () => contextItems.filter((i) => effectiveEstimate(i, childrenOf).minutes === null),
@@ -752,33 +808,40 @@ function AppShell({
    * intersection observer answers without running anything while nothing is
    * happening.
    */
-  const [titleShown, setTitleShown] = useState(false);
+  const mobileTitleRef = useRef<HTMLElement>(null);
   useEffect(() => {
     const screen = document.querySelector('.screen.active');
-    const heading = screen?.querySelector('.ptitle');
-    if (!screen || !heading) { setTitleShown(false); return; }
+    mobileTitleRef.current?.classList.remove('shown');
+    if (!screen) return;
     const watch = new IntersectionObserver(
-      ([entry]) => setTitleShown(!entry.isIntersecting),
+      ([entry]) => mobileTitleRef.current?.classList.toggle('shown', !entry.isIntersecting),
       { root: screen, threshold: 0 },
     );
-    watch.observe(heading);
-    return () => watch.disconnect();
+    const attach = () => {
+      const heading = screen.querySelector('.ptitle');
+      if (!heading) return false;
+      watch.observe(heading);
+      return true;
+    };
+    const pending = new MutationObserver(() => { if (attach()) pending.disconnect(); });
+    if (!attach()) pending.observe(screen, { childList: true, subtree: true });
+    return () => { pending.disconnect(); watch.disconnect(); };
     // A new page brings a new heading to watch.
   }, [route.view, route.id]);
 
   /* Whether the page has been scrolled at all: the bar on a phone is clear
      at the top of a page and blurs once something goes under it (#291). */
-  const [barScrolled, setBarScrolled] = useState(false);
+  const mobileTopRef = useRef<HTMLElement>(null);
   useEffect(() => {
     const screen = document.querySelector('.screen.active');
-    if (!screen) { setBarScrolled(false); return; }
-    const sync = () => setBarScrolled(screen.scrollTop > 4);
+    if (!screen) { mobileTopRef.current?.classList.remove('scrolled'); return; }
+    const sync = () => mobileTopRef.current?.classList.toggle('scrolled', screen.scrollTop > 4);
     sync();
     screen.addEventListener('scroll', sync, { passive: true });
     return () => screen.removeEventListener('scroll', sync);
   }, [route.view, route.id]);
 
-  const openTask = (id: string) => setOpenTaskId(id);
+  const openTask = useCallback((id: string) => setOpenTaskId(id), [setOpenTaskId]);
   const addTask = () => {
     setPlacement(placementForPage(route, snapshot.user?.inbox_project_id));
     setComposerOpen(true);
@@ -794,69 +857,27 @@ function AppShell({
     openComposer: addTask,
     openShortcuts: () => setShortcutsOpen(true),
   });
-  const addTaskTo = (next: ComposerPlacement) => {
+  const addTaskTo = useCallback((next: ComposerPlacement) => {
     setPlacement(next);
     setComposerOpen(true);
-  };
-  const openInsights = () => setInsightsOpen(true);
-  const openUnestimated = (tasks?: Item[]) => {
+  }, [setPlacement, setComposerOpen]);
+  const openInsights = useCallback(() => setInsightsOpen(true), [setInsightsOpen]);
+  const openUnestimated = useCallback((tasks?: Item[]) => {
     // A click hands its event to whatever it calls: only a list is a list.
     setUnestimatedFor(Array.isArray(tasks) ? tasks : null);
     setUnestimatedOpen(true);
-  };
-  const viewProps = {
+  }, [setUnestimatedOpen]);
+  const viewProps = useMemo(() => ({
     onOpen: openTask,
     onInsights: openInsights,
     onUnestimated: openUnestimated,
     onAddTaskTo: addTaskTo,
     onProjectSheet: setProjectSheet,
-  };
+    projectProgressCounts,
+  }), [openTask, openInsights, openUnestimated, addTaskTo, setProjectSheet, projectProgressCounts]);
 
-  const insightsProject = route.view === 'project' ? route.id : route.view === 'inbox' ? snapshot.user?.inbox_project_id : undefined;
-  return (
-    <div
-      className={`app${demo ? ' demo' : ''}${sidebarCollapsed ? ' collapsed' : ''}`}
-      data-density={density}
-    >
-      <Sidebar
-        route={route}
-        onAddTask={addTask}
-        onSearch={() => setSearchOpen(true)}
-        onIssues={() => setIssuesOpen(true)}
-        onProjectSheet={setProjectSheet}
-        issuesCount={conflictCount}
-      />
-
-      <main className="workspace">
-        <header className={`mobile-top${barScrolled ? ' scrolled' : ''}`}>
-          {/* This opened My week, whatever it said. It opens the navigation. */}
-          <button
-            className="iconbtn"
-            aria-label={t('nav.openNavigation')}
-            onClick={() => setBrowseOpen(true)}
-          >
-            <Icon name="menu" />
-          </button>
-          {/* The page names itself twice on a phone — once in this bar and once
-              as the heading under it — which costs a row of a short screen to
-              say nothing. The bar holds the name back until the heading has
-              scrolled away, which is the same title arriving where it is
-              needed rather than a second one standing beside it. */}
-          <strong className={titleShown ? ' shown' : ''}>{contextLabel}</strong>
-          <span className="mobile-top-end">
-            {/* The demo said so in a banner that cost a row of a short screen;
-                it is a chip now, and the way out is where it always was, in
-                the navigation (#291). */}
-            {demo && (
-              <button className="demochip" onClick={() => setBrowseOpen(true)}>{t('demo.chip')}</button>
-            )}
-            <button className="iconbtn" aria-label={t('nav.search')} onClick={() => setSearchOpen(true)}>
-              <Icon name="search" />
-            </button>
-          </span>
-        </header>
-
-        <section className="screen active">
+  // Overlay state belongs to the shell; keep the unchanged page subtree intact.
+  const pageContent = useMemo(() => (<Suspense fallback={<p role="status">{t('common.loading')}</p>}>
           {route.view === 'week' && (
             <WeekView {...viewProps} scope="all" />
           )}
@@ -864,6 +885,7 @@ function AppShell({
           {route.view === 'today' && <WeekView {...viewProps} scope="today" />}
           {route.view === 'search' && <SearchView query={route.query ?? ''} onOpen={openTask} />}
           {route.view === 'upcoming' && <UpcomingView {...viewProps} />}
+          {route.view === 'month' && <SimpleListView kind="month" {...viewProps} />}
           {route.view === 'someday' && <SimpleListView kind="someday" {...viewProps} />}
           {/* The Inbox is a project like the others, with sections of its own
              : it is drawn by the project page, which is what shows them. */}
@@ -887,6 +909,58 @@ function AppShell({
           {route.view === 'review' && <ReviewView onOpen={openTask} />}
           {route.view === 'insights' && <InsightsView onOpen={openTask} />}
           {route.view === 'settings' && <SettingsView />}
+  </Suspense>), [route.view, route.id, route.sectionId, route.query, snapshot.user?.id,
+    snapshot.user?.inbox_project_id, viewProps, openTask, openUnestimated, t]);
+
+  const insightsProject = route.view === 'project' ? route.id : route.view === 'inbox' ? snapshot.user?.inbox_project_id : undefined;
+  return (
+    <div
+      className={`app${demo ? ' demo' : ''}${sidebarCollapsed ? ' collapsed' : ''}`}
+      data-density={density}
+    >
+      <Sidebar
+        route={route}
+        projectProgressCounts={projectProgressCounts}
+        onAddTask={addTask}
+        onSearch={() => setSearchOpen(true)}
+        onIssues={() => setIssuesOpen(true)}
+        onProjectSheet={setProjectSheet}
+        issuesCount={conflictCount}
+      />
+
+      <main className="workspace">
+        <header ref={mobileTopRef} className="mobile-top">
+          {/* This opened My week, whatever it said. It opens the navigation. */}
+          <button
+            className="iconbtn hasdot"
+            aria-label={t('nav.openNavigation')}
+            onClick={() => setBrowseOpen(true)}
+          >
+            <Icon name="menu" />
+            {/* A new version waits at the foot of the navigation: the dot says where to look. */}
+            {updateReady && <span className="belldot" aria-hidden="true" />}
+          </button>
+          {/* The page names itself twice on a phone — once in this bar and once
+              as the heading under it — which costs a row of a short screen to
+              say nothing. The bar holds the name back until the heading has
+              scrolled away, which is the same title arriving where it is
+              needed rather than a second one standing beside it. */}
+          <strong ref={mobileTitleRef}>{contextLabel}</strong>
+          <span className="mobile-top-end">
+            {/* The demo said so in a banner that cost a row of a short screen;
+                it is a chip now, and the way out is where it always was, in
+                the navigation (#291). */}
+            {demo && (
+              <button className="demochip" onClick={() => setBrowseOpen(true)}>{t('demo.chip')}</button>
+            )}
+            <button className="iconbtn" aria-label={t('nav.search')} onClick={() => setSearchOpen(true)}>
+              <Icon name="search" />
+            </button>
+          </span>
+        </header>
+
+        <section className="screen active">
+          {pageContent}
         </section>
 
         <nav className="mobile-nav" aria-label={t('nav.projects')}>
@@ -977,6 +1051,7 @@ function AppShell({
           </div>
           <Sidebar
             route={route}
+            projectProgressCounts={projectProgressCounts}
             variant="sheet"
             onAddTask={() => { setBrowseOpen(false); addTask(); }}
             onSearch={() => { setBrowseOpen(false); setSearchOpen(true); }}
@@ -993,6 +1068,8 @@ function AppShell({
         onOpen={openTask}
       />
       <BulkBar />
+      {/* Where the sidebar's line cannot be seen, the new version is announced on its own. */}
+      {(phone || sidebarCollapsed) && <UpdateCard floating />}
       <InstallPrompt />
 
       <InsightsPanel

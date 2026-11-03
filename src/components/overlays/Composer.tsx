@@ -1,3 +1,4 @@
+import { useDataSnapshot } from '@/hooks/useDataSnapshot';
 import { usePhone } from '@/hooks/usePhone';
 import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 import { uploadAttachment } from '@/api/uploads';
@@ -21,7 +22,9 @@ import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { formatDuration } from '@/domain/estimates';
 import { markerStyle } from '@/domain/colors';
-import { toTodoistPriority, type DisplayPriority } from '@/domain/types';
+import { SYSTEM_LABELS, toTodoistPriority, weekLabel, withoutHorizons, type DisplayPriority } from '@/domain/types';
+import { toApiDate } from '@/domain/dates';
+import { taskShortcuts } from '../DatePicker';
 import {
   parseShorthand, type HighlightKind, type Shorthand, type TextRange,
 } from '@/domain/shorthand';
@@ -44,6 +47,8 @@ interface ComposerProps {
   defaultResponsibleUid?: string | null;
 }
 
+const allTagsHas = (tags: string[], name: string): boolean => tags.some((tag) => tag.toLowerCase() === name.toLowerCase());
+
 /**
  * Adding a task.
  *
@@ -54,8 +59,8 @@ interface ComposerProps {
 export function Composer({
   open, onClose, defaultProjectId, defaultSectionId, defaultDate, defaultMinutes, defaultLabels, defaultPriority, defaultResponsibleUid,
 }: ComposerProps) {
-  const { t } = useT();
-  const snapshot = useStore((s) => s.snapshot);
+  const { t, locale } = useT();
+  const snapshot = useDataSnapshot();
   const createTaskId = useStore((s) => s.createTaskId);
   const addComment = useStore((s) => s.addComment);
   const createTasks = useStore((s) => s.createTasks);
@@ -156,7 +161,7 @@ export function Composer({
     setSubtaskRefusals({});
     setDraftRefusals([]);
     setRefusals([]);
-    setProjectId(defaultProjectId || inboxId);
+    setProjectId(defaultProjectId && snapshot.projects[defaultProjectId] && !snapshot.projects[defaultProjectId].is_deleted ? defaultProjectId : inboxId);
     setSectionId(defaultSectionId ?? '');
     setDate(defaultDate ?? '');
     setRecurrence(null);
@@ -197,6 +202,10 @@ export function Composer({
    * instead, so only the word as it stands is a tag.
    */
   const sameTag = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+  /* No day, but a horizon picked: the date chip says so in words. */
+  const horizonText = date || recurrence ? null
+    : allTagsHas(labels, weekLabel()) ? t('review.to.anytime')
+    : allTagsHas(labels, SYSTEM_LABELS.month) ? t('review.to.month') : null;
   const allTags = parsed.labels.reduce(
     (tags, read) => (tags.some((tag) => sameTag(tag, read)) ? tags : [...tags, read]),
     labels,
@@ -225,7 +234,7 @@ export function Composer({
   /* The default the project field falls back to, which is where a refused
      `#project` leaves it: the composer was opened on somewhere, and "nowhere"
      is not a project a task can be created in. */
-  const fallbackProject = defaultProjectId || inboxId;
+  const fallbackProject = defaultProjectId && snapshot.projects[defaultProjectId] && !snapshot.projects[defaultProjectId].is_deleted ? defaultProjectId : inboxId;
 
   /**
    * A reading turned down takes its value back out of the field it filled.
@@ -430,7 +439,7 @@ export function Composer({
     /* `||`, not `??`: an unset picker is an empty string, not null, and an
        empty string sent as project_id is what Todoist answers "invalid
        argument value" to — which is a task that never gets created. */
-    const targetProject = projectId || inboxId;
+    const targetProject = projectId && snapshot.projects[projectId] && !snapshot.projects[projectId].is_deleted ? projectId : inboxId;
     const dueDate = date;
     const repeat = recurrence;
     const pending = subtaskDraft.trim();
@@ -577,8 +586,16 @@ export function Composer({
             variant="chip"
             withTime
             value={date}
-            onChange={(next) => { setDate(next); setRecurrence(null); }}
+            onChange={(next) => { setDate(next); setRecurrence(null); if (next) setLabels(withoutHorizons); }}
             label={t('composer.date')}
+            placeholder={horizonText ?? undefined}
+            shortcuts={taskShortcuts(t, locale, {
+              day: (day) => { setDate(toApiDate(day)); setRecurrence(null); setLabels(withoutHorizons); },
+              today: () => { setDate(toApiDate(new Date())); setRecurrence(null); setLabels(withoutHorizons); },
+              anytime: () => { setDate(''); setRecurrence(null); setLabels((prev) => [...withoutHorizons(prev), weekLabel()]); },
+              month: () => { setDate(''); setRecurrence(null); setLabels((prev) => [...withoutHorizons(prev), SYSTEM_LABELS.month]); },
+              someday: () => { setDate(''); setRecurrence(null); setLabels(withoutHorizons); },
+            })}
             recurrence={recurrence}
             onRecurrence={setRecurrence}
             onClearRecurrence={() => setRecurrence(null)}

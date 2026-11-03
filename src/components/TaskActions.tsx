@@ -1,3 +1,6 @@
+import { TodoistMark } from './TodoistMark';
+import { addDays, nextMonday, nextSaturday, startOfDay } from 'date-fns';
+import { confirmUndatedMove } from '@/domain/confirmUndatedMove';
 import { AssigneeField } from './AssigneeField';
 import { assignees } from '@/domain/sharing';
 import { useProjectPeople } from '@/hooks/useProjectPeople';
@@ -16,13 +19,13 @@ import { copyText, isTemporaryId, todoistTaskUrl } from '@/api/links';
 import { ROW_PRESS_EVENT, type RowMenu } from '@/domain/gestures';
 import { useStore } from '@/store/store';
 import { useConfirm } from './overlays/Confirm';
-import { effectiveEstimate, formatDuration } from '@/domain/estimates';
-import { EstimateField } from './EstimateField';
+import { effectiveEstimate } from '@/domain/estimates';
+import { DurationChooser } from './DurationField';
 import { DatePicker, shortDay, taskShortcuts, type RecurrenceReading } from './DatePicker';
 import { nextOccurrence } from '@/domain/nextOccurrence';
-import { formatDayOrName, formatTime, toApiDate } from '@/domain/dates';
+import { dueDate, isOverdue, formatDayOrName, formatTime, toApiDate } from '@/domain/dates';
 import { dueForDate } from '@/domain/recurrence';
-import { weekLabel } from '@/domain/types';
+import { withoutHorizons } from '@/domain/types';
 import { markerStyle } from '@/domain/colors';
 import { dropMutation, moveArgs, type DropTarget } from '@/domain/dnd';
 import { updateItem, moveItem } from '@/api/commands';
@@ -139,16 +142,6 @@ function useMenuPlacement(menu: string, anchorRef: React.RefObject<HTMLElement |
   return { ref, className: ' floating' };
 }
 
-/**
- * The durations an estimate usually is.
- *
- * Fifteen minutes to two hours, which is the whole of what a task on a week's
- * plan realistically takes — anything longer is a project, and the app says so
- * elsewhere. Offered as buttons because typing "45" on a phone means opening a
- * keyboard over half the screen to press two keys.
- */
-const QUICK_ESTIMATES = [5, 15, 30, 45, 60, 90, 120];
-
 interface TaskActionsProps {
   item: Item;
   contextOnly?: boolean;
@@ -172,7 +165,10 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
   const removeTask = useStore((s) => s.removeTask);
   const skipOccurrence = useStore((s) => s.skipOccurrence);
   const confirm = useConfirm();
-  const snapshot = useStore((s) => s.snapshot);
+  /* Narrow reads: a row's actions follow the lists they offer, not every change in the account (#364). */
+  const allProjects = useStore((s) => s.snapshot.projects);
+  const allSections = useStore((s) => s.snapshot.sections);
+  const hasPeople = useStore((s) => assignees(s.snapshot, item.project_id).length > 0);
   const apply = useStore((s) => s.apply);
   const setRecurrence = useStore((s) => s.setRecurrence);
   const toast = useStore((s) => s.toast);
@@ -197,7 +193,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
   const phone = usePhoneBehaviour();
   /* Only where a menu hangs off its row. On a phone it is a sheet along the
      bottom edge, placed by the stylesheet, with nothing to flip. */
-  const placement = useMenuPlacement(phone || (menu === 'estimate' && !contextPoint) ? 'none' : menu, ref, contextPoint);
+  const placement = useMenuPlacement(phone ? 'none' : menu, ref, contextPoint);
 
   useEffect(() => { if (menu !== 'move') { setDest(''); setDestPick(-1); } }, [menu]);
 
@@ -269,10 +265,10 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
   /* Moving a task means moving it somewhere it can live. Where it sits in time
      is the schedule menu's business, which is the button next to this one. */
   const projects = useMemo(
-    () => Object.values(snapshot.projects)
+    () => Object.values(allProjects)
       .filter((p) => !p.is_deleted && !p.is_archived && !p.is_folder)
       .sort(byChildOrder),
-    [snapshot.projects],
+    [allProjects],
   );
 
   /**
@@ -283,7 +279,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
    * drag down the page into the right group.
    */
   const destinations = useMemo<Destination[]>(() => {
-    const sections = Object.values(snapshot.sections)
+    const sections = Object.values(allSections)
       .filter((s) => !s.is_deleted && !s.is_archived)
       .sort(bySectionOrder);
 
@@ -313,7 +309,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
           current: section.id === item.section_id,
         })),
     ]);
-  }, [projects, snapshot.sections, item.project_id, item.section_id, t]);
+  }, [projects, allSections, item.project_id, item.section_id, t]);
 
   /* Typing narrows the list, on the section's name or on the project's, so
      "rev" finds "In review" wherever it lives. */
@@ -357,6 +353,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
    */
   async function moveTo(target: DropTarget, destination: string) {
     setMenu('none');
+    if (!await confirmUndatedMove([item], target, locale)) return;
     const mutation = dropMutation(item, target);
     if (!mutation) return;
 
@@ -409,7 +406,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
     const before = { due: item.due, labels: item.labels };
     const update = {
       due: dueForDate(item.due, iso, 'en', { dropTime: how?.clearTime }),
-      labels: item.labels.filter((l) => l.toLowerCase() !== weekLabel().toLowerCase()),
+      labels: withoutHorizons(item.labels),
     };
     const patch = (fields: Record<string, unknown>) => (snap: Snapshot): Snapshot => ({
       ...snap,
@@ -447,7 +444,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
 
     /* A real date and the week tag on the same task is the contradiction the
        app reports rather than resolves, and a rule is a date in that sense. */
-    const labels = item.labels.filter((l) => l.toLowerCase() !== weekLabel().toLowerCase());
+    const labels = withoutHorizons(item.labels);
     if (labels.length !== item.labels.length) void updateTask(item.id, { labels });
 
     void setRecurrence(item.id, repeat).then(() => {
@@ -477,11 +474,14 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
     });
   }
 
-  function schedule(date: Date | null) {
+  async function schedule(date: Date | null) {
+    if (!date && !await confirmUndatedMove([item], { kind: 'someday' }, locale, true)) return;
     setMenu('none');
-    void updateTask(item.id, {
-      due: date ? dueForDate(item.due, toApiDate(date)) : null,
-    });
+    if (date) { commitDate(toApiDate(date)); return; }
+    const before = { due: item.due };
+    const patch = (due: Item['due']) => (snap: Snapshot): Snapshot => ({ ...snap, items: { ...snap.items, [item.id]: { ...snap.items[item.id], due } } });
+    await apply([updateItem(item.id, { due: null })], patch(null));
+    toast(t('task.removeDate'), () => { void apply([updateItem(item.id, before)], patch(before.due)); });
   }
 
   /* Setting an estimate is a field, not a menu, and on a phone it belongs in
@@ -494,35 +494,17 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
 
   const back = contextPoint !== null || phone ? <button type="button" className="opt task-menu-back" onClick={() => setMenu('more')}><span><Icon name="arrow-left" size="sm" />{t('task.menuBack')}</span></button> : null;
   const estimateSheet = (
-    <div className={`popover rowmenu estimatesheet${phone ? ' asSheet' : placement.className}`} role="menu" ref={placement.ref}>
+    <div className={`popover rowmenu estimatesheet durationbody${phone ? ' asSheet' : placement.className}`} role="menu" ref={placement.ref}>
       {back}
       {/* Most estimates are one of these, and on a phone typing "45" means
           opening a keyboard over half the screen to press two keys. The field
           stays underneath for the ones that are not. */}
-      <div className="estquick">
-        {QUICK_ESTIMATES.map((quick) => (
-          <button
-            key={quick}
-            className={`estchip${minutes === quick && !computed ? ' on' : ''}`}
-            onClick={() => setEstimate(quick)}
-          >
-            {formatDuration(quick, locale)}
-          </button>
-        ))}
-        {minutes !== null && !computed && (
-          <button className="estchip clear" onClick={() => setEstimate(null)}>
-            <Icon name="close" size="sm" />
-            {t('bulk.clear')}
-          </button>
-        )}
-      </div>
-      <EstimateField
-        autoFocus
-        cancelOnBlurTarget=".task-menu-back, .estchip"
+      <DurationChooser
         minutes={computed ? null : minutes}
-        placeholder={t('task.estimatePlaceholder')}
+        cancelOnBlurTarget=".task-menu-back, .estchip"
+        onChoose={setEstimate}
+        onType={setEstimate}
         onCancel={() => setMenu('none')}
-        onCommit={setEstimate}
       />
     </div>
   );
@@ -542,7 +524,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
         }} />
       </div>}
 
-      {(phone || contextPoint !== null) && menu === 'estimate' && estimateSheet}
+      {menu === 'estimate' && estimateSheet}
         {menu === 'schedule' && (
           <div
             className={`popover rowmenu schedulemenu${phone ? ' asSheet' : placement.className}`}
@@ -569,6 +551,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
                 today: () => void moveTo({ kind: 'today' }, t('common.today')),
                 day: (date) => commitDate(toApiDate(date)),
                 anytime: () => void moveTo({ kind: 'anytime' }, t('nav.week')),
+                month: () => void moveTo({ kind: 'month' }, t('nav.month')),
                 someday: () => void moveTo({ kind: 'someday' }, t('nav.someday')),
               })}
               footer={(item.due?.is_recurring || item.due) ? (
@@ -680,25 +663,43 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
           >
             <button className="opt" onClick={() => { setMenu('none'); onOpen(item.id); }}>
               <span><Icon name="edit" size="sm" /> {t('task.edit')}</span>
-            </button>
+            </button><hr />
             {/* On a phone this sheet is what holding the row opens, and it has
                 to be the whole of what hovering one would have shown — the
                 swipe tray is the shortcut to the three most-used of these, not
                 the only way to reach them. */}
             {(phone || contextPoint !== null) && (
               <>
-                <button className="opt" onClick={() => setMenu('schedule')}>
-                  <span><Icon name="calendar" size="sm" /> {t('task.schedule')}</span>
-                </button>
-                <button className="opt" onClick={() => setMenu('move')}>
-                  <span><Icon name="project" size="sm" /> {t('task.moveToProject')}</span>
-                </button>
-                <button className="opt" onClick={() => setMenu('priority')}>
-                  <span><Icon name="flag" size="sm" /> {t('filter.priorities')}</span>
-                </button>
+                <div className="task-quick-label">{t('task.schedule')}</div>
+                <div className="task-date-shortcuts" role="group" aria-label={t('task.schedule')}>
+                  <button type="button" data-tooltip={t('date.tomorrow')} aria-label={t('date.tomorrow')} onClick={() => commitDate(toApiDate(addDays(new Date(), 1)))}><Icon name="sun" /></button>
+                  <button type="button" data-tooltip={t('date.thisWeekend')} aria-label={t('date.thisWeekend')} onClick={() => commitDate(toApiDate(nextSaturday(new Date())))}><Icon name="sofa" /></button>
+                  <button type="button" data-tooltip={t('date.nextWeek')} aria-label={t('date.nextWeek')} onClick={() => commitDate(toApiDate(nextMonday(new Date())))}><Icon name="calendar-arrow-right" /></button>
+                  <button type="button" data-tooltip={t('task.postpone')} aria-label={t('task.postpone')} disabled={!item.due} onClick={() => {
+                    const tomorrow = addDays(startOfDay(new Date()), 1);
+                    const next = item.due?.is_recurring ? (isOverdue(item) ? tomorrow : nextOccurrence(item)) : addDays(dueDate(item) ?? new Date(), 1);
+                    if (!next) { setMenu('schedule'); return; }
+                    commitDate(toApiDate(next < tomorrow ? tomorrow : next));
+                  }}><Icon name="reset" /></button>
+                  <button type="button" data-tooltip={t('task.removeDate')} aria-label={t('task.removeDate')} disabled={!item.due} onClick={() => void schedule(null)}><Icon name="calendar-x" /></button>
+                  <button type="button" data-tooltip={t('date.pick')} aria-label={t('date.pick')} onClick={() => setMenu('schedule')}><Icon name="calendar" /></button>
+                </div>
+                <hr />
                 <button className="opt" onClick={() => setMenu('deadline')}>
                   <span><Icon name="deadline" size="sm" /> {t('detail.deadline')}</span>
                 </button>
+                <hr />
+                <div className="task-quick-label">{t('filter.priorities')}</div>
+                <div className="task-priority-shortcuts" role="group" aria-label={t('filter.priorities')}>
+                  {([1, 2, 3, 4] as const).map((priority) => <button key={priority} type="button" aria-label={`P${priority}`} title={`P${priority}`}
+                    aria-pressed={item.priority === toTodoistPriority(priority)} style={{ color: `var(--p${priority})` }} onClick={() => {
+                      setMenu('none'); void updateTask(item.id, { priority: toTodoistPriority(priority) });
+                    }}><Icon name="flag" size="sm" />P{priority}</button>)}
+                </div>
+                <button className="opt" onClick={() => setMenu('move')}>
+                  <span><Icon name="project" size="sm" /> {t('task.moveToProject')}</span>
+                </button>
+
                 <button className="opt" onClick={() => setMenu('estimate')}>
                   <span><Icon name="clock" size="sm" /> {t('task.setEstimate')}</span>
                 </button>
@@ -725,7 +726,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
                 window.open(todoistTaskUrl(item.id), '_blank', 'noopener');
               }}
             >
-              <span><Icon name="external" size="sm" /> {t('task.openInTodoist')}</span>
+              <span><TodoistMark className="ic ic-sm menu-mark" /> {t('task.openInTodoist')}</span>
             </button>
             {!isTemporaryId(item.id) && (
               <button
@@ -757,7 +758,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
                 }).then((ok) => { if (ok) void removeTask(item.id); });
               }}
             >
-              <span><Icon name="close" size="sm" /> {t('task.delete')}</span>
+              <span><Icon name="trash" size="sm" /> {t('task.delete')}</span>
             </button>
           </div>
         )}
@@ -766,23 +767,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
 
   return (
     <span className={`trow-actions${contextOnly ? ' calendar-context-actions' : ''}`} ref={ref} onPointerEnter={() => void warmPeople()} onClick={(e) => { e.stopPropagation(); if (e.currentTarget.contains(e.target as Node)) setContextPoint(null); }}>
-      {menu === 'estimate' && !phone && contextPoint === null ? (
-        /* Opens empty, with the current duration shown as the placeholder: the
-           point of the field is to type a new one, and Enter on nothing leaves
-           it as it was rather than clearing it. */
-        <EstimateField
-          autoFocus
-          minutes={null}
-          placeholder={!computed && minutes !== null ? formatDuration(minutes, locale) : undefined}
-          onCancel={() => setMenu('none')}
-          onCommit={(value) => {
-            setMenu('none');
-            if (value === null && !computed && minutes !== null) return;
-            void updateTask(item.id, { estimateMinutes: value });
-          }}
-        />
-      ) : (
-        <>
+      <>
           {/* Opening the task is what tapping the row already does, so on a
               phone that button is the one the tray leaves out. An estimate is
               not: it is the number this whole app is built on, and asking for
@@ -802,8 +787,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
           >
             <Icon name="clock" size="sm" />
           </button>
-        </>
-      )}
+      </>
 
       <button
         aria-label={t('task.schedule')}
@@ -823,7 +807,7 @@ export function TaskActions({ item, childrenOf, onOpen, onKeep, contextOnly = fa
         <Icon name="project" size="sm" />
       </button>
 
-      {(assignees(snapshot, item.project_id).length > 0 || item.responsible_uid) && (
+      {(hasPeople || item.responsible_uid) && (
         <span className={`row-assignee${item.responsible_uid ? ' assigned' : ''}`}>
           <AssigneeField projectId={item.project_id} value={item.responsible_uid}
             onChange={(next) => void assignTask(item.id, next)} iconOnly />

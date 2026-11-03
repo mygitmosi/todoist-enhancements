@@ -114,7 +114,7 @@ test('#146 Upcoming moves its range on at midnight, without leaving the page', a
   await page.keyboard.press('Escape');
 
   const heads = page.locator('.screen.active .board .col .chead strong');
-  await expect(heads.first()).toHaveText('Tomorrow');
+  await expect(heads.first()).toHaveText(/^Tomorrow · /);
   const before = await heads.allInnerTexts();
   expect(before.length).toBeGreaterThanOrEqual(15);
 
@@ -122,7 +122,7 @@ test('#146 Upcoming moves its range on at midnight, without leaving the page', a
   await page.clock.runFor(20_000);
 
   // The first column is tomorrow again, and the range has gained a day at its far end.
-  await expect(heads.first()).toHaveText('Tomorrow');
+  await expect(heads.first()).toHaveText(/^Tomorrow · /);
   await expect.poll(async () => (await heads.allInnerTexts()).at(-1)).not.toBe(before.at(-1));
   expect(await heads.count()).toBe(before.length);
 });
@@ -361,7 +361,7 @@ test('#130 follow-up: a task typed with "every day at 3pm" shows Today 15:00', a
 test('#135 follow-up: @@link0@@ typed in the composer stays text, with no tag', async ({ demo: page }) => {
   await page.keyboard.press('q');
   await page.locator('.composer-name').fill('Fill @@link0@@ in');
-  // My week's own label is there (Q takes the page's context); no tag is read from the name.
+  // This week's own label is there (Q takes the page's context); no tag is read from the name.
   await expect(page.locator('.composer-chips .tagchip', { hasText: 'link0' })).toHaveCount(0);
   await expect(page.locator('.namefield .nmark.label')).toHaveCount(0);
   await page.keyboard.press('ControlOrMeta+Enter');
@@ -378,13 +378,18 @@ test('the changelog lists every release\'s lines from the most visible to the le
   const releases = dialog.locator('.whatsnew-release');
   await expect(releases.first()).toBeVisible();
 
-  // New things, then redesigns, then fixes, even though the file could list
-  // them in any order; whichever release is on top.
+  // Pictures first, then new things, redesigns and fixes inside each group,
+  // even though the file could list them in any order; whichever release is on top.
   const rank: Record<string, number> = { new: 0, design: 1, fix: 2 };
   for (const at of [0, 1, 2]) {
-    const kinds = await releases.nth(at).locator('.whatsnew-change')
-      .evaluateAll((els) => els.map((el) => el.classList[1]));
-    expect(kinds.length).toBeGreaterThan(0);
-    expect(kinds).toEqual([...kinds].sort((x, y) => rank[x] - rank[y]));
+    const entries = await releases.nth(at).locator('.whatsnew-change')
+      .evaluateAll((els) => els.map((el) => ({ picture: el.classList.contains('whatsnew-illustrated'), kind: el.classList[1] })));
+    expect(entries.length).toBeGreaterThan(0);
+    const picture = entries.filter((entry) => entry.picture);
+    expect(entries.slice(0, picture.length)).toEqual(picture);
+    for (const group of [picture, entries.filter((entry) => !entry.picture)]) {
+      const kinds = group.map((entry) => entry.kind);
+      expect(kinds).toEqual([...kinds].sort((x, y) => rank[x] - rank[y]));
+    }
   }
 });

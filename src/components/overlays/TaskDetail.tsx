@@ -1,18 +1,23 @@
+import { useDataSnapshot } from '@/hooks/useDataSnapshot';
+import { TodoistMark } from '../TodoistMark';
+import { takeCommentsRequest } from '../TaskCommentBadge';
+import { useDismissiblePopover } from '@/hooks/useDismissiblePopover';
 import { Select } from '../Select';
 import { usePhone } from '@/hooks/usePhone';
 import { useProjectPeople } from '@/hooks/useProjectPeople';
 import { AssigneeBadge } from '../AssigneeBadge';
 import { AssigneeField } from '../AssigneeField';
 import { useCreateTag } from '@/hooks/useCreateTag';
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { copyText, isTemporaryId, todoistTaskUrl } from '@/api/links';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Overlay } from './Overlay';
 import { isTopOverlay } from './overlayStack';
 import { Icon } from '../Icon';
 import { ProgressRing } from '../ProgressRing';
+import { PomodoroButton } from '../PomodoroButton';
 import { ChecklistProgress, DescriptionEditor, DescriptionView } from '../Checklist';
-import { toggleItemAt } from '@/domain/checklist';
+import { checklistPreview, toggleItemAt } from '@/domain/checklist';
 import { useT } from '@/hooks/useT';
 import { useMenuKeys } from '@/hooks/useMenuKeys';
 import { useData } from '@/hooks/useData';
@@ -24,21 +29,24 @@ import {
   effectiveEstimate, formatDuration,
 } from '@/domain/estimates';
 import {
-  deadlineDate, dueDate, formatRelativeDay, hasTime, toApiDate, toApiDateTime,
+  deadlineDate, dueDate, formatRelativeDay, formatTime, hasTime, isOverdue, toApiDate, toApiDateTime,
 } from '@/domain/dates';
-import { plainTitle, renderTitle, titleLinks } from '@/domain/markdown';
+import { plainTitle, renderInlineMarkdown, renderTitle, titleLinks } from '@/domain/markdown';
 import { parseShorthand, savedRefusals, type TextRange } from '@/domain/shorthand';
 import { dueForDate } from '@/domain/recurrence';
-import { EstimateField } from '../EstimateField';
+import { DurationField } from '../DurationField';
 import { TaskNameField } from '../TaskNameField';
 import { PlacementField } from '../PlacementField';
 import { CommentThread } from '../CommentThread';
 import { DateField } from '../DateField';
 import { markerStyle } from '@/domain/colors';
 import { assignees } from '@/domain/sharing';
-import { displayTaskContent, isUncompletable, toDisplayPriority, toTodoistPriority, type Item } from '@/domain/types';
+import { ESTIMATE_PREFIX, SYSTEM_LABELS, displayTaskContent, isUncompletable, toDisplayPriority, toTodoistPriority, weekLabel, type Item } from '@/domain/types';
+import { dropMutation, type DropTarget } from '@/domain/dnd';
+import { taskShortcuts } from '../DatePicker';
 import { matchesSearch } from '@/domain/search';
 import { byLabelOrder } from '@/domain/orderKey';
+import { intlDate } from '@/lib/intl';
 
 interface TaskDetailProps {
   taskId: string | null;
@@ -77,13 +85,13 @@ function SubtaskRow({ id, done, children }: { id: string; done: boolean; childre
 }
 
 function EditableSubtask({ child, onOpen }: { child: Item; onOpen: (id: string) => void }) {
-  const { t } = useT();
+  const { t, locale } = useT();
   const updateTask = useStore((s) => s.updateTask);
   const toggleTask = useStore((s) => s.toggleTask);
   const removeTask = useStore((s) => s.removeTask);
   const confirm = useConfirm();
   const setRecurrence = useStore((s) => s.setRecurrence);
-  const snapshot = useStore((s) => s.snapshot);
+  const snapshot = useDataSnapshot();
   const naturalDates = useStore((s) => s.prefs.naturalDates);
   const dateFormat = useStore((s) => s.prefs.dateFormat);
   const [editing, setEditing] = useState(false);
@@ -92,6 +100,43 @@ function EditableSubtask({ child, onOpen }: { child: Item; onOpen: (id: string) 
   const [refusals, setRefusals] = useState<TextRange[]>([]);
   const editRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const hour12 = useStore((s) => s.prefs.hour12);
+  const fields = useStore((s) => s.prefs.taskFields);
+  const due = dueDate(child);
+  const deadline = deadlineDate(child);
+  /* A subtask committed to the week or the month with no day is shown by that, as a row does, not by the tag that carries it. */
+  const horizon = child.due ? null : child.labels.some((l) => l.toLowerCase() === weekLabel().toLowerCase())
+    ? 'review.to.anytime' as const
+    : child.labels.some((l) => l.toLowerCase() === SYSTEM_LABELS.month) ? 'review.to.month' as const : null;
+  const labels = child.labels.filter((label) => !label.toLowerCase().startsWith(ESTIMATE_PREFIX)
+    && !(horizon && [weekLabel().toLowerCase(), SYSTEM_LABELS.month].includes(label.toLowerCase())));
+  const preview = fields.description ? checklistPreview(child.description) : '';
+  const { childrenOf } = useData();
+  const { minutes, computed } = effectiveEstimate(child, childrenOf);
+  /* The chips a task row draws, in the order the person chose in Display (a subtask lives in its parent's project, so the project is left out). */
+  const detailOrder = useStore((s) => s.prefs.detailOrder);
+  const labelColours = Object.values(snapshot.labels);
+  const pieces: Partial<Record<string, ReactNode>> = {
+    estimate: fields.estimate && minutes !== null && (
+      <span className="est" title={computed ? t('task.computedEstimate') : undefined}>
+        <Icon name="clock" />{formatDuration(minutes, locale)}{computed && '*'}
+      </span>),
+    date: fields.date && (due ? (
+      <span className={isOverdue(child) ? 'late' : 'at'}>
+        <Icon name="calendar" />
+        {formatRelativeDay(due, locale)}{hasTime(child.due) && ` ${formatTime(due, locale, hour12)}`}
+      </span>) : horizon && (
+      <span className="at tone-later"><Icon name="calendar" />{t(horizon)}</span>)),
+    deadline: fields.deadline && deadline && <span className="deadline"><Icon name="deadline" />{formatRelativeDay(deadline, locale)}</span>,
+    labels: fields.labels && labels.map((label) => (
+      <span className="tag" key={label} style={markerStyle(labelColours.find((l) => l.name === label)?.color)}>
+        <Icon name="tag" size="sm" />{label}
+      </span>)),
+  };
+  const chips = detailOrder.map((chip) => {
+    const piece = pieces[chip];
+    return Array.isArray(piece) ? (piece.length > 0 ? <Fragment key={chip}>{piece}</Fragment> : null) : piece ? <Fragment key={chip}>{piece}</Fragment> : null;
+  });
 
   useEffect(() => {
     if (!editing) {
@@ -178,10 +223,15 @@ function EditableSubtask({ child, onOpen }: { child: Item; onOpen: (id: string) 
           onRefusals={setRefusals}
         />
       ) : (
-        <button className="subtasktitle" onClick={() => onOpen(child.id)}>
-          <AssigneeBadge id={child.responsible_uid} />
-          <span>{plainTitle(displayTaskContent(child))}</span>
-        </button>
+        <span className="subtaskbody">
+          <button className="subtasktitle" onClick={() => onOpen(child.id)}>
+            <AssigneeBadge id={child.responsible_uid} />
+            <span>{plainTitle(displayTaskContent(child))}</span>
+          </button>
+          {/* What the parent's list shows under a subtask, so it need not be opened to be read (#281). */}
+          {preview && <span className="tdesc" dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(preview) }} />}
+          {chips.some(Boolean) && <span className="meta">{chips}</span>}
+        </span>
       )}
       <span className="subtaskactions">
         {editing ? (
@@ -272,6 +322,15 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   const overlayId = useId();
 
   const item = taskId ? snapshot.items[taskId] : null;
+  useEffect(() => {
+    if (!item || !takeCommentsRequest(item.id)) return;
+    const frame = requestAnimationFrame(() => {
+      const section = document.querySelector<HTMLElement>('.detail-body .comments');
+      section?.scrollIntoView({ block: 'nearest' });
+      section?.querySelector<HTMLTextAreaElement>('textarea')?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [item]);
   useProjectPeople(item?.project_id);
   const loadTask = useStore((s) => s.loadTask);
   const logbookEntry = useStore((s) => s.logbookEntry);
@@ -323,23 +382,16 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [tagPickerOpen, setTagPickerOpen] = useState(false);
-  /* Escape puts the tag list away wherever the focus is in the panel — on a tag, on the search field, or
-     nowhere — rather than only from the search field, and the panel stays open behind it. */
-  useEffect(() => {
-    if (!tagPickerOpen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.stopPropagation();
-      event.preventDefault();
-      setTagPickerOpen(false);
-    };
-    document.addEventListener('keydown', onKey, true);
-    return () => document.removeEventListener('keydown', onKey, true);
-  }, [tagPickerOpen]);
+  const tagsButton = useRef<HTMLButtonElement>(null);
+  const tagsPanel = useRef<HTMLDivElement | null>(null);
+  const moreButton = useRef<HTMLButtonElement>(null);
   const [tagQuery, setTagQuery] = useState('');
   const newTagChoice = useCreateTag(tagQuery);
+  const createLabelOn = useStore((s) => s.createLabelOn);
   const panelRef = useRef<HTMLDivElement>(null);
   const menuRef = useMenuKeys(menuOpen, () => setMenuOpen(false));
+  useDismissiblePopover(tagPickerOpen, tagsButton, tagsPanel, () => setTagPickerOpen(false), true);
+  useDismissiblePopover(menuOpen, moreButton, menuRef, () => setMenuOpen(false), true);
   const titleRef = useRef<HTMLTextAreaElement | HTMLInputElement>(null);
   /** Asked for, then done. The one action in here that cannot be taken back. */
   const askThenDelete = useCallback(() => {
@@ -465,6 +517,13 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   const links = titleLinks(item.content);
   const priority = toDisplayPriority(item.priority);
   const due = dueDate(item);
+  /* No day, but committed to the week or the month: the start date says so, in words. */
+  const hasTag = (name: string) => item.labels.some((l) => l.toLowerCase() === name.toLowerCase());
+  const horizonText = item.due ? null : hasTag(weekLabel()) ? t('review.to.anytime') : hasTag(SYSTEM_LABELS.month) ? t('review.to.month') : null;
+  const moveTo = (target: DropTarget) => {
+    const mutation = dropMutation(item, target);
+    if (mutation?.update) return updateTask(item.id, mutation.update);
+  };
   const deadline = deadlineDate(item);
   const subtasks = childrenOf(item.id);
   const doneSubtasks = subtasks.filter((c) => c.checked).length;
@@ -482,7 +541,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
 
   const project = snapshot.projects[item.project_id];
   const section = item.section_id ? snapshot.sections[item.section_id] : null;
-  const visibleLabels = item.labels.filter((l) => !l.toLowerCase().startsWith('est-'));
+  const visibleLabels = item.labels.filter((l) => !l.toLowerCase().startsWith('est-')).sort((a, b) => {
+    const left = Object.values(snapshot.labels).find((l) => l.name === a);
+    const right = Object.values(snapshot.labels).find((l) => l.name === b);
+    return (left && right ? byLabelOrder(left, right) : 0) || a.localeCompare(b);
+  });
   const allTags = Object.values(snapshot.labels)
     .filter((l) => !l.is_deleted && !l.name.startsWith('est-'))
     .sort(byLabelOrder);
@@ -491,13 +554,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
   const { name: newTag, available: canCreateTag, busy: creatingTag } = newTagChoice;
   async function createAndAttachTag() {
     if (!item) return;
+    if (!newTagChoice.available || newTagChoice.busy) return;
     const taskId = item.id;
-    const name = await newTagChoice.create();
-    const current = useStore.getState().snapshot.items[taskId];
-    if (name && current) {
-      await updateTask(taskId, { labels: [...new Set([...current.labels, name])] });
-      setTagQuery('');
-    }
+    const query = newTagChoice.name;
+    setTagQuery('');
+    await createLabelOn(taskId, query);
   }
 
   const toggleTag = (name: string) => void updateTask(item.id, {
@@ -718,6 +779,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
         </nav>
 
         <div className="detail-tools">
+          <PomodoroButton taskId={item.id} />
           {walk.current && (
             <span className="detail-walk">
               <button
@@ -745,6 +807,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
               className="iconbtn"
               aria-label={t('task.moreActions')}
               title={t('task.moreActions')}
+              ref={moreButton}
+              aria-haspopup="menu"
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((v) => !v)}
             >
@@ -759,7 +823,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                     window.open(todoistTaskUrl(item.id), '_blank', 'noopener');
                   }}
                 >
-                  <span><Icon name="external" size="sm" /> {t('task.openInTodoist')}</span>
+                  <span><TodoistMark className="ic ic-sm menu-mark" /> {t('task.openInTodoist')}</span>
                 </button>
                 {!demo && !isTemporaryId(item.id) && (
                   <button
@@ -802,9 +866,20 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
             <p className="detail-done">
               <Icon name="check" size="sm" />
               {t(item.checked ? 'detail.completedOn' : 'detail.completedNext', {
-                date: new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })
+                date: intlDate(locale, { day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit' })
                   .format(new Date(completedOn)),
               })}
+            </p>
+          )}
+          {/* Said next to the title, not only in the breadcrumb, where it was easy
+              to miss that the task is a subtask at all (#339). */}
+          {ancestors.length > 0 && (
+            <p className="subtaskof">
+              <Icon name="subtask" size="sm" />
+              {t('detail.subtaskOf')}
+              <button className="crumblink" onClick={() => onOpen(ancestors[ancestors.length - 1].id)}>
+                {plainTitle(ancestors[ancestors.length - 1].content)}
+              </button>
             </p>
           )}
           <div className={`detail-headline${item.checked ? ' done' : ''}`}>
@@ -1004,7 +1079,14 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
               withTime
               value={due ? (hasTime(item.due) ? toApiDateTime(due) : toApiDate(due)) : ''}
               label={t('detail.startDate')}
-              placeholder={t('date.pick')}
+              placeholder={horizonText ?? t('date.pick')}
+              shortcuts={taskShortcuts(t, locale, {
+                day: (date) => void moveTo({ kind: 'day', date }),
+                today: () => void moveTo({ kind: 'today' }),
+                anytime: () => void moveTo({ kind: 'anytime' }),
+                month: () => void moveTo({ kind: 'month' }),
+                someday: () => void moveTo({ kind: 'someday' }),
+              })}
               onChange={(value, how) => {
                 /* Keeps the rule. Writing the date into `due.string` is what
                    ends a series, and picking a day in a calendar is never a
@@ -1061,15 +1143,15 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
 
           <div className="prop" data-prop="estimate">
             <PropLabel name={t('detail.estimate')} prop="estimate" />
-            {/* The same field as everywhere else, so the unit is always beside
-                the number instead of being left to the reader to infer. */}
-            <EstimateField
+            {/* The same face as the date, the deadline and the project beside it; the chooser is the
+                one the row's menu opens, with the usual durations and a field for the others. */}
+            <DurationField
               minutes={computed ? null : minutes}
               pendingWrites={pendingWrites}
               placeholder={
                 computed && minutes !== null
                   ? `${formatDuration(minutes, locale)} · ${t('task.computedEstimate')}`
-                  : t('task.estimatePlaceholder')
+                  : t('task.estimateChoose')
               }
               onCommit={async (value) => {
                 await updateTask(item.id, { estimateMinutes: value });
@@ -1096,14 +1178,23 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                 options={([1, 2, 3, 4] as const).map((p) => ({ value: String(p), label: `P${p}` }))}
               />
             ) : (
-            <div className="priopills" role="radiogroup" aria-label={t('detail.priority')}>
+            <div className="priopills" data-priority={priority} role="radiogroup" aria-label={t('detail.priority')}>
               {([1, 2, 3, 4] as const).map((p) => (
                 <button
                   key={p}
                   type="button"
                   role="radio"
                   aria-checked={priority === p}
+                  tabIndex={priority === p ? 0 : -1}
                   className={`priopill p${p}`}
+                  onKeyDown={(event) => {
+                    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+                    event.preventDefault();
+                    const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
+                    const next = ((p - 1 + direction + 4) % 4 + 1) as 1 | 2 | 3 | 4;
+                    void updateTask(item.id, { priority: toTodoistPriority(next) });
+                    event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(`.priopill.p${next}`)?.focus();
+                  }}
                   onClick={() => void updateTask(item.id, { priority: toTodoistPriority(p) })}
                 >
                   <Icon name="flag" size="sm" />
@@ -1128,6 +1219,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
             <span className="prophead">
               <PropLabel name={t('detail.labels')} prop="tags" />
               <button
+                ref={tagsButton}
                 className="propadd"
                 aria-label={t('composer.labels')}
                 title={t('composer.labels')}
@@ -1142,24 +1234,26 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
             </span>
 
             <div className="pills">
-              {visibleLabels.length === 0 && <span className="psub">{t('common.none')}</span>}
+              {visibleLabels.length === 0 && <span className="psub">{t('detail.noTags')}</span>}
               {visibleLabels.map((label) => {
                 const known = Object.values(snapshot.labels).find((l) => l.name === label);
                 return (
-                  <button
-                    key={label}
-                    /* Drawn like a list row's tag (#25). */
-                    className="pill tagpill"
-                    style={markerStyle(known?.color)}
-                    title={t('detail.labels')}
-                    onClick={() =>
-                      void updateTask(item.id, { labels: item.labels.filter((l) => l !== label) })
-                    }
-                  >
+                  /* A real chip (#408): the tag's colour and glyph, its name cut
+                     cleanly when long, and its own button to take it off this
+                     task. The tag itself is never deleted from here. */
+                  <span key={label} className="pill tagpill" style={markerStyle(known?.color)}>
                     <Icon name="tag" size="sm" />
-                    <span>{label}</span>
-                    <Icon name="close" size="sm" />
-                  </button>
+                    <span className="tagname" title={label}>{label}</span>
+                    <button
+                      type="button"
+                      className="tagremove"
+                      aria-label={t('composer.removeTag', { name: label })}
+                      title={t('composer.removeTag', { name: label })}
+                      onClick={() => void updateTask(item.id, { labels: item.labels.filter((l) => l !== label) })}
+                    >
+                      <Icon name="close" size="sm" />
+                    </button>
+                  </span>
                 );
               })}
             </div>
@@ -1171,7 +1265,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: TaskDetailProps) {
                 aria-label={t('composer.labels')}
                 /* The tags property sits at the foot of a scrolling panel, so
                    the list it opens can land below the fold. Bring it up. */
-                ref={(node) => node?.scrollIntoView({ block: 'nearest' })}
+                ref={(node) => { tagsPanel.current = node; node?.scrollIntoView({ block: 'nearest' }); }}
               >
                 <div className="pickersearch">
                   <Icon name="search" size="sm" />

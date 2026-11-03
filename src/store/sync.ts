@@ -1,4 +1,5 @@
 import { clearProjectPeopleCache } from './collab';
+import { usePomodoro } from './pomodoro';
 /** Talking to Todoist: signing in and out, reading, writing, the offline queue, the demo. */
 import { verifyEstimateWrites } from './estimate-safety';
 import { auth } from '@/api/auth';
@@ -6,6 +7,7 @@ import { completeSignIn } from '@/api/oauth';
 import { ApiError, NotConnectedError } from '@/api/client';
 import { applySync, applyWrite, sync } from '@/api/sync';
 import { sendCommands, type Command } from '@/api/commands';
+import { settleOrphans } from '@/api/repair';
 import * as idb from '@/db/idb';
 import { emptySnapshot, setWeekLabel } from '@/domain/types';
 import { readKept } from '@/domain/views';
@@ -13,12 +15,12 @@ import { detectLocale, translate } from '@/i18n';
 import { buildDemoSnapshot } from '@/demo/demoData';
 import { sessionGet, sessionRemove, sessionSet } from '@/lib/sessionStore';
 import { forgetDemoOnboarding } from '@/domain/onboarding';
-import { defaultPreferences, hydratePreferences, type Preferences } from './prefs';
+import { defaultPreferences, hydratePreferences, readSettingsComment, type Preferences } from './prefs';
 import {
   explainFailures, hidePending, partitionQueue, pendingDeletes, revertRefused, schedulePersist,
 } from './helpers';
 import {
-  PREFS_KEY, preferencesWriteTimer, remotePreferences, tourSnapshotBackup, withOnboarding,
+  PREFS_KEY, preferencesWriteTimer, remotePreferences, tourSnapshotBackup, withOnboarding, fetchSettingsComments, settingsComments, legacySettingsTask,
 } from './preferences';
 import { DUST_KEY } from './dust';
 import type { AppState } from './types';
@@ -27,12 +29,36 @@ import type { Slice, SyncSlice } from './types';
 /** How often the app asks Todoist what changed while the tab is in the foreground. */
 export const POLL_INTERVAL_MS = 45_000;
 
+/** A failed or unreadable settings lookup is not proof of a new account. */
+export async function readAccountSettings(snapshot: ReturnType<typeof emptySnapshot>) {
+  const cached = settingsComments(snapshot);
+  if (cached.length > 0) return cached.every((note) => readSettingsComment(note.content)) ? snapshot : null;
+  if (legacySettingsTask(snapshot)) return snapshot;
+  const inbox = snapshot.user?.inbox_project_id;
+  const comments = inbox ? await fetchSettingsComments(inbox) : null;
+  if (comments === null || comments.some((note) => !readSettingsComment(note.content))) return null;
+  const notes = { ...snapshot.notes };
+  for (const old of settingsComments(snapshot)) delete notes[old.id];
+  for (const note of comments) notes[note.id] = note;
+  return { ...snapshot, notes };
+}
+
+/** Who a language repair is done for, and which language the account reads in. */
+const repairAccount = (get: () => AppState) => {
+  const user = get().snapshot.user;
+  return { ...(user?.id ? { userId: user.id } : {}), ...(user?.lang ? { userLang: user.lang } : {}) };
+};
+
 /** Sends everything waiting in the outbox, oldest first. */
 export async function flushQueue(
   get: () => AppState,
   set: (patch: Partial<AppState>) => void,
 ): Promise<boolean> {
   const queue = await idb.readQueue();
+  await settleOrphans(
+    { syncToken: get().snapshot.syncToken, ...repairAccount(get) },
+    new Set(queue.map((cmd) => cmd.uuid)),
+  ).catch(() => undefined);
   if (queue.length === 0) return false;
 
   /* A deletion written to the queue because the page was hidden is still
@@ -55,7 +81,7 @@ export async function flushQueue(
   if (commands.length === 0) return false;
   try {
     const optimistic = get().snapshot;
-    const result = await sendCommands(get().snapshot.syncToken, commands);
+    const result = await sendCommands(get().snapshot.syncToken, commands, repairAccount(get));
     let merged = applyWrite(get().snapshot, result.responses, result.mapping);
 
     /* A refused creation takes its placeholder with it. A refused edit is
@@ -138,6 +164,8 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
   snapshot: emptySnapshot(),
   syncState: 'idle',
   syncError: null,
+  settingsChecked: false,
+  settingsUnavailable: false,
   pendingCount: 0,
   demo: false,
   resolvedIds: {},
@@ -195,19 +223,23 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
     }
   },
   async connect(token: string) {
-    set({ syncState: 'loading', syncError: null });
+    set({ syncState: 'loading', syncError: null, settingsChecked: false, settingsUnavailable: false });
     await auth.set(token);
     // Whose copy the device holds now, before the one just read replaces it.
     const legacyOwner = get().snapshot.user?.id ?? null;
     try {
       const response = await sync('*');
-      const snapshot = applySync(emptySnapshot(), response);
-      const canonical = remotePreferences(snapshot, get().prefs);
+      let snapshot = applySync(emptySnapshot(), response);
+      const checked = await readAccountSettings(snapshot);
+      if (checked) snapshot = checked;
+      const localPrefs = legacyOwner && legacyOwner !== snapshot.user?.id
+        ? { ...get().prefs, onboarded: false, setupDone: false } : get().prefs;
+      const canonical = checked === null ? null : remotePreferences(snapshot, localPrefs);
       if (canonical) setWeekLabel(canonical.weekLabel);
-      const adopted = canonical ?? get().prefs;
-      const prefs = withOnboarding(snapshot, adopted);
+      const adopted = canonical && JSON.stringify(canonical) !== JSON.stringify(localPrefs) ? canonical : localPrefs;
+      const prefs = checked === null ? adopted : withOnboarding(snapshot, adopted);
       set({
-        connected: true, snapshot, prefs, syncState: 'idle',
+        connected: true, snapshot, prefs, syncState: 'idle', settingsChecked: checked !== null, settingsUnavailable: checked === null,
         sidePanel: null, timeFilter: { minutes: null, scope: 'page', sort: 'duration' },
       });
       void idb.saveSnapshot(snapshot);
@@ -215,7 +247,7 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
       /* What the same person left waiting goes out now; what another account
          left is set aside first (#129). */
       if (await dropForeignQueue(get, set, snapshot.user?.id, legacyOwner) > 0) void get().refresh();
-      window.setTimeout(() => void get().ensurePreferencesTask(), 0);
+      if (checked !== null) window.setTimeout(() => void get().ensurePreferencesTask(), 0);
       return true;
     } catch (error) {
       await auth.disconnect();
@@ -238,6 +270,8 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
       connected: true,
       ready: true,
       syncState: 'idle',
+      settingsChecked: false,
+      settingsUnavailable: false,
       snapshot: buildDemoSnapshot(get().prefs.locale),
       pendingCount: 0,
     });
@@ -245,6 +279,7 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
   async disconnect() {
     clearProjectPeopleCache();
     sessionRemove('demo');
+    usePomodoro.getState().end();
     await auth.disconnect();
     await idb.clearAll();
     set({
@@ -252,6 +287,8 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
       demo: false,
       snapshot: emptySnapshot(),
       prefs: defaultPreferences(get().prefs.locale),
+      settingsChecked: false,
+      settingsUnavailable: false,
       pendingCount: 0,
       syncState: 'idle',
       resolvedIds: {},
@@ -279,7 +316,15 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
            what follows is one incremental read, not a second full one. */
         const response = await sync('*');
         const fresh = applySync(emptySnapshot(), response);
-        set({ snapshot: hidePending(fresh) });
+        const checked = await readAccountSettings(fresh);
+        const initial = checked ?? fresh;
+        const localPrefs = signedIn.legacyOwner && signedIn.legacyOwner !== initial.user?.id
+          ? { ...get().prefs, onboarded: false, setupDone: false } : get().prefs;
+        const canonical = checked ? remotePreferences(initial, localPrefs) : null;
+        const adopted = canonical ?? localPrefs;
+        const prefs = checked ? withOnboarding(initial, adopted) : adopted;
+        set({ snapshot: hidePending(initial), prefs, settingsChecked: checked !== null, settingsUnavailable: checked === null });
+        if (checked) void idb.savePrefs(PREFS_KEY, prefs);
         await dropForeignQueue(get, set, fresh.user?.id, signedIn.legacyOwner);
         stale = await flushQueue(get, set);
       } else {
@@ -295,22 +340,24 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
       const fromScratch = signedIn ? stale : (full || stale || missingFilters);
       const token = fromScratch ? '*' : get().snapshot.syncToken;
       const response = await sync(token, undefined, get().snapshot.workspaces);
-      const snapshot = applySync(fromScratch ? emptySnapshot() : get().snapshot, response);
-      const canonical = preferencesWriteTimer
+      let snapshot = applySync(fromScratch ? emptySnapshot() : get().snapshot, response);
+      const checked = await readAccountSettings(snapshot);
+      if (checked) snapshot = checked;
+      const canonical = preferencesWriteTimer || checked === null
         ? null
         : remotePreferences(snapshot, get().prefs);
       if (canonical) setWeekLabel(canonical.weekLabel);
-      const adopted = canonical ?? get().prefs;
-      const prefs = withOnboarding(snapshot, adopted);
-      set({ snapshot: hidePending(snapshot), prefs, syncState: 'idle' });
+      const adopted = canonical && JSON.stringify(canonical) !== JSON.stringify(get().prefs) ? canonical : get().prefs;
+      const prefs = checked === null ? adopted : withOnboarding(snapshot, adopted);
+      set({ snapshot: hidePending(snapshot), prefs, syncState: 'idle', settingsChecked: checked !== null, settingsUnavailable: checked === null });
       schedulePersist(snapshot);
       if (canonical || prefs !== adopted) void idb.savePrefs(PREFS_KEY, prefs);
       /* Always: writes nothing when the comment already says the same, and
          moves an account off the old settings task the first time. */
-      window.setTimeout(() => void get().ensurePreferencesTask(), 0);
+      if (checked !== null) window.setTimeout(() => void get().ensurePreferencesTask(), 0);
     } catch (error) {
       if (error instanceof NotConnectedError) {
-        set({ connected: false, syncState: 'idle' });
+        set({ connected: false, syncState: 'idle', syncError: 'invalid' });
         return;
       }
       const offline = !navigator.onLine || !(error instanceof ApiError);
@@ -319,7 +366,7 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
         syncError: error instanceof Error ? error.message : 'unknown',
       });
       if (error instanceof ApiError && error.isAuthError) {
-        set({ connected: false });
+        set({ connected: false, syncError: 'invalid' });
         await auth.disconnect();
       }
     } finally {
@@ -375,7 +422,7 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
     }
 
     try {
-      const result = await sendCommands(after.syncToken, commands);
+      const result = await sendCommands(after.syncToken, commands, repairAccount(get));
       let merged = applyWrite(get().snapshot, result.responses, result.mapping);
       /* Todoist refused some of it, and the screen must not keep what it
          refused: each refused command gives back only the objects it touched,
@@ -414,7 +461,12 @@ export const createSyncSlice: Slice<SyncSlice> = (set, get) => ({
         ), undefined, { tone: 'error' });
       }
       return result.mapping;
-    } catch {
+    } catch (error) {
+      if (error instanceof NotConnectedError || (error instanceof ApiError && error.isAuthError)) {
+        await auth.disconnect();
+        set({ connected: false, syncState: 'idle', syncError: 'invalid' });
+        return {};
+      }
       /* Only the network can throw from here: a refusal comes back in
          `failures` above. The change stays queued and goes out on the next
          sync. */

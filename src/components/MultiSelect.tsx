@@ -1,3 +1,4 @@
+import { useDismissiblePopover } from '@/hooks/useDismissiblePopover';
 import { createPortal } from 'react-dom';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from './Icon';
@@ -15,10 +16,12 @@ interface MultiSelectProps {
   face?: ReactNode;
   /** A class on the floating list, for a list that must match its surroundings. */
   popupClassName?: string;
+  /** How many selected labels to spell out on the face. */
+  maxSummaryLabels?: number;
 }
 
 /** A compact multi-selection with real keyboard-operable checkboxes. */
-export function MultiSelect({ label, value, options, onChange, allLabel, icon, variant = 'field', face, popupClassName }: MultiSelectProps) {
+export function MultiSelect({ label, value, options, onChange, allLabel, icon, variant = 'field', face, popupClassName, maxSummaryLabels = 2 }: MultiSelectProps) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -35,33 +38,21 @@ export function MultiSelect({ label, value, options, onChange, allLabel, icon, v
   }, [open, options.length]);
   useEffect(() => {
     if (!open) return;
-    const outside = (event: PointerEvent) => {
-      if (!ref.current?.contains(event.target as Node) && !popup.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.stopPropagation();
-      setOpen(false);
-      button.current?.focus();
-    };
-    document.addEventListener('pointerdown', outside);
-    document.addEventListener('keydown', escape);
     const dismiss = () => setOpen(false);
     const scroll = (event: Event) => { if (!popup.current?.contains(event.target as Node)) dismiss(); };
     window.addEventListener('resize', dismiss);
     window.addEventListener('scroll', scroll, true);
     return () => {
-      document.removeEventListener('pointerdown', outside);
-      document.removeEventListener('keydown', escape);
       window.removeEventListener('resize', dismiss);
       window.removeEventListener('scroll', scroll, true);
     };
   }, [open]);
+  useDismissiblePopover(open, button, popup, () => setOpen(false));
   const labels = options.filter((option) => value?.includes(option.value)).map((option) => option.label);
   const allSelected = value === null || (options.length > 0 && options.every((option) => value.includes(option.value)));
   const summary = allSelected ? (allLabel ?? t('assignee.everyone'))
     : labels.length === 0 ? t('assignee.nobody')
-    : labels.length <= 2 ? labels.join(' + ') : t('assignee.selected', { count: labels.length });
+    : labels.length <= maxSummaryLabels ? labels.join(maxSummaryLabels > 2 ? ', ' : ' + ') : t('assignee.selected', { count: labels.length });
   return (
     <div className={`multiselect${variant === 'toolbar' ? ' as-toolbar' : ''}`} ref={ref} onKeyDown={(event) => {
       if (open && event.key === 'Escape') {
@@ -70,7 +61,7 @@ export function MultiSelect({ label, value, options, onChange, allLabel, icon, v
     }}>
       <button ref={button} type="button" className="fselect-face" aria-label={`${label}: ${summary}`}
         aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen((previous) => !previous)}>
-        {face ?? <>{icon && <Icon name={icon} size="sm" />}<span>{label}</span><span className="fselect-value">{summary}</span><Icon name="caret" size="sm" /></>}
+        {face ?? <>{icon && <Icon name={icon} size="sm" />}<span className="fselect-label">{label}</span><span className="fselect-value">{summary}</span><Icon name="caret" size="sm" /></>}
       </button>
       {open && createPortal(<div ref={popup} className={`multiselect-options${popupClassName ? ` ${popupClassName}` : ''}`} role="dialog" aria-label={label}
         onMouseDown={(event) => event.stopPropagation()}

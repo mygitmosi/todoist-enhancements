@@ -1,7 +1,7 @@
 import { test, expect, go, rows } from './demo';
 import { resolve } from 'node:path';
 test.skip(process.env.PLAYWRIGHT_DEV !== '1', 'Controlled development fixtures');
-test('date views remove the scheduled switch; My week filters Today only', async ({ demo: page }) => {
+test('date views remove the scheduled switch; This week filters Today only', async ({ demo: page }) => {
   await go(page, 'week');
   await page.locator('.pactions').getByRole('button', { name: 'Display' }).click();
   const showToday = page.getByRole('switch', { name: 'Show Today tasks' });
@@ -59,9 +59,10 @@ test('Insights hover stays tinted with no visible border or shadow', async ({ de
 });
 test('duration acknowledgement is a small transient glyph, with no visible status text', async ({ demo: page }) => {
   await rows(page).first().click();
-  const input = page.locator('[data-prop="estimate"] input');
+  await page.locator('[data-prop="estimate"] .fselect-face').click();
+  const input = page.locator('.durationpanel input');
   await input.fill('90'); await input.press('Enter');
-  await expect(input).toHaveValue('1 h 30');
+  await expect(page.locator('[data-prop="estimate"] .fselect-value')).toHaveText('1 h 30');
   await expect(page.locator('[data-prop="estimate"] .est-feedback.accepted')).toBeVisible();
   await expect(page.locator('[data-prop="estimate"] [role="status"]')).toHaveClass('sr');
   if (process.env.CAPTURE_REFINEMENTS === '1') await page.screenshot({ path: resolve(process.env.ARTIFACT_OUTPUT_DIR ?? '../../outputs', 'duree-revisee.png'), animations:'allow' });
@@ -95,10 +96,12 @@ test('My Week Today toggle remains available with the separate Today sidebar pag
 
 test('task properties keep rounded borders and a quiet hover', async ({ demo: page }) => {
   await rows(page).first().click();
-  const input = page.locator('[data-prop="estimate"] input');
-  await expect(input).toHaveCSS('border-top-left-radius', '999px');
-  await input.hover();
-  expect(await input.evaluate((el) => getComputedStyle(el).boxShadow)).not.toContain('rgb(0, 0, 0)');
+  const face = page.locator('[data-prop="estimate"] .fselect-face');
+  const date = page.locator('[data-prop="start"] .fselect-face');
+  /* The duration wears the same face as the date beside it (#392). */
+  expect(await face.evaluate((el) => getComputedStyle(el).borderTopLeftRadius)).toBe(await date.evaluate((el) => getComputedStyle(el).borderTopLeftRadius));
+  await face.hover();
+  expect(await face.evaluate((el) => getComputedStyle(el).boxShadow)).not.toContain('rgb(0, 0, 0)');
 });
 
 test('Insights does not move while pressed and its dark state stays readable', async ({ demo: page }) => {
@@ -167,18 +170,15 @@ test('native team folders show their children and collapse without becoming proj
 });
 
 
-test('Display toggles have equal spacing between their separators', async ({ demo: page }) => {
+test('Display toggles have equal spacing between their rows', async ({ demo: page }) => {
   for (const view of ['today', 'upcoming', 'week']) {
     await go(page, view);
     await page.locator('.pactions').getByRole('button', { name: /^Display/ }).click();
-    const spacing = await page.locator('.display-toggles').evaluate((el) => {
-      const row = el.querySelector('.panelrow')!.getBoundingClientRect();
-      const last = el.lastElementChild!.getBoundingClientRect();
-      const before = el.previousElementSibling!.getBoundingClientRect();
-      const after = el.nextElementSibling!.getBoundingClientRect();
-      return { top: row.top - before.bottom, bottom: after.top - last.bottom };
+    const gaps = await page.locator('.dfields .display-toggles').evaluate((el) => {
+      const rows = Array.from(el.querySelectorAll('.panelrow')).map((row) => row.getBoundingClientRect());
+      return rows.slice(1).map((row, at) => row.top - rows[at].bottom);
     });
-    expect(Math.abs(spacing.top - spacing.bottom)).toBeLessThanOrEqual(1);
+    for (const gap of gaps) expect(Math.abs(gap - gaps[0])).toBeLessThanOrEqual(1);
     await page.keyboard.press('Escape');
   }
 });

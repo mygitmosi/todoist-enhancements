@@ -38,6 +38,8 @@ interface MarkdownEditorProps {
   placeholder: string;
   ariaLabel: string;
   autoFocus?: boolean;
+  /** A link shortcut pressed while the editor was still loading. */
+  initialLinkSelection?: { from: number; to: number } | null;
   variant?: EditorVariant;
   /** Whether a text may replace the current one; false cancels the edit. */
   accept?: (next: string, previous: string) => boolean;
@@ -110,7 +112,12 @@ class RemoveWidget extends WidgetType {
       view.dispatch({ changes: { from, to }, selection: { anchor: Math.min(from, view.state.doc.length - (to - from)) } });
       view.focus();
     });
-    return button;
+    /* The button is placed by the line, at its right edge. This holder takes no room and stays where the text
+       ends, so a caret at the end of an empty item is measured there and not beside the button. */
+    const holder = document.createElement('span');
+    holder.className = 'checkdel-holder';
+    holder.appendChild(button);
+    return holder;
   }
   ignoreEvent() { return true; }
 }
@@ -371,7 +378,7 @@ const baseKeymap = defaultKeymap.filter((binding) => !/Enter|Escape/.test(`${bin
 
 export function MarkdownEditor({
   value, onChange, onCommit, placeholder, ariaLabel, autoFocus = false, variant = 'detail',
-  accept, onRefused, removable = false,
+  accept, onRefused, removable = false, initialLinkSelection,
 }: MarkdownEditorProps) {
   const { t } = useT();
   const host = useRef<HTMLDivElement>(null);
@@ -402,11 +409,11 @@ export function MarkdownEditor({
   live.current = { onChange, onCommit, accept, onRefused, variant };
   const labels = useRef<Labels>({ tick: t('checklist.tick'), remove: t('checklist.remove') });
   labels.current = { tick: t('checklist.tick'), remove: t('checklist.remove') };
-  const initial = useRef({ value, ariaLabel, placeholder, autoFocus, removable });
+  const initial = useRef({ value, ariaLabel, placeholder, autoFocus, removable, initialLinkSelection });
 
   useEffect(() => {
     let disposing = false;
-    const { value: first, ariaLabel: label, placeholder: hint, autoFocus: focus, removable: del } = initial.current;
+    const { value: first, ariaLabel: label, placeholder: hint, autoFocus: focus, removable: del, initialLinkSelection: pendingLink } = initial.current;
 
     const formatting = ViewPlugin.fromClass(class {
       decorations: DecorationSet;
@@ -539,8 +546,11 @@ export function MarkdownEditor({
     view.current = editor;
     if (focus) {
       editor.focus();
-      editor.dispatch({ selection: { anchor: editor.state.doc.length } });
+      editor.dispatch({ selection: pendingLink
+        ? { anchor: Math.min(pendingLink.from, editor.state.doc.length), head: Math.min(pendingLink.to, editor.state.doc.length) }
+        : { anchor: editor.state.doc.length } });
     }
+    if (pendingLink) openLink();
     return () => { disposing = true; view.current = null; editor.destroy(); };
   }, []);
 

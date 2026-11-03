@@ -1,10 +1,8 @@
-import { TableColumnEditor } from './TableColumnEditor';
+import { useDataSnapshot } from '@/hooks/useDataSnapshot';
 import { ME, UNASSIGNED } from '@/domain/assignees';
-import { AssigneeFilter } from './AssigneeFilter';
 import { WorkspaceFilter } from './WorkspaceFilter';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, type IconName } from './Icon';
-import { Select } from './Select';
 import { DetailsEditor } from './DetailsEditor';
 import { useT } from '@/hooks/useT';
 import { useData } from '@/hooks/useData';
@@ -12,15 +10,12 @@ import { useStore } from '@/store/store';
 import { viewPrefs } from '@/store/prefs';
 import { countActiveFilters, PERSONAL_WORKSPACE } from '@/store/selectors';
 import {
-  defaultViewPrefs, type DisplayMode, type DisplayPriority,
+  defaultViewPrefs, type DisplayMode,
   type GroupKey, type SortKey,
 } from '@/domain/types';
-import { calendarPrefs } from '@/domain/calendar';
-import type { CalendarPrefs } from '@/domain/types';
-import { markerStyle } from '@/domain/colors';
 import type { Item } from '@/domain/types';
-import type { TranslationKey } from '@/i18n';
 import { PanelSheet } from '@/components/SheetChrome';
+import { DisplayFields } from './DisplayFields';
 
 interface DisplayMenuProps {
   viewKey: string;
@@ -40,30 +35,31 @@ interface DisplayMenuProps {
    * carries cannot narrow anything. Left out, every tag is offered.
    */
   pageItems?: Item[];
+  /** The saved view these settings belong to, named at the top of the panel (#333). */
+  scope?: string;
 }
 
-const MODE_ICON: Record<DisplayMode, IconName> = {
-  table: 'table',
-  list: 'list',
-  board: 'board',
-  focus: 'stack',
-  calendar: 'calendar',
-};
-
 /** An icon for every grouping and sort, so the list reads at a glance. */
-const GROUP_ICON: Partial<Record<GroupKey, IconName>> = {
+export const GROUP_ICON: Partial<Record<GroupKey, IconName>> = {
   none: 'list', scheduled: 'calendar', day: 'calendar', week: 'week', month: 'calendar', year: 'calendar',
   assignee: 'user', workspace: 'project', project: 'project', section: 'section', priority: 'flag',
   label: 'tag', estimate: 'clock', step: 'board',
 };
 /* The same order on every page, whatever order the page listed its groups in. */
-const GROUP_ORDER: GroupKey[] = ['none', 'project', 'section', 'workspace', 'priority', 'assignee', 'label', 'step', 'scheduled', 'estimate', 'day', 'week', 'month', 'year'];
-const SORT_ICON: Record<SortKey, IconName> = {
+export const GROUP_ORDER: GroupKey[] = ['none', 'project', 'section', 'workspace', 'priority', 'assignee', 'label', 'step', 'scheduled', 'estimate', 'day', 'week', 'month', 'year'];
+export const SORT_ICON: Record<SortKey, IconName> = {
   deadline: 'deadline', project: 'project', description: 'list',
   assignee: 'user', smart: 'sparkles',
   manual: 'drag', priority: 'flag', due: 'calendar', 'added-desc': 'sort', 'added-asc': 'sort',
   alphabetical: 'sort', 'estimate-asc': 'clock', 'estimate-desc': 'clock', label: 'tag',
 };
+
+/** The sorts a project offers, and the groupings (ProjectView and the saved views read the same lists). */
+export const PROJECT_SORTS: SortKey[] = [
+  'manual', 'priority', 'due', 'deadline', 'assignee', 'project', 'added-desc', 'added-asc',
+  'estimate-asc', 'estimate-desc', 'alphabetical',
+];
+export const PROJECT_GROUPS: GroupKey[] = ['none', 'assignee', 'scheduled', 'priority', 'label', 'step', 'estimate', 'day', 'month', 'year'];
 
 /**
  * One control for how a page is shown.
@@ -73,20 +69,18 @@ const SORT_ICON: Record<SortKey, IconName> = {
  * button says how many choices differ from the defaults.
  */
 export function DisplayMenu({
-  viewKey, modes, groups, completedToggle = false, showWorkspaces = true, pageItems,
+  viewKey, modes, groups, completedToggle = false, showWorkspaces = true, pageItems, scope,
 }: DisplayMenuProps) {
   const { childrenOf } = useData();
   const { t } = useT();
   const prefs = useStore((s) => s.prefs);
   const setViewPrefs = useStore((s) => s.setViewPrefs);
-  const snapshot = useStore((s) => s.snapshot);
+  const snapshot = useDataSnapshot();
   const current = viewPrefs(prefs, viewKey);
   /* What this page opens as, which is not the same on every page: the count
      and the reset both mean "back to how this view starts", and a view that
      starts grouped by project has to be able to say so. */
   const base = defaultViewPrefs(viewKey);
-  const calendar = calendarPrefs(current, viewKey);
-  const setCalendar = (patch: Partial<CalendarPrefs>) => setViewPrefs(viewKey, { calendar: { ...calendar, ...patch } });
   const isCalendar = current.mode === 'calendar';
   const scheduledToggle = !isCalendar && viewKey !== 'today' && viewKey !== 'upcoming';
   const scheduledLabel = viewKey === 'week' ? 'filter.showToday' : 'filter.includeScheduled';
@@ -96,7 +90,7 @@ export function DisplayMenu({
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node) && !(e.target as Element).closest('.fselect-list, .popover.listbox')) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node) && !(e.target as Element).closest('.fselect-list, .popover.listbox, .sidemenu')) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', onDown);
@@ -147,12 +141,6 @@ export function DisplayMenu({
     return all.filter((l) => used.has(l.name.toLowerCase()));
   }, [snapshot.labels, pageItems, childrenOf, current.filters.labels]);
 
-  const toggleIn = <T,>(list: T[], value: T): T[] =>
-    list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
-
-  const setFilters = (patch: Partial<typeof current.filters>) =>
-    setViewPrefs(viewKey, { filters: { ...current.filters, ...patch } });
-
   return (
     <div className="displaywrap" ref={ref}>
       <button
@@ -178,180 +166,20 @@ export function DisplayMenu({
               {t('toolbar.resetAll')}
             </button>
           </div>
+          {scope && <p className="viewscope">{scope}</p>}
 
-          <div className="segmented display-modes">
-            {modes.map((mode) => (
-              <button
-                key={mode}
-                aria-pressed={current.mode === mode}
-                title={t(`toolbar.${mode}` as TranslationKey)}
-                onClick={() => setViewPrefs(viewKey, { mode })}
-              >
-                <Icon name={MODE_ICON[mode]} size="sm" />
-                <small>{t(`toolbar.${mode}` as TranslationKey)}</small>
-              </button>
-            ))}
-          </div>
-
-          {current.mode === 'list' && <div className="panelrow display-fullwidth">
-            <span>{t('toolbar.fullWidth')}</span>
-            <button className="switch" role="switch" aria-checked={current.fullWidth === true} aria-label={t('toolbar.fullWidth')}
-              onClick={() => setViewPrefs(viewKey, { fullWidth: current.fullWidth !== true })} />
-          </div>}
-
-          {current.mode === 'table' && <div className="table-column-options">
-            <h5>{t('table.columns')}</h5>
-            <TableColumnEditor current={current} onChange={(columns) => setViewPrefs(viewKey, { tableColumns: columns })} />
-            <Select label={t('table.coloration')} value={current.tableColoration ?? 'none'}
-              options={(['none', 'priority', 'date', 'project'] as const).map((value) => ({ value, label: t(`table.color.${value}`) }))}
-              onChange={(value) => setViewPrefs(viewKey, { tableColoration: value as NonNullable<typeof current.tableColoration> })} />
-          </div>}
-          {isCalendar && <div className="calendar-display-settings">
-            <h5>{t('calendar.presentation')}</h5>
-            <div className="segmented small calendar-presentations" role="group" aria-label={t('calendar.presentation')}>
-              {(['3-days', 'week', 'month'] as const).map((value) => <button key={value}
-                aria-pressed={calendar.presentation === value} onClick={() => setCalendar({ presentation: value })}>
-                <small>{t(`calendar.${value}`)}</small>
-              </button>)}
-            </div>
-            <div className="display-toggles">
-              {(['futureOccurrences', 'completed'] as const).map((key) => <div className="panelrow" key={key}>
-                <span>{t(key === 'completed' ? 'calendar.completed' : 'calendar.future')}</span>
-                <button className="switch" role="switch" aria-checked={calendar[key]}
-                  aria-label={t(key === 'completed' ? 'calendar.completed' : 'calendar.future')}
-                  onClick={() => setCalendar({ [key]: !calendar[key] })} />
-              </div>)}
-            </div>
-            <div className="calendar-coloration-row"><span>{t('calendar.coloration')}</span>
-            <Select ariaLabel={t('calendar.coloration')} value={calendar.coloration}
-              options={(['priority', 'project', 'tag'] as const).map((value) => ({ value, label: t(`calendar.${value}`), icon: ({ priority: 'flag', project: 'project', tag: 'tag' } as const)[value] }))}
-              onChange={(value) => setCalendar({ coloration: value as CalendarPrefs['coloration'] })} /></div>
-            {prefs.estimateStorage !== 'duration' && <p className="calendar-pref-hint">{t('calendar.tagHint')}</p>}
-          </div>}
-          {/* Two questions, two selects, drawn the way every other select in
-              the app is drawn. */}
-          <div className={`panelgrid ${isCalendar ? 'calendar-sort calendar-coloration-row' : ''}`}>
-            {isCalendar && <span>{t('toolbar.sortBy')}</span>}
-            {!isCalendar && <Select
-              label={t('toolbar.group')}
-              value={shownGroup}
-              onChange={(value) => setViewPrefs(viewKey, { group: value as GroupKey })}
-              options={[...groups].sort((a, b) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b)).map((group) => ({
-                value: group,
-                label: t(`group.${group}` as TranslationKey),
-                icon: GROUP_ICON[group],
-              }))}
-            />}
-            <Select
-              label={isCalendar ? undefined : t('toolbar.sortBy')}
-              ariaLabel={t('toolbar.sortBy')}
-              value={current.sort}
-              onChange={(value) => setViewPrefs(viewKey, { sort: value as SortKey })}
-              options={sorts.map((sort) => ({
-                value: sort,
-                label: sort === 'manual' && !viewKey.startsWith('project:') ? t('sort.manualOrder') : t(`sort.${sort}` as TranslationKey),
-                icon: SORT_ICON[sort],
-              }))}
-            />
-          </div>
-
-          <hr />
-
-          {/* Filters are toggles you can see the state of at a glance, rather
-              than a column of checkboxes to read one by one. */}
-          {showWorkspaces && <WorkspaceFilter viewKey={viewKey} />}
-          <AssigneeFilter viewKey={viewKey} />
-          <h5>{t('filter.priorities')}</h5>
-          <div className="chiprow">
-            {([1, 2, 3, 4] as const).map((p) => (
-              <button
-                key={p}
-                className="chip"
-                aria-pressed={current.filters.priorities.includes(p)}
-                onClick={() =>
-                  setFilters({ priorities: toggleIn(current.filters.priorities, p as DisplayPriority) })
-                }
-              >
-                <span className="flagdot" style={{ background: `var(--p${p})` }} />
-                P{p}
-              </button>
-            ))}
-          </div>
-
-          <h5>{t('filter.estimated')}</h5>
-          <div className="segmented small">
-            {([null, true, false] as const).map((value) => (
-              <button
-                key={String(value)}
-                aria-pressed={current.filters.estimated === value}
-                onClick={() => setFilters({ estimated: value })}
-              >
-                <small>
-                  {value === null
-                    ? t('filter.any')
-                    : value
-                      ? t('filter.isEstimated')
-                      : t('filter.isUnestimated')}
-                </small>
-              </button>
-            ))}
-          </div>
-
-
-          <hr />
-          <div className="display-toggles">
-          {scheduledToggle && <div className="panelrow">
-            <span>{t(scheduledLabel)}</span>
-            <button
-              className="switch"
-              role="switch"
-              aria-checked={current.filters.includeScheduled}
-              aria-label={t(scheduledLabel)}
-              onClick={() => setFilters({ includeScheduled: !current.filters.includeScheduled })}
-            />
-          </div>}
-          <div className="panelrow">
-            <span>{t('filter.showSubtasks')}</span>
-            <button
-              className="switch"
-              role="switch"
-              aria-checked={current.filters.showSubtasks}
-              aria-label={t('filter.showSubtasks')}
-              onClick={() => setFilters({ showSubtasks: !current.filters.showSubtasks })}
-            />
-          </div>
-          {completedToggle && !isCalendar && (
-            <div className="panelrow">
-              <span>{t('filter.showCompleted')}</span>
-              <button
-                className="switch"
-                role="switch"
-                aria-checked={current.filters.showCompleted}
-                aria-label={t('filter.showCompleted')}
-                onClick={() => setFilters({ showCompleted: !current.filters.showCompleted })}
-              />
-            </div>
-          )}
-
-          </div>
-          {tags.length > 0 && <hr />}
-          {tags.length > 0 && <>
-              <h5>{t('filter.labels')}</h5>
-              <div className="chiprow scroll">
-                {tags.map((label) => (
-                  <button
-                    key={label.id}
-                    className="chip"
-                    aria-pressed={current.filters.labels.includes(label.name)}
-                    onClick={() => setFilters({ labels: toggleIn(current.filters.labels, label.name) })}
-                  >
-                    <Icon name="tag" size="sm" className="taglabel" style={markerStyle(label.color, false)} />
-                    {label.name}
-                  </button>
-                ))}
-              </div>
-          </>}
-
+          <DisplayFields
+            value={{ ...current, group: shownGroup }}
+            onChange={(patch) => setViewPrefs(viewKey, patch)}
+            viewKey={viewKey}
+            modes={modes}
+            groups={groups}
+            sorts={sorts}
+            tags={tags}
+            completedToggle={completedToggle}
+            scheduledLabel={scheduledToggle ? scheduledLabel : undefined}
+            extraFilters={showWorkspaces ? <WorkspaceFilter viewKey={viewKey} /> : undefined}
+          />
 
           {!isCalendar && <>
           <hr />

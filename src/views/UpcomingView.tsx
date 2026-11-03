@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { SubtasksProvider } from '@/components/TaskRow';
 import { DisplayMenu } from '@/components/DisplayMenu';
+import { PomodoroButton } from '@/components/PomodoroButton';
 import { PageMenu } from '@/components/PageMenu';
 import { TaskGroup } from '@/components/TaskGroup';
 import { ModeSurface } from '@/components/ModeSurface';
@@ -21,8 +22,9 @@ import { upcomingItems } from '@/domain/views';
 import { projectOccurrences } from '@/domain/projectOccurrences';
 import type { GroupKey } from '@/domain/types';
 import { summariseLoad } from '@/domain/load';
-import { dueDate, daysBetween, formatRelativeDay, toApiDate } from '@/domain/dates';
+import { dueDate, daysBetween, formatDayHeading, toApiDate } from '@/domain/dates';
 import { addDays, startOfDay } from 'date-fns';
+import { intlDate } from '@/lib/intl';
 
 interface UpcomingViewProps {
   onOpen: (id: string) => void;
@@ -56,7 +58,7 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
      by itself, so the range never lags behind the tasks it lets in (#146). */
   const today = useToday();
 
-  const forecasts = useMemo(() => projectOccurrences(datedRoots(items, snapshot), addDays(today, 1), startOfDay(addDays(today, horizon))), [items, today, horizon, snapshot]);
+  const forecasts = useMemo(() => projectOccurrences(datedRoots(items, snapshot, 'none', { subtasks: current.filters.showSubtasks }), addDays(today, 1), startOfDay(addDays(today, horizon))), [items, today, horizon, snapshot, current.filters.showSubtasks]);
   const pool = forecasts.items;
   const sources = useMemo(() => new Map(pool.filter((item) => item.projection).map((item) => [item.id, item.projection!.sourceId])), [pool]);
   const childrenOf = useMemo(() => (id: string) => sourceChildrenOf(sources.get(id) ?? id), [sources, sourceChildrenOf]);
@@ -66,7 +68,7 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
   );
 
   const hasMoreFuture = useMemo(() => {
-    const beyond = applyFilters(upcomingItems(datedRoots(items, snapshot)), { ...current.filters, includeScheduled: true }, snapshot, childrenOf);
+    const beyond = applyFilters(upcomingItems(datedRoots(items, snapshot, 'none', { subtasks: current.filters.showSubtasks })), { ...current.filters, includeScheduled: true }, snapshot, childrenOf);
     const limit = startOfDay(addDays(today, horizon));
     return beyond.some((item) => { const day = dueDate(item); return day !== null && startOfDay(day) > limit; });
   }, [items, snapshot, current.filters, childrenOf, today, horizon]);
@@ -99,8 +101,8 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
   const columns = days
     .map((day) => ({
       id: toApiDate(day),
-      title: formatRelativeDay(day, locale),
-      items: sortItems(byDay.get(toApiDate(day)) ?? [], current.sort, childrenOf, 'day', snapshot, true),
+      title: formatDayHeading(day, locale),
+      items: sortItems(byDay.get(toApiDate(day)) ?? [], current.sort, childrenOf, 'day', snapshot, true, prefs.workspaceOrder),
       dropTarget: { kind: 'day' as const, date: day },
       capacityMinutes: prefs.dailyCapacity[day.getDay()],
     }))
@@ -116,6 +118,7 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
         title={t('nav.upcoming')}
         actions={
           <>
+            <PomodoroButton />
             <DisplayMenu
               pageItems={current.mode === 'calendar' ? items : pool}
               viewKey="upcoming"
@@ -196,7 +199,7 @@ function UpcomingBody({ onOpen, onInsights, onUnestimated, onAddTaskTo }: Upcomi
       {current.mode !== 'calendar' && <div style={{ marginTop: 'var(--s5)', display: 'flex', justifyContent: 'center' }}>
         <div className="upcoming-extend">
           <p className="psub" aria-live="polite">{t('upcoming.visibleThrough', {
-            date: new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', year: 'numeric' }).format(addDays(today, horizon)),
+            date: intlDate(locale, { day: 'numeric', month: 'long', year: 'numeric' }).format(addDays(today, horizon)),
           })}</p>
           {hasMoreFuture && <button className="btn" onClick={() => {
             const next = horizon + 15;

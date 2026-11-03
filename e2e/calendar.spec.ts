@@ -125,7 +125,7 @@ test('future occurrences, completed tasks, subtasks and coloration', async ({ de
   await menu.getByRole('switch', { name: 'Show subtasks', exact: true }).click();
   await active(page).getByRole('button', { name: /^Display(?: \d+)?$/ }).click();
   await expect(calendar(page).locator('[data-calendar-task="cal-child"]')).toHaveCount(0);
-  await option(page, 'Coloration', 'Project');
+  await option(page, 'Coloration', 'Colour from project');
   expect(await calendar(page).locator('[data-calendar-task="cal-timed"]').evaluate((el) => getComputedStyle(el).borderLeftWidth)).toBe('0px');
 });
 
@@ -275,8 +275,7 @@ for (const mode of ['Calendar', 'List', 'Board']) {
     const card = mode === 'Calendar' ? calendar(page).locator('[data-calendar-task="cal-timed"]') : active(page).locator('[data-task-id="cal-timed"]');
     await card.click({ button: 'right' });
     const menu = page.locator('.rowmenu[role="menu"]');
-    for (const name of ['Edit task', 'Schedule', 'Priority', 'Deadline', 'Move to project', 'Duplicate']) await expect(menu.getByRole('button', { name, exact: true })).toBeVisible();
-    await menu.getByRole('button', { name: 'Priority', exact: true }).click();
+    for (const name of ['Edit task', 'Tomorrow', 'P2', 'Deadline', 'Move to project', 'Duplicate']) await expect(menu.getByRole('button', { name, exact: true })).toBeVisible();
     await page.locator('.rowmenu').getByRole('button', { name: 'P2', exact: true }).click();
     expect((await page.evaluate(() => (window as any).__store.getState().snapshot.items['cal-timed'].priority))).toBe(3); // eslint-disable-line @typescript-eslint/no-explicit-any
   });
@@ -328,7 +327,7 @@ test('month outside click only dismisses overflow; next click creates', async ({
 test('calendar context submenus return to actions, including the duration editor', async ({ demo: page }) => {
   await seed(page); await openCalendar(page);
   await calendar(page).locator('[data-calendar-task="cal-timed"]').click({ button: 'right' });
-  for (const name of ['Priority', 'Deadline', 'Schedule', 'Move to project', 'Set an estimate']) {
+  for (const name of ['Deadline', 'Pick a date', 'Move to project', 'Set an estimate']) {
     const menu = page.locator('.rowmenu[role="menu"]');
     await menu.getByRole('button', { name, exact: true }).click();
     await expect(menu.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
@@ -343,11 +342,12 @@ test('sidebar contains title and duration; sort stays on one line and forecasts 
   await expect(calendar(page).getByText('Description hidden in the calendar sidebar')).toHaveCount(0);
   await active(page).getByRole('button', { name: /^Display/ }).click();
   const menu = active(page).getByRole('dialog', { name: 'Display', exact: true });
-  const label = await menu.locator('.calendar-sort>span:not(.fselect)').boundingBox();
   const field = await menu.getByRole('button', { name: 'Sort', exact: true }).boundingBox();
-  expect(Math.abs(label!.y + label!.height / 2 - field!.y - field!.height / 2)).toBeLessThan(2);
+  expect(field!.height).toBeLessThan(50);
   await menu.getByRole('switch', { name: 'Future occurrences', exact: true }).click();
   await active(page).getByRole('button', { name: /^Display/ }).click();
+  /* Next week always has occurrences ahead of it; on a Sunday this week has none left. */
+  await calendar(page).getByRole('button', { name: 'Next period', exact: true }).click();
   const forecast = calendar(page).locator('.is-forecast').first();
   await expect(forecast.locator('.calendar-forecast-mark')).toBeVisible();
   await expect(forecast.getByRole('checkbox')).toHaveCount(0);
@@ -401,12 +401,10 @@ test('calendar cards open from title and body without confusing clicks with drag
 test('priority and estimate context menus stay compact', async ({ demo: page }) => {
   await seed(page); await openCalendar(page);
   await calendar(page).locator('[data-calendar-task="cal-timed"]').click({ button: 'right' });
-  await page.locator('.rowmenu').getByRole('button', { name: 'Priority', exact: true }).click();
-  const priority = page.locator('.prioritymenu');
+  const priority = page.locator('.task-priority-shortcuts');
   await expect(priority.locator('h5')).toHaveCount(0);
   expect((await priority.boundingBox())!.height).toBeLessThan(220);
   await page.screenshot({ path: '../../outputs/calendar-priority-compact.png', fullPage: true });
-  await priority.getByRole('button', { name: 'Back', exact: true }).click();
   await page.locator('.rowmenu').getByRole('button', { name: 'Set an estimate', exact: true }).click();
   const estimate = page.locator('.estimatesheet');
   expect((await estimate.boundingBox())!.height).toBeLessThan(250);
@@ -417,7 +415,7 @@ test('priority and estimate context menus stay compact', async ({ demo: page }) 
 test('update window links to full changelog and keeps actions over a bounded blur', async ({ demo: page }) => {
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('enhanced:changelog', { detail: { versions: ['2.10.0'] } })));
   const updated = page.getByRole('dialog', { name: 'What’s new since your last visit', exact: true });
-  await expect(updated.locator('.whatsnew-release')).toHaveCount(1);
+  await expect(updated.locator('.whatsnew-feed')).toHaveCount(1);
   await expect(updated.getByRole('link', { name: 'Buy me a coffee' })).toBeVisible();
   await expect(updated.getByRole('button', { name: 'Got it', exact: true })).toBeVisible();
   await page.screenshot({ path: '../../outputs/changelog-since-last-visit.png', fullPage: true, animations: 'disabled' });

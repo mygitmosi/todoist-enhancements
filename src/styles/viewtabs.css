@@ -1,0 +1,133 @@
+/* ==========================================================================
+   Saved views of a project (#333): grey pills, and the panels that hang from them.
+   ========================================================================== */
+.vtabs{margin:2px 0 16px}
+.vtabs-row{position:relative;display:flex;align-items:center;gap:6px;min-width:0}
+.vtabs-list{display:flex;align-items:center;gap:6px;min-width:0;flex:0 1 auto}
+.vtabs-measure{position:absolute;left:0;top:0;right:96px;height:0;overflow:hidden;visibility:hidden;pointer-events:none;
+  display:flex;flex-wrap:wrap;gap:6px}
+
+/* A pill is grey and has no border; the one in front is a darker grey. */
+.vtab{position:relative;display:inline-flex;align-items:center;flex:none;max-width:260px;min-width:0;border-radius:var(--r-full);
+  background:var(--btn-soft);color:var(--muted);transition:background .14s ease-out,color .14s ease-out}
+.vtab:hover{background:var(--btn-soft-hover);color:var(--text)}
+.vtab.on{background:color-mix(in srgb,var(--text) 12%,var(--surface));color:var(--text)}
+.vtab.open{background:color-mix(in srgb,var(--text) 18%,var(--surface));color:var(--text)}
+.vtab.droppable{outline:2px dashed var(--border-strong);outline-offset:2px}
+.vtab-main{display:inline-flex;align-items:center;gap:7px;min-width:0;height:32px;
+  padding:0 10px 0 12px;border-radius:var(--r-full);font-size:var(--fs-13);font-weight:500;white-space:nowrap;color:inherit;background:none}
+.vtab.on .vtab-main{font-weight:600}
+.vtab-name{overflow:hidden;text-overflow:ellipsis;max-width:22ch}
+.vtab-main:focus-visible,.vtabs-add:focus-visible,.vtabs-over:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.vtabs-add,.vtabs-over{flex:none;height:32px;display:inline-grid;grid-auto-flow:column;gap:2px;place-items:center;border-radius:var(--r-full);
+  background:var(--btn-soft);color:var(--muted);font-size:var(--fs-13);font-weight:600}
+.vtabs-add{width:32px}
+.vtabs-over{padding:0 10px}
+.vtabs-add:hover,.vtabs-over:hover{background:var(--btn-soft-hover);color:var(--text)}
+.vtabs-add.open,.vtabs-over.on,.vtabs-over[aria-expanded="true"]{background:color-mix(in srgb,var(--text) 12%,var(--surface));color:var(--text)}
+.vtabs-add:disabled{opacity:.45;cursor:not-allowed}
+
+/* The panels: drawn in the top layer, with an arrow to the thing they belong to. */
+.anchored{position:fixed;z-index:90;width:360px;max-width:calc(100vw - 16px);
+  filter:drop-shadow(0 10px 24px rgba(0,0,0,.14)) drop-shadow(0 1px 2px rgba(0,0,0,.12))}
+.anchored-body{position:relative;max-height:min(78vh,760px);overflow-y:auto;padding:var(--s4);background:var(--surface);
+  border:1px solid var(--border-strong);border-radius:var(--r-md)}
+.anchored-arrow{position:absolute;z-index:1;left:calc(var(--arrow) - 7px);width:14px;height:14px;background:var(--surface);
+  border:1px solid var(--border-strong);transform:rotate(45deg)}
+.anchored[data-side="below"] .anchored-arrow{top:-7px;border-right:0;border-bottom:0}
+.anchored[data-side="above"] .anchored-arrow{bottom:-7px;border-left:0;border-top:0}
+.anchored.viewmenu{width:260px}
+.viewmenu .anchored-body{padding:6px}
+
+/* Inside a panel: it is Display's own markup, so only what is new is styled. */
+/* The header of both panels: a title, and round icon buttons with the actions. */
+.viewhead{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s3)}
+.viewhead h5{margin:0}
+.vactions{display:flex;align-items:center;gap:6px}
+.vround{width:32px;height:32px;display:grid;place-items:center;flex:none;border-radius:50%;background:var(--btn-soft);color:var(--muted);
+  transition:background .12s ease-out,color .12s ease-out}
+.vround:hover{background:var(--btn-soft-hover);color:var(--text)}
+.vround.primary{background:var(--accent);color:var(--on-accent,#fff)}
+.vround.primary:hover{background:var(--accent-dark,var(--accent));color:var(--on-accent,#fff)}
+.vround.danger{color:var(--accent-dark)}
+.vround[aria-disabled="true"]{opacity:.4;cursor:not-allowed}
+.vround:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sheet-head.viewhead h2{margin:0}
+.viewbody .dfields{padding-bottom:var(--s2)}
+.viewname{width:100%;height:38px;margin:0 0 var(--s3);padding:0 12px;border:0;border-radius:var(--r-ctl);background:var(--btn-soft);color:var(--text);font:inherit;font-weight:600}
+.viewname::placeholder{font-weight:400;color:var(--faint)}
+.viewname:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.viewscope{margin:2px 0 var(--s3);padding:7px 10px;border-radius:8px;background:var(--accent-soft);color:var(--accent-dark);font-size:12px;line-height:1.35}
+
+.viewmenu-list{display:flex;flex-direction:column;gap:1px}
+.viewmenu-list button{display:flex;align-items:center;gap:9px;min-height:34px;padding:0 10px;border-radius:var(--r-sm);text-align:left;color:var(--text);font-size:var(--fs-13)}
+.viewmenu-list button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.viewmenu-list button:hover{background:var(--hover)}
+.viewmenu-list button.on{font-weight:600;background:var(--subtle)}
+
+@media (max-width:720px){
+  .viewedit .vround.primary{display:none}
+  .vtab-main{height:40px}
+  .vtabs-add,.vtabs-over{height:40px}.vtabs-add{width:40px}
+}
+
+/* The fields shared by Display and the view panels */
+.dfields h5{margin:var(--s4) 0 6px;font-size:var(--fs-11);font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+.dfields>h5:first-child{margin-top:0}
+.dfields hr{border:0;border-top:1px solid var(--border);margin:var(--s4) 0 0}
+.dfield-stack{display:flex;flex-direction:column;gap:var(--s2);margin-top:var(--s2)}
+.dfield-stack:first-child{margin-top:0}
+.dfields .display-fullwidth,.dfields .calendar-display-settings{margin-top:var(--s2)}
+.dfields .display-toggles{margin-top:var(--s2)}
+.dfield-stack .multiselect{margin:0}
+.dfield-stack>.multiselect:first-child,.dfield-stack .fselect:first-child{margin-top:0}
+
+/* The columns of a table, in a list at the side of the panel */
+.columnsrow .fselect-face{width:100%;gap:10px;text-align:left}
+.columnsrow .fselect-value{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.columns-caret{transform:rotate(90deg)}
+.columnsrow .fselect-face[aria-expanded="true"] .columns-caret{transform:rotate(-90deg)}
+.sidemenu{position:fixed;z-index:1000;width:264px;max-width:calc(100vw - 16px);max-height:calc(100vh - 16px);overflow-y:auto;padding:var(--s3);
+  background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-md);box-shadow:var(--sh-md)}
+.sidemenu h5{margin:2px 4px 8px;font-size:var(--fs-11);font-weight:600;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+.colrow{display:flex;align-items:center;gap:6px;min-height:38px;padding:0 4px;border-radius:var(--r-sm);background:var(--surface)}
+.colrow:hover{background:var(--hover)}
+.colrow.dragging{position:relative;z-index:2;box-shadow:var(--sh-md);background:var(--surface)}
+.colicon{flex:none;color:var(--muted)}
+.colgrip{flex:none;width:24px;height:28px;display:grid;place-items:center;color:var(--faint);opacity:.45;border-radius:6px;cursor:grab;touch-action:none}
+.colgrip:hover,.colgrip:focus-visible{color:var(--text);opacity:1}
+.colgrip:focus-visible{outline:2px solid var(--accent)}
+span.colgrip{cursor:default}
+.collabel{flex:1;min-width:0;font-size:var(--fs-13);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.colrow.locked .switch{opacity:.5}
+.colhint{margin:6px 6px 2px;color:var(--faint);font-size:11.5px;line-height:1.4}
+@media (max-width:720px){
+  .sidemenu{left:0!important;right:0;top:auto!important;bottom:0;width:auto;max-width:none;max-height:70vh;border-radius:18px 18px 0 0;padding-bottom:calc(14px + env(safe-area-inset-bottom))}
+  .colrow{min-height:46px}
+}
+/* Pills: the same room on both sides, and nothing added when one is in front */
+.vtab-main{padding:0 12px}
+
+/* The columns list opens to the side of Display. */
+.columns-caret{transform:rotate(-90deg)}
+.columnsrow .fselect-face[aria-expanded="true"] .columns-caret{transform:rotate(0)}
+
+
+/* Shared Display fields: labels and switches sit on the same rhythm. */
+.dfields h5,.displaypanel > h5 { text-transform:none; letter-spacing:0; font-size:var(--fs-12); }
+.dfields .display-toggles { padding-top:0; margin-top:var(--s2); }
+.dfields .panelrow > span { gap:10px; }
+.dfields .panelrow > span > .ic { width:16px; height:16px; flex:none; color:var(--muted); }
+.dfields .fselect-face { border-radius:12px; }
+.dfields .dfield-stack > .display-fullwidth { padding-block:0; }
+.calendar-display-settings { display:flex; flex-direction:column; gap:var(--s2); }
+.calendar-display-settings .display-toggles { margin-top:0; }
+
+.dfields .display-toggles .panelrow > span, .dfields .dfield-stack > .panelrow > span { padding-left:10px; }
+
+/* Keep the mode selector aligned with the fields and use one rhythm for table controls. */
+.dfields .display-modes { margin-left:0; margin-right:0; width:100%; box-sizing:border-box; }
+.dfields .dfield-stack > .columnsrow + .fselect { margin-top:0; }
+.dfields .dfield-stack > .panelrow { margin-top:0; }
+.dfields > .display-fullwidth > span { padding-left:10px; }

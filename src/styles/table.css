@@ -21,8 +21,40 @@
 .table-column-options button[aria-pressed=true]{background:var(--accent-soft);color:var(--accent)}
 .table-footer{padding:var(--s4) 12px;color:var(--muted);border-top:1px solid var(--border)}
 .task-table .trow-end{width:28px}.task-table .taskacts{right:0}
+/* With more columns than fit, everything up to the title stays on the left while the
+   rest slides under it (#298). The frozen pieces stand where they already do (the offsets
+   come from TableSurface), and the title carries an opaque band that reaches back to the
+   edge, so nothing shows through between the checkbox and the title. */
+.task-table .task>:is(.check,.tmain,.cell-frozen),.table-head>:is(.head-title,.head-frozen){position:sticky}
+.task-table .task>:is(.check,.cell-frozen),.table-head>.head-frozen{z-index:3;background:var(--frozen-bg,var(--surface))}
+.task-table .task>.check{left:var(--fz-check)}
+.task-table .task>.tmain{left:var(--fz-title);z-index:2}
+.table-head>.head-title{left:var(--fz-check);z-index:2}
+.task-table .task .drag{z-index:4}
+/* The frozen pieces fill the row from top to bottom, padding included, so the band has no gaps above or below. */
+.task-table .task>:is(.tmain,.cell-frozen){align-self:stretch;margin-block:-4px;padding-block:4px}
+.task-table .task>.cell-frozen{display:flex;align-items:center;max-height:none}
+.table-head>:is(.head-title,.head-frozen){align-self:stretch;margin-block:calc(-1 * var(--s3));padding-block:var(--s3)}
+.task-table .task>.tmain::before,.table-head>.head-title::before{content:"";position:absolute;z-index:-1;top:0;bottom:0;left:calc(-1 * var(--fz-title,60px));right:-6px;
+  background:var(--frozen-bg,var(--surface));pointer-events:none}
+.table-head>.head-title::before{left:calc(-1 * var(--fz-check,30px));background:var(--surface)}
+.table-head>.head-frozen{background:var(--surface)}
+/* What the row's own state paints, repeated on the frozen part (the row itself is see-through). */
+.task-table .task{--frozen-bg:var(--surface)}
+.task-table .task.picked{--frozen-bg:var(--row-marked)}
+.task-table .task[data-table-colored]:not(.picked){--frozen-bg:color-mix(in srgb,var(--table-row-color) 9%,var(--surface))}
+.task-table .task[data-table-colored]:not(.picked):hover{--frozen-bg:color-mix(in srgb,var(--table-row-color) 15%,var(--surface))}
+/* A subtask's checkbox moves in with its title; it stays above the title's band. */
+.task-table .task[data-depth]>.check{z-index:3}
+/* Once something has slid under the frozen edge, a thin grey line marks it. */
+.task-table .task>.tmain::after,.table-head>.head-title::after{content:"";position:absolute;top:0;bottom:0;right:-6px;width:1px;pointer-events:none;
+  background:var(--border-strong);opacity:0;transition:opacity .15s ease}
+.table-scroll[data-scrolled="true"] :is(.task>.tmain,.table-head>.head-title)::after{opacity:1}
+/* Section titles, "Add task" and the total stay in sight instead of sliding away with the columns. */
+.task-table :is(.gheadblock .ghead,.addline){position:sticky;left:0;box-sizing:border-box;width:var(--table-view,100%)}
+.task-table .table-footer{position:relative}
+.task-table .table-footer>span{position:sticky;left:30px;display:inline-block}
 @media(max-width:720px){
- .task-table .tmain,.table-head>div:first-of-type{position:sticky;left:0;background:var(--surface);z-index:2}
  .task-table .task{grid-template-columns:var(--table-columns)}
 }
 
@@ -52,9 +84,9 @@
 :root[data-layout="sidebar-float"] .pvscale{--sidebar-w:268px}
 .app:has(.sidebar-resize:active),.app:has(.sidebar-resize:active) .workspace{transition:none}
 
-.displaypanel .display-modes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
-.displaypanel .display-modes button{display:flex;flex-direction:column;justify-content:center;gap:6px;min-width:0;min-height:64px;padding:8px 3px}
-.displaypanel .display-modes button small{font-size:var(--fs-11);white-space:nowrap}
+:is(.displaypanel,.dfields) .display-modes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+:is(.displaypanel,.dfields) .display-modes button{display:flex;flex-direction:column;justify-content:center;gap:6px;min-width:0;min-height:64px;padding:8px 3px}
+:is(.displaypanel,.dfields) .display-modes button small{font-size:var(--fs-11);white-space:nowrap}
 .table-priority-mark{display:inline-flex;color:var(--priority-color)}
 .table-priority-mark.p1{--priority-color:var(--p1)}.table-priority-mark.p2{--priority-color:var(--p2)}
 .table-priority-mark.p3{--priority-color:var(--p3)}.table-priority-mark.p4{--priority-color:var(--p4)}
@@ -73,19 +105,17 @@
 .composer-attachment-status{font-size:var(--fs-12);color:var(--muted);margin:8px 0}
 @media(max-width:720px){.task-table .task.picked>.tmain{background:var(--row-marked)}}
 
-.displaypanel .display-modes{border-radius:12px}
-.displaypanel .display-modes button{border-radius:8px}
+:is(.displaypanel,.dfields) .display-modes{border-radius:12px}
+:is(.displaypanel,.dfields) .display-modes button{border-radius:8px}
 .task-table .task,.task-table .task[data-depth],.task-table .table-head{padding-left:30px}
 .task-table .task .drag{left:2px;width:18px;justify-content:center}
-.displaypanel .display-modes.seg-slide::before{border-radius:8px}
+:is(.displaypanel,.dfields) .display-modes.seg-slide::before{border-radius:8px}
 
 /* The table scrolls inside itself and its header row stays in view. */
 .table-scroll{overflow:auto;overscroll-behavior:contain}
 .table-scroll .table-head{position:sticky;top:0;z-index:4;background:var(--surface);border-radius:var(--r-md) var(--r-md) 0 0}
 
 /* "Title" starts where the checkboxes do; "Add task" sits under them. */
-.table-head>div:first-of-type{grid-column:1 / 3}
-.table-head>div:first-of-type button{padding-left:0}
 .task-table .addline{padding-left:30px}
 
 /* Rows carry no buttons at their right edge; a task opens from its title. */
@@ -119,3 +149,38 @@
 
 
 .task-table .table-project .meta,.task-table .table-project .proj{min-width:0;max-width:100%}
+
+/* #335 A heading sorts and can be dragged; its chevron opens the column's menu. The
+   assignee column is a person icon. */
+.table-head > div{position:relative;display:flex;align-items:center;min-width:0}
+.table-head .head-sort{display:inline-flex;align-items:center;gap:5px;width:auto;max-width:100%;min-width:0;flex:0 1 auto;cursor:pointer;touch-action:none;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:var(--r-sm)}
+.table-head .head-sort:hover{color:var(--text)}
+.table-head .head-arrow{flex:none;color:var(--muted)}
+.table-head .head-arrow.desc{transform:rotate(180deg)}
+.table-head .head-dot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.table-head .head-more{position:absolute;right:-4px;top:50%;transform:translateY(-50%);width:24px;min-height:24px;height:24px;padding:0;display:inline-grid;place-items:center;
+  border-radius:var(--r-sm);background:var(--surface);color:var(--muted);cursor:pointer;opacity:0;transition:opacity .12s}
+.table-head > div:hover .head-more,.table-head .head-more:focus-visible,.table-head .head-more[aria-expanded="true"],.table-head .head-filtered .head-more{opacity:1}
+.table-head .head-more:hover,.table-head .head-more[aria-expanded="true"]{background:var(--btn-soft);color:var(--text)}
+@media(hover:none){.table-head .head-more{opacity:1}}
+.table-head .head-dragging{position:relative;z-index:6;background:var(--hover);border-radius:var(--r-sm);box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.table-head .head-dragging button{cursor:grabbing}
+.table-cell.table-assignee{display:flex;align-items:center;justify-content:center}
+.table-head > div:has(.head-sort[title][aria-label]) .head-sort{justify-content:center;margin-inline:auto}
+
+/* The column menu is the app's floating menu: a Filter block, then moving and hiding. */
+.popover.rowmenu.tablemenu{position:fixed;z-index:110;right:auto;width:240px;max-width:calc(100vw - 16px);padding:6px;max-height:calc(100vh - 16px);overflow-y:auto}
+.popover.rowmenu.tablemenu .opt{display:flex;align-items:center;justify-content:flex-start;gap:8px;width:100%;min-height:34px;padding:6px 10px;border-radius:var(--r-sm);text-align:left}
+.popover.rowmenu.tablemenu .opt:disabled{opacity:.4;cursor:default}
+.tablemenu hr{margin:6px 4px}
+.tablemenu-title{display:flex;align-items:center;justify-content:space-between;padding:6px 10px 4px}
+.tablemenu-title h5{margin:0;padding:0}
+.tablemenu .tablemenu-clear{border:0;background:transparent;padding:2px 6px;margin-right:-6px;border-radius:var(--r-sm);color:var(--muted);font:inherit;font-size:var(--fs-12);cursor:pointer}
+.tablemenu .tablemenu-clear:hover{background:var(--hover);color:var(--text)}
+.tablemenu-list{display:grid;max-height:220px;overflow-y:auto}
+.tablemenu .tablemenu-empty{margin:6px 10px;color:var(--faint);font-size:var(--fs-12)}
+.tablemenu .tablemenu-check{gap:10px}
+.tablemenu .tablemenu-label{display:inline-flex;align-items:center;gap:8px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tablemenu .tablemenu-check .check{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--border-strong);display:inline-grid;place-items:center;flex:none;color:transparent}
+.tablemenu .tablemenu-check .check.on{background:var(--accent);border-color:var(--accent);color:#fff}

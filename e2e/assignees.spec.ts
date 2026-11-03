@@ -117,7 +117,7 @@ test('workspace dropdown supports multiple spaces and a deliberate empty selecti
   const checkboxes = picker.getByRole('checkbox');
   for (let index = 0; index < await checkboxes.count(); index++) await checkboxes.nth(index).uncheck();
   await expect(demo.locator('.screen.active [data-task-id]')).toHaveCount(0);
-  await picker.getByRole('button', { name: 'Any', exact: true }).click();
+  await picker.getByRole('button', { name: 'Any workspace', exact: true }).click();
   await expect(row(demo, '203 today mine')).toBeVisible();
 });
 
@@ -200,8 +200,9 @@ test('profile photo stays centred before the more menu and its dropdown fits the
   const avatar = task.getByRole('img', { name: 'Assigned to: Alex Martin' });
   await expect(avatar.locator('img')).toBeVisible();
   await expect.poll(() => avatar.locator('img').evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
-  const before = (await avatar.boundingBox())!; const box = (await task.boundingBox())!;
-  expect(Math.abs(before.y + before.height / 2 - box.y - box.height / 2)).toBeLessThan(2);
+  // #386: the row's actions sit on the title's first line, not the middle of the whole row.
+  const before = (await avatar.boundingBox())!; const title = (await task.locator('.ttitle').first().boundingBox())!;
+  expect(Math.abs(before.y + before.height / 2 - title.y - Math.min(title.height, 22) / 2)).toBeLessThan(4);
   await task.hover();
   const after = (await avatar.boundingBox())!;
   expect(Math.abs(before.x - after.x)).toBeLessThan(1);
@@ -266,7 +267,7 @@ test('selecting every assignee or workspace restores the all summary and removes
     await expect(demo.locator('.displaycount')).toHaveText('1');
     await first.check();
     await expect(demo.locator('.displaycount')).toHaveCount(0);
-    await expect(trigger).toHaveAccessibleName(`${label}: ${label === 'Assigned to' ? 'Everyone' : 'Any'}`);
+    await expect(trigger).toHaveAccessibleName(`${label}: ${label === 'Assigned to' ? 'Everyone' : 'Any workspace'}`);
     await trigger.click();
   }
 });
@@ -305,10 +306,10 @@ test('matrix uses workspace multiselect with images and filters across several s
   expect(await choices.count()).toBeGreaterThan(1);
   await expect(picker.locator('.workspace-avatar').first()).toBeVisible();
   for (let index = 0; index < await choices.count(); index++) await choices.nth(index).uncheck();
-  await expect(picker.getByRole('button', { name: 'Any', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  await expect(picker.getByRole('button', { name: 'Any workspace', exact: true })).toHaveAttribute('aria-pressed', 'false');
   await expect(row(demo, '203 today mine')).toHaveCount(0);
-  await picker.getByRole('button', { name: 'Any', exact: true }).click();
-  await expect(picker.getByRole('button', { name: 'Any', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await picker.getByRole('button', { name: 'Any workspace', exact: true }).click();
+  await expect(picker.getByRole('button', { name: 'Any workspace', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(row(demo, '203 today mine')).toBeVisible();
   await demo.keyboard.press('Escape');
   await expect(demo.getByRole('dialog', { name: 'Display', exact: true })).toBeVisible();

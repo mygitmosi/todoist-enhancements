@@ -334,6 +334,8 @@ export const SYSTEM_LABELS = {
   quick: 'quick',
   automation: 'automation',
   waiting: 'waiting',
+  /** The month's horizon: tasks for this month with no set day. */
+  month: 'thismonth',
 } as const;
 
 export const DEFAULT_WEEK_LABEL = 'week';
@@ -362,6 +364,13 @@ export const setWeekLabel = (name: string): void => {
   weekLabelName = name.trim() || DEFAULT_WEEK_LABEL;
 };
 
+/** The horizon tags a date replaces: the week's (whatever it is called) and `later`. */
+export const withoutHorizons = (labels: string[]): string[] =>
+  labels.filter((l) => {
+    const name = l.toLowerCase();
+    return name !== weekLabelName.toLowerCase() && name !== SYSTEM_LABELS.month;
+  });
+
 export const ESTIMATE_PREFIX = 'est-';
 
 /** The bucket a task falls into, decided by the display-priority rules in the spec. */
@@ -373,6 +382,7 @@ export type ViewId =
   /** Today on its own, when the sidebar is set to separate it from the week. */
   | 'today'
   | 'upcoming'
+  | 'month'
   | 'someday'
   | 'review'
   | 'dashboard'
@@ -460,10 +470,16 @@ export const defaultFilters = (viewKey?: string): ViewFilters => ({
   showCompleted: false,
 });
 
-export type TableColumn = 'title' | 'date' | 'deadline' | 'priority' | 'estimate' | 'labels' | 'description' | 'project';
+export type TableColumn = 'title' | 'date' | 'deadline' | 'priority' | 'estimate' | 'labels' | 'description' | 'project' | 'assignee';
 
 export interface ViewPrefs {
   tableColumns?: TableColumn[];
+  /** Every column, the title included, shown or not, in the order Display lists them: a column switched on again returns to its place. */
+  tableOrder?: TableColumn[];
+  /** Widths the user pulled, in pixels. A column absent from here has its default width. */
+  tableWidths?: Partial<Record<TableColumn, number>>;
+  /** Long titles and descriptions run over several lines instead of being cut (#299). */
+  tableWrap?: boolean;
   tableColoration?: 'none' | 'priority' | 'date' | 'project';
   tableDescending?: boolean;
   /** A list keeps a centred reading width unless this is true: then it takes the whole page. */

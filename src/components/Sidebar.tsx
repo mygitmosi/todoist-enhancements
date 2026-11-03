@@ -1,9 +1,10 @@
+import { ProjectProgress } from './ProjectProgress';
+import { matrixVisibleItems } from '@/domain/eisenhower';
 import { SidebarResize } from './SidebarResize';
-import { addDays, endOfDay } from 'date-fns';
-import { dueDate, isToday } from '@/domain/dates';
+import { isToday } from '@/domain/dates';
 import { viewPrefs } from '@/store/prefs';
 import { assigneeItems } from '@/domain/assignees';
-import { datedRoots, childIndex, makeChildrenOf, openItems, applyFilters } from '@/store/selectors';
+import { datedRoots, labelRoots, childIndex, makeChildrenOf, openItems, applyFilters } from '@/store/selectors';
 import { useFilterCounts } from '@/hooks/useFilterResult';
 import { FilterMark } from './FilterMark';
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
@@ -15,15 +16,17 @@ import { useData } from '@/hooks/useData';
 import { useStore } from '@/store/store';
 import { navigate, type Route } from '@/hooks/useRoute';
 import { projectCounts, projectTree, rootItems, type ProjectNode } from '@/store/selectors';
-import { bucketOf, hasLabel, somedayItems, upcomingItems, weekItems } from '@/domain/views';
+import { bucketOf, monthItems, somedayItems, weekItems } from '@/domain/views';
 import { markerStyle, avatarUrl } from '@/domain/colors';
 import { firstName, karmaStanding } from '@/domain/karma';
 import { readProjectIcon } from '@/domain/projectIcons';
-import { ProjectIcon } from './ProjectIconPicker';
-import type { ViewId } from '@/domain/types';
+import { ProjectIcon } from './ProjectIcon';
+import type { GroupKey, ViewId } from '@/domain/types';
 import type { DropTarget } from '@/domain/dnd';
 import type { TranslationKey } from '@/i18n';
 import { SyncStatus } from './SyncStatus';
+import { applyUpdate, useUpdateCard, useUpdateReady } from '@/lib/appUpdate';
+import { UpdateCard } from './UpdateCard';
 import { Droppable } from './dnd/Droppable';
 import { ProjectDropRow, ProjectRowSortable } from './dnd/ProjectRowSortable';
 import { COFFEE_URL, FEEDBACK_URL } from '@/app-info';
@@ -36,6 +39,7 @@ import { visibleSidebarNav, type SidebarItemId } from '@/domain/sidebar';
 
 interface SidebarProps {
   route: Route;
+  projectProgressCounts: { open: Record<string, number>; completed: Record<string, number> };
   onAddTask: () => void;
   onSearch: () => void;
   onIssues: () => void;
@@ -71,7 +75,7 @@ const GO_KEYS: Partial<Record<ViewId, string>> = {
 const HINT_DELAY_MS = 550;
 
 export function Sidebar({
-  route, onAddTask, onSearch, onIssues, onProjectSheet, issuesCount, variant = 'rail',
+  route, projectProgressCounts, onAddTask, onSearch, onIssues, onProjectSheet, issuesCount, variant = 'rail',
 }: SidebarProps) {
   /* The list scrolls under the Add task area, which grows with its contents
      (the sync line, a second row of buttons). The scroller keeps as much room
@@ -89,6 +93,8 @@ export function Sidebar({
     return () => observer.disconnect();
   }, []);
   const { t } = useT();
+  const updateReady = useUpdateReady();
+  const announcing = useUpdateCard();
   const { snapshot, items } = useData();
   const prefs = useStore((state) => state.prefs);
   const sheet = variant === 'sheet';
@@ -140,9 +146,7 @@ export function Sidebar({
 
   useEffect(() => hideHint, []);
 
-  const roots = useMemo(() => rootItems(items), [items]);
   const inboxId = snapshot.user?.inbox_project_id;
-
   const counts = useMemo(() => {
     const now = new Date();
     const scope = (key: string) => {
@@ -150,7 +154,11 @@ export function Sidebar({
       const scoped = { ...snapshot, items: assigneeItems(snapshot, filters.assignees) };
       /* A project's count is Todoist's: every open task, subtasks included,
          so the Inbox and the projects read the same number in both apps. */
-      const list = ['today', 'week', 'upcoming'].includes(key) ? datedRoots(openItems(scoped), scoped) : key === 'inbox' ? openItems(scoped) : rootItems(openItems(scoped));
+      /* The page lists its tasks under its own grouping and "Show subtasks"
+         (#409): the count reads them from the same place. Upcoming never groups. */
+      const dated = (group: GroupKey, layout: boolean) =>
+        datedRoots(openItems(scoped), scoped, group, { subtasks: filters.showSubtasks, layout, quick: prefs.showQuickGroup });
+      const list = key === 'upcoming' ? dated('none', false) : ['today', 'week'].includes(key) ? dated(viewPrefs(prefs, key).group, viewPrefs(prefs, key).group === 'none') : key === 'inbox' ? openItems(scoped) : rootItems(openItems(scoped));
       return applyFilters(list, ['today', 'week', 'upcoming'].includes(key) ? { ...filters, includeScheduled: true } : filters, snapshot, makeChildrenOf(childIndex(scoped)));
     };
     return {
@@ -162,10 +170,14 @@ export function Sidebar({
       /* The count has to match the page. A "My week" that no longer contains
          today must not keep counting today's work. */
       week: weekItems(scope('week'), now).filter((item) => viewPrefs(prefs, 'week').filters.includeScheduled || !isToday(item, now)).length,
-      upcoming: upcomingItems(scope('upcoming')).filter((item) => {
-        const date = dueDate(item);
-        return date !== null && date <= endOfDay(addDays(now, prefs.upcomingHorizonDays));
-      }).length,
+      matrix: (() => {
+        const filters = viewPrefs(prefs, 'matrix').filters;
+        const scoped = assigneeItems(snapshot, filters.assignees);
+        const workspaceItems = filters.workspaces.length ? Object.fromEntries(Object.entries(scoped).filter(([, item]) => filters.workspaces.includes(snapshot.projects[item.project_id]?.workspace_id ?? 'personal'))) : scoped;
+        const roots = rootItems(openItems({ ...snapshot, items: workspaceItems }));
+        return matrixVisibleItems(roots, snapshot.projects, prefs.eisenhowerHorizon, prefs.eisenhowerIncludeSomeday, filters.workspaces.length ? null : prefs.eisenhowerWorkspace, snapshot.user?.start_day ?? 1).length;
+      })(),
+      month: monthItems(scope('month')).length,
       someday: somedayItems(scope('someday')).length,
       byProject: projectCounts(items),
     };
@@ -284,8 +296,9 @@ export function Sidebar({
         return navItem('inbox', 'inbox', 'nav.inbox', counts.inbox,
           inboxId ? { kind: 'project', projectId: inboxId } : undefined);
       case 'today': return navItem('today', 'calendar', 'nav.today', counts.today, { kind: 'today' });
-      case 'week': return navItem('week', 'week', 'nav.week', counts.week, { kind: 'anytime' });
-      case 'upcoming': return navItem('upcoming', 'upcoming', 'nav.upcoming', counts.upcoming);
+      case 'week': return navItem('week', 'week', 'nav.sideWeek', counts.week, { kind: 'anytime' });
+      case 'month': return navItem('month', 'calendar', 'nav.sideMonth', counts.month, { kind: 'month' });
+      case 'upcoming': return navItem('upcoming', 'upcoming', 'nav.upcoming', 0);
       case 'someday': return navItem('someday', 'someday', 'nav.someday', counts.someday, { kind: 'someday' });
       case 'review': return navItem('review', 'check', 'nav.review', 0);
       case 'dashboard':
@@ -294,7 +307,7 @@ export function Sidebar({
       case 'logbook':
         return navItem('insights', 'tasks', 'insights.logbook', 0, undefined,
           { id: 'logbook', current: insightsOnLogbook });
-      case 'matrix': return navItem('matrix', 'dashboard', 'nav.matrix', 0);
+      case 'matrix': return navItem('matrix', 'dashboard', 'nav.matrix', counts.matrix);
       case 'labels': return navItem('labels', 'tag', 'nav.labels', 0);
       case 'filters':
         return navItem('filters', 'filter', 'nav.filters', 0, undefined,
@@ -379,15 +392,15 @@ export function Sidebar({
                  instruction to go to the project. */
               onClick={() => { if (!dragClock.justEnded()) navigate('project', project.id); }}
             >
-              {folderLike
-                ? <Icon name="project" />
-                : (
+              {
                   <span className="hash" style={markerStyle(project.color)}>
                     {customIcon
                       ? <ProjectIcon iconId={customIcon} size="sm" style={{ color: 'inherit' }} />
-                      : '#'}
+                      : <ProjectProgress open={projectProgressCounts.open[project.id] ?? 0} completed={projectProgressCounts.completed[project.id]}
+                          label={projectProgressCounts.completed[project.id] === undefined ? t('project.progressUnknown') : (projectProgressCounts.open[project.id] ?? 0) + projectProgressCounts.completed[project.id] === 0 ? t('project.progressEmpty') : t('project.progressCompletedAll', { done: projectProgressCounts.completed[project.id], total: (projectProgressCounts.open[project.id] ?? 0) + projectProgressCounts.completed[project.id] })} />}
+
                   </span>
-                )}
+              }
               <span className="label">{project.name}</span>
             </button>
 
@@ -580,7 +593,7 @@ export function Sidebar({
             {favourites.projects.map((p) =>
               projectNode({ project: p, children: [] }, 'fav-'))}
             {favourites.labels.map((l) =>
-              tagItem(l.name, l.color, roots.filter((i) => hasLabel(i, l.name)).length))}
+              tagItem(l.name, l.color, labelRoots(items, l.name, snapshot).length))}
             {/* The count is Todoist's answer to the query, asked again when
                 the tasks change; it shows once Todoist has answered. */}
             {favourites.filters.map((f) => (
@@ -631,6 +644,16 @@ export function Sidebar({
         <div className="footrow">
           <SyncStatus />
         </div>
+        {updateReady && (
+          <div className="updatewrap">
+            {!sheet && <UpdateCard />}
+            <button className={`updatebtn${announcing && !sheet ? ' announced' : ''}`} onClick={applyUpdate} title={t('update.hint')}>
+              <Icon name="sparkles" size="sm" />
+              <span>{t('update.available')}</span>
+              <strong>{t('update.apply')}</strong>
+            </button>
+          </div>
+        )}
             </div>
 
       {hint && createPortal(
@@ -646,12 +669,13 @@ export function Sidebar({
     {collapsed && (
       <div className="expand-wrap">
         <button
-          className="iconbtn"
+          className="iconbtn hasdot"
           aria-label={t('nav.showSidebar')}
           title={t('nav.showSidebar')}
           onClick={() => setPrefs({ sidebarCollapsed: false })}
         >
           <Icon name="sidebar" />
+          {updateReady && <span className="belldot" aria-hidden="true" />}
         </button>
       </div>
     )}
@@ -682,6 +706,7 @@ function SideGroup({
   dropTarget?: DropTarget;
   children: React.ReactNode;
 }) {
+  const { t } = useT();
   const head = () => (
     <div className="side-head">
         <button className="side-headbtn" aria-expanded={onOpen ? undefined : open} onClick={onOpen ?? onToggle}>
@@ -703,7 +728,7 @@ function SideGroup({
         <button
           className="side-disclose"
           aria-expanded={open}
-          aria-label={title}
+          aria-label={t(open ? 'nav.collapseGroup' : 'nav.expandGroup', { name: title })}
           onClick={onToggle}
         >
           <Icon name={open ? 'caret-up' : 'caret'} size="sm" />

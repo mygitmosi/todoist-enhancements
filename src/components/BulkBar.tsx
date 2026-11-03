@@ -1,3 +1,4 @@
+import { useDataSnapshot } from '@/hooks/useDataSnapshot';
 import { useCreateTag } from '@/hooks/useCreateTag';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { EstimateField } from './EstimateField';
@@ -244,7 +245,7 @@ export function BulkBar() {
   const moveMany = useStore((s) => s.moveMany);
   const skipOccurrences = useStore((s) => s.skipOccurrences);
   const toast = useStore((s) => s.toast);
-  const snapshot = useStore((s) => s.snapshot);
+  const snapshot = useDataSnapshot();
   const [projectQuery, setProjectQuery] = useState('');
   const [tagQuery, setTagQuery] = useState('');
   const newTag = useCreateTag(tagQuery);
@@ -431,6 +432,7 @@ export function BulkBar() {
               today: () => { close(); void send({ kind: 'today' }, t('common.today')); },
               day: (date, label) => { close(); void send({ kind: 'day', date }, label); },
               anytime: () => { close(); void send({ kind: 'anytime' }, t('nav.week')); },
+              month: () => { close(); void send({ kind: 'month' }, t('nav.month')); },
               someday: () => { close(); void send({ kind: 'someday' }, t('nav.someday')); },
             })}
             footer={recurringCount > 0 ? (

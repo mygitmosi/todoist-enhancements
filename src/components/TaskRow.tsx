@@ -1,13 +1,14 @@
+import { TaskCommentBadge } from './TaskCommentBadge';
 import { tableRowColor } from '@/domain/table';
 import { TableContext } from './TableContext';
 import { TableCells } from './TableCells';
 import { useDraggable } from '@dnd-kit/core';
-import { Fragment, createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, createContext, useContext, memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { ProgressRing } from './ProgressRing';
-import { ProjectIcon } from './ProjectIconPicker';
+import { ProjectIcon } from './ProjectIcon';
 import { readProjectIcon } from '@/domain/projectIcons';
-import { withoutChecklist } from '@/domain/checklist';
+import { checklistPreview } from '@/domain/checklist';
 import { useRowTarget } from './dnd/useRowTarget';
 import {
   GROUP_ATTR, RowListContext, SUBTASK_DRAG_PREFIX, TASK_DROP_EVENT, TASK_PLACE_EVENT, groupAnswers, useRowList,
@@ -21,7 +22,7 @@ import { usePhoneBehaviour } from '@/hooks/useTouchLayout';
 import { useRowGesture } from '@/hooks/useRowGesture';
 import { useStore } from '@/store/store';
 import { completionTick } from '@/store/tick';
-import { displayTaskContent, isUncompletable, toDisplayPriority, type Item } from '@/domain/types';
+import { SYSTEM_LABELS, displayTaskContent, isUncompletable, toDisplayPriority, weekLabel, type Item } from '@/domain/types';
 import { effectiveEstimate, formatDuration } from '@/domain/estimates';
 import { dateTone, deadlineDate, dueDate, formatRelativeDay, formatTime, hasTime, isOverdue, isToday, overdueBy } from '@/domain/dates';
 import { markerStyle } from '@/domain/colors';
@@ -79,7 +80,7 @@ interface TaskRowProps {
   lifted?: boolean;
 }
 
-export function TaskRow({
+function TaskRowView({
   item, childrenOf, onOpen, depth = 0, showProject = true, showSection = false, dust = false, dragHandleProps,
   nestable = false, dragRef, lifted = false,
 }: TaskRowProps) {
@@ -155,7 +156,12 @@ export function TaskRow({
     return () => node.removeEventListener(ROW_MOVE_EVENT, onMove);
   }, [item.id, item.parent_id, list, childrenOf]);
   const { t, locale } = useT();
-  const snapshot = useStore((s) => s.snapshot);
+  /* Narrow reads: a row follows its own project, parent, section and the tag
+     colours, so a change elsewhere in the account leaves it alone (#364). */
+  const project = useStore((s) => s.snapshot.projects[item.project_id]);
+  const parent = useStore((s) => (item.parent_id ? s.snapshot.items[item.parent_id] : undefined));
+  const section = useStore((s) => ((showSection || showProject) && item.section_id ? s.snapshot.sections[item.section_id] : undefined));
+  const labels = useStore((s) => s.snapshot.labels);
   const hour12 = useStore((s) => s.prefs.hour12);
   const toggleTask = useStore((s) => s.toggleTask);
   const keepInSomeday = useStore((s) => s.keepInSomeday);
@@ -233,12 +239,13 @@ export function TaskRow({
   const due = dueDate(item);
   const deadline = deadlineDate(item);
   const late = isOverdue(item);
-  const project = snapshot.projects[item.project_id];
-  const parent = item.parent_id ? snapshot.items[item.parent_id] : undefined;
   const projectVisible = showProject && !(depth > 0 && parent?.project_id === item.project_id);
+  /* A table's columns may sit on either side of the title: those before it come ahead of the checkbox. */
+  const titleAt = table ? Math.max(0, table.columns.indexOf('title')) : 0;
+  const columnsBefore = table ? table.columns.slice(0, titleAt) : [];
+  const columnsAfter = table ? table.columns.slice(titleAt + 1) : [];
   const projectIcon = project ? readProjectIcon(project.description) : null;
-  const preview = useMemo(() => withoutChecklist(item.description), [item.description]);
-  const section = (showSection || showProject) && item.section_id ? snapshot.sections[item.section_id] : undefined;
+  const preview = useMemo(() => checklistPreview(item.description), [item.description]);
 
   /**
    * The DOM is the final truth about range order.
@@ -268,18 +275,28 @@ export function TaskRow({
   };
 
   // Estimate labels are shown as a duration, never as an ordinary tag.
-  const visibleLabels = item.labels.filter((l) => !l.toLowerCase().startsWith('est-'));
+  /* A task committed to the week or the month with no day is shown by that, as a
+     date would be, not by the tag that carries it. */
+  const horizon = item.due ? null : item.labels.some((l) => l.toLowerCase() === weekLabel().toLowerCase())
+    ? 'review.to.anytime' as const
+    : item.labels.some((l) => l.toLowerCase() === SYSTEM_LABELS.month) ? 'review.to.month' as const : null;
+  const visibleLabels = item.labels.filter((l) => !l.toLowerCase().startsWith('est-')
+    && !(horizon && [weekLabel().toLowerCase(), SYSTEM_LABELS.month].includes(l.toLowerCase())));
 
   /* A tag carries a colour in Todoist, so it carries it here too. The task
      stores names, and the colour lives on the label, which is the lookup. */
   const labelColours = useMemo(() => {
     const byName = new Map<string, string>();
-    for (const label of Object.values(snapshot.labels)) byName.set(label.name, label.color);
+    for (const label of Object.values(labels)) byName.set(label.name, label.color);
     return byName;
-  }, [snapshot.labels]);
+  }, [labels]);
+
+  const lateDays = late ? overdueBy(item) : 0;
+  const lateness = lateDays >= 2 ? lateLabel(lateDays, t) : null;
 
   /* Each chip under the title, keyed so the row can draw them in any order. */
   const chips: Record<DetailChip, React.ReactNode> = {
+    comments: <TaskCommentBadge key="comments" id={item.id} onOpen={onOpen} />,
     /* On a phone the pill leaves the title line, where it would push the title
        onto a second line, and stands first here (#155). */
     date: (
@@ -287,13 +304,18 @@ export function TaskRow({
         {due && (
           <span className={late ? 'late' : `at tone-${dateTone(item) ?? 'later'}`}>
             {!late && <Icon name="calendar" />}
-            {formatRelativeDay(due, locale)}
-            {hasTime(item.due) && ` ${formatTime(due, locale, hour12)}`}
-            {/* How many days late is said in words for whoever cannot see the
-                colour, not drawn on the chip (#175). */}
-            {late && overdueBy(item) > 0 && (
-              <span className="sr">{`, ${t('task.overdueBy', { count: overdueBy(item) })}`}</span>
-            )}
+            {/* Two days late or more, the chip says how late rather than when
+                (#347): the exact date stays in the tooltip and the task panel. */}
+            {lateness ? <span title={formatRelativeDay(due, locale)}>{lateness}</span> : <>
+              {formatRelativeDay(due, locale)}
+              {hasTime(item.due) && ` ${formatTime(due, locale, hour12)}`}
+            </>}
+          </span>
+        )}
+        {horizon && (
+          <span className="at tone-later">
+            <Icon name="calendar" />
+            {t(horizon)}
           </span>
         )}
         {item.due?.is_recurring && (
@@ -347,8 +369,8 @@ export function TaskRow({
         key="subtasks"
         className="subprog foldable"
         aria-expanded={expanded}
-        aria-label={t('detail.subtasks')}
-        title={t('detail.subtasks')}
+        aria-label={t(expanded ? 'task.foldSubtasks' : 'task.unfoldSubtasks')}
+        title={t(expanded ? 'task.foldSubtasks' : 'task.unfoldSubtasks')}
         onClick={(e) => {
           e.stopPropagation();
           toggleFold();
@@ -357,6 +379,7 @@ export function TaskRow({
       >
         <ProgressRing done={doneChildren} total={children.length} />
         {t('task.subtaskProgress', { done: doneChildren, total: children.length })}
+        <Icon name="caret" size="sm" className="subprog-chev" />
       </button>
     ) : (
       <span className="subprog" key="subtasks">
@@ -450,6 +473,8 @@ export function TaskRow({
           </span>
         )}
 
+        {table && columnsBefore.length > 0 && <TableCells item={item} hideProject={!projectVisible} columns={columnsBefore} childrenOf={childrenOf} />}
+
         {item.projection ? (
           <span className={`check forecast-check p${fields.priority ? priority : 4}`} role="checkbox" aria-checked="false" aria-disabled="true" aria-label={t('upcoming.projected')} onClick={(e) => e.stopPropagation()} />
         ) : uncompletable ? (
@@ -487,33 +512,30 @@ export function TaskRow({
               className="ttitle"
               dangerouslySetInnerHTML={{ __html: renderTitle(displayTaskContent(item)) }}
             />
-            {showSubtasks && openChildren.length > 0 && !item.projection && !table && (
-              /* Outside the title, which stops at two lines: a long one must
-                 not push the button out of sight. */
-              <button
-                className="fold-chev"
-                aria-expanded={expanded}
-                aria-label={t(expanded ? 'task.foldSubtasks' : 'task.unfoldSubtasks')}
-                title={t(expanded ? 'task.foldSubtasks' : 'task.unfoldSubtasks')}
-                onClick={(e) => { e.stopPropagation(); toggleFold(); }}
-                onKeyDown={(e) => e.stopPropagation()}
-              >
-                <Icon name="caret" size="sm" />
-              </button>
-            )}
           </span>
 
           {!table && preview && fields.description && (
             /* The row shows the formatted line, not the Markdown syntax, and
-               never a checklist line: its boxes are in the task, not here (#157). */
+               never a checklist line: its boxes are in the task, only the items still
+               to do follow the text (#157, #393). */
             <span
               className="tdesc"
               dangerouslySetInnerHTML={{ __html: renderInlineMarkdown(preview) }}
             />
           )}
 
+          {table && parent && (
+            /* Todoist marks a subtask in its table; here the mark also says whose it is, and opens it. */
+            <button type="button" className="parentchip" title={t('detail.subtaskOf') + ' ' + parent.content}
+              onClick={(e) => { e.stopPropagation(); onOpen(parent.id); }}
+              onKeyDown={(e) => e.stopPropagation()}>
+              <Icon name="subtask" size="sm" />
+              <span className="parentchip-name">{displayTaskContent(parent)}</span>
+            </button>
+          )}
           {table && subtaskPill}
-          <span className="meta" style={table ? { display: 'none' } : undefined}>
+          {table && <span className="meta"><TaskCommentBadge id={item.id} onOpen={onOpen} /></span>}
+          {!table && <span className="meta">
             {/* The chips in the user's order (Display → Show on each task). The
                 sub-task pill is not one of them: it follows the deadline. */}
             {detailOrder.flatMap((chip) => [
@@ -531,10 +553,10 @@ export function TaskRow({
             )}
 
             {dust && <DustActions item={item} />}
-          </span>
+          </span>}
         </span>
 
-        {table && <TableCells item={item} hideProject={!projectVisible} columns={table.columns} childrenOf={childrenOf} />}
+        {table && <TableCells item={item} hideProject={!projectVisible} columns={columnsAfter} childrenOf={childrenOf} />}
         {!item.projection && <span className="trow-end">
           <TaskActions
             item={item}
@@ -561,6 +583,37 @@ export function TaskRow({
   );
 }
 
+/** True when the task and everything under it, as `before` and `after` list it, is the same set of tasks. */
+function sameTree(id: string, before: (id: string) => Item[], after: (id: string) => Item[]): boolean {
+  const a = before(id);
+  const b = after(id);
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every((child, at) => child === b[at] && sameTree(child.id, before, after));
+}
+
+/**
+ * A row redraws when its own task, the tasks under it, its siblings or what it
+ * was handed change, not when the page around it does (#364). The function that
+ * lists children is new with every change to the account, so it is compared by
+ * what it answers for this row rather than by identity.
+ */
+export function sameRow(before: TaskRowProps, after: TaskRowProps): boolean {
+  for (const key of Object.keys(after) as (keyof TaskRowProps)[]) {
+    if (key !== 'childrenOf' && before[key] !== after[key]) return false;
+  }
+  if (Object.keys(before).length !== Object.keys(after).length) return false;
+  if (before.childrenOf === after.childrenOf) return true;
+  const parent = after.item.parent_id;
+  const siblings = (parent ? before.childrenOf(parent) : []);
+  const siblingsNow = (parent ? after.childrenOf(parent) : []);
+  return sameTree(after.item.id, before.childrenOf, after.childrenOf)
+    && siblings.length === siblingsNow.length
+    && siblings.every((sibling, at) => sibling === siblingsNow[at]);
+}
+
+export const TaskRow = memo(TaskRowView, sameRow);
+
 export { SUBTASK_DRAG_PREFIX };
 
 /**
@@ -577,12 +630,19 @@ function SubtaskRow(props: TaskRowProps) {
   const { setNodeRef, attributes, listeners, isDragging } = useDraggable({
     id: `${SUBTASK_DRAG_PREFIX}${props.item.id}`,
   });
+  /* Stable, as in DraggableTask: new handlers on every render would redraw the subtask each time (#364). */
+  const handleProps = useMemo(() => ({ ...attributes, ...listeners }), [attributes, listeners]);
   return (
     <TaskRow
       {...props}
-      dragHandleProps={{ ...attributes, ...listeners }}
+      dragHandleProps={handleProps}
       dragRef={setNodeRef}
       lifted={isDragging}
     />
   );
+}
+
+/** "2d late", in days only: one unit reads at a glance which task is later (#347). */
+function lateLabel(days: number, t: ReturnType<typeof useT>['t']): string {
+  return t('task.lateDays', { count: days });
 }

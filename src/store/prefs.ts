@@ -7,6 +7,7 @@ import { defaultCapacity, type DailyCapacity } from '@/domain/load';
 import { DATE_FORMATS, type DateFormat } from '@/domain/dates';
 import { DEFAULT_DUST_MONTHS, isDustMonths, type DustMonths } from '@/domain/views';
 import { defaultSidebarNav, readSidebarNav, type SidebarNav } from '@/domain/sidebar';
+import { isViewKey, readProjectViews, readStringMap, type ProjectViews } from '@/domain/projectViews';
 import {
   defaultDetailOrder, defaultTaskFields, readDetailOrder, readTaskFields, type DetailChip, type TaskFields,
 } from '@/domain/taskDetails';
@@ -41,6 +42,11 @@ export interface SyncedView {
   showSubtasks: boolean;
   showCompleted: boolean;
   calendar?: ViewPrefs['calendar'];
+  /**
+   * Only on a saved view of a project (#333): its filters are what it is for,
+   * so they go with it. The project's own first view keeps them on the device.
+   */
+  filters?: ViewPrefs['filters'];
   /* A `wide` written by a 1.x build is still in some comments and is ignored:
      a board is always the width of the page now. */
 }
@@ -53,15 +59,15 @@ export interface SyncedView {
  * SyncedView). Not whether the sidebar is folded, which is a matter of the
  * window in front of you, nor the display of pages other than projects.
  */
-export type SyncedPreferences = Omit<Preferences, 'sidebarCollapsed' | 'views'> & {
+export type SyncedPreferences = Omit<Preferences, 'sidebarCollapsed' | 'activeViews' | 'views'> & {
   views: Record<string, SyncedView>;
 };
 
 export function syncedPreferences(prefs: Preferences): SyncedPreferences {
-  const { sidebarCollapsed: _folded, views, ...rest } = prefs;
+  const { sidebarCollapsed: _folded, activeViews: _open, views, projectViews, ...rest } = prefs;
   /* Sorted, so two devices holding the same settings write the same text
      and never take turns rewriting the comment. */
-  const projectViews = Object.entries(views)
+  const projectViews_ = Object.entries(views)
     .filter(([key]) => key.startsWith('project:'))
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([key, view]): [string, SyncedView] => [key, {
@@ -71,8 +77,10 @@ export function syncedPreferences(prefs: Preferences): SyncedPreferences {
       sort: view.sort,
       showSubtasks: view.filters.showSubtasks,
       showCompleted: view.filters.showCompleted,
+      ...(isViewKey(key) ? { filters: view.filters } : {}),
     }]);
-  return { ...rest, views: Object.fromEntries(projectViews) };
+  const sortedViews = Object.fromEntries(Object.entries(projectViews).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+  return { ...rest, projectViews: sortedViews, views: Object.fromEntries(projectViews_) };
 }
 
 /** The settings as the comment holds them: what travels, and when it was written. */
@@ -125,7 +133,9 @@ export function mergeSynced(
   locale: Locale,
 ): Preferences {
   const { views: remoteViews, savedAt: _stamp, ...settings } = remote;
-  const hydrated = hydratePreferences({ ...local, ...settings, views: undefined, estimateStorage: settings.estimateStorage ?? null }, locale);
+  const legacyMatrixHorizon = settings.eisenhowerHorizon ?? (settings.eisenhowerEnabled
+    ? (settings.eisenhowerShowFuture ? 'all' : 'today') : local.eisenhowerHorizon);
+  const hydrated = hydratePreferences({ ...local, ...settings, eisenhowerHorizon: legacyMatrixHorizon, views: undefined, estimateStorage: settings.estimateStorage ?? null }, locale);
   const views = { ...local.views };
   for (const [key, shared] of Object.entries(remoteViews ?? {})) {
     if (!key.startsWith('project:') || !shared) continue;
@@ -138,6 +148,7 @@ export function mergeSynced(
       sort: shared.sort ?? mine.sort,
       filters: {
         ...mine.filters,
+        ...(shared.filters ?? {}),
         showSubtasks: shared.showSubtasks ?? mine.filters.showSubtasks,
         showCompleted: shared.showCompleted ?? mine.filters.showCompleted,
       },
@@ -179,6 +190,16 @@ export type Theme = (typeof THEMES)[number];
 
 export const isTheme = (value: unknown): value is Theme =>
   typeof value === 'string' && (THEMES as readonly string[]).includes(value);
+
+/**
+ * Which dark: the classic charcoal, or pure black for OLED screens (#346).
+ * Only read while the resolved scheme is dark, including when "system" lands there.
+ */
+export const DARK_STYLES = ['classic', 'amoled'] as const;
+export type DarkStyle = (typeof DARK_STYLES)[number];
+
+export const isDarkStyle = (value: unknown): value is DarkStyle =>
+  typeof value === 'string' && (DARK_STYLES as readonly string[]).includes(value);
 
 /**
  * The brand colour.
@@ -272,6 +293,9 @@ export const EISENHOWER_URGENCY_RULES = [
 ] as const;
 export type EisenhowerUrgencyRule = (typeof EISENHOWER_URGENCY_RULES)[number];
 
+export const MATRIX_HORIZONS = ['today', 'tomorrow', 'week', 'seven', 'month', 'all'] as const;
+export type MatrixHorizon = (typeof MATRIX_HORIZONS)[number];
+
 export const EISENHOWER_PRIORITIES = [1, 2, 3, 4] as const;
 export type EisenhowerPriority = (typeof EISENHOWER_PRIORITIES)[number];
 
@@ -309,6 +333,8 @@ export interface Preferences {
   dailyCapacity: DailyCapacity;
   weeklyCapacityOverride: number | null;
   showQuickGroup: boolean;
+  /** Lists take the whole page, on every page at once (#403). Display's Full width switch writes it. */
+  listFullWidth: boolean;
   /** The sound that plays when a task is ticked off, or none (#282). */
   completionSoundChoice: CompletionChoice;
   /** The Gathering dust group at the top of Someday (#161). */
@@ -321,6 +347,8 @@ export interface Preferences {
   density: Density;
   /** The colour scheme; "system" follows the device. */
   theme: Theme;
+  /** Classic dark or pure black, whenever the scheme is dark. */
+  darkStyle: DarkStyle;
   /** The brand colour. Every accent exists in both schemes. */
   accent: Accent;
   /** How the app is framed: a floating sidebar or a floating page. */
@@ -335,6 +363,10 @@ export interface Preferences {
   sidebarSearch: boolean;
   /** The numbers beside each list. */
   sidebarCounts: boolean;
+  /** What a Pomodoro session shows when it starts: the toolbar's timer, or the full screen. */
+  pomodoroDisplay: 'discreet' | 'fullscreen';
+  /** The choice above was offered, in the setup or after What's new. */
+  pomodoroAsked: boolean;
   /** What a task row shows, for every list (domain/taskDetails). */
   taskFields: TaskFields;
   /** The order of the chips beneath a task's title. */
@@ -356,6 +388,13 @@ export interface Preferences {
   accentCustom: string;
   /** Filters, grouping, sorting and mode are remembered per view. */
   views: Record<string, ViewPrefs>;
+  /**
+   * The saved views of each project (#333): their names and order. What a view
+   * shows is in `views`, under the key `viewKeyOf` gives it.
+   */
+  projectViews: Record<string, ProjectViews>;
+  /** The view each project was last opened on, on this device (not shared). */
+  activeViews: Record<string, string>;
   upcomingHorizonDays: number;
   /** Whether Today has a page of its own beside My week. */
   weekLayout: WeekLayout;
@@ -388,6 +427,7 @@ export interface Preferences {
   eisenhowerImportant: EisenhowerPriority[];
   /** Whether tasks dated after today are included in the matrix. */
   eisenhowerShowFuture: boolean;
+  eisenhowerHorizon: MatrixHorizon;
   /** Whether the undated Someday backlog is included in the matrix. */
   eisenhowerIncludeSomeday: boolean;
   /** Narrows the matrix to one workspace's projects; null is every workspace. */
@@ -426,6 +466,7 @@ export const defaultPreferences = (locale: Locale): Preferences => ({
   dailyCapacity: defaultCapacity(),
   weeklyCapacityOverride: null,
   showQuickGroup: true,
+  listFullWidth: false,
   completionSoundChoice: DEFAULT_COMPLETION_CHOICE,
   showDustGroup: true,
   dustAfterMonths: DEFAULT_DUST_MONTHS,
@@ -433,6 +474,7 @@ export const defaultPreferences = (locale: Locale): Preferences => ({
   sidebarCollapsed: false,
   density: 'comfortable',
   theme: 'system',
+  darkStyle: 'classic',
   accent: 'red',
   layout: 'page-float',
   background: 'neutral',
@@ -440,12 +482,16 @@ export const defaultPreferences = (locale: Locale): Preferences => ({
   sidebarNav: defaultSidebarNav(),
   sidebarSearch: true,
   sidebarCounts: true,
+  pomodoroDisplay: 'discreet',
+  pomodoroAsked: false,
   taskFields: defaultTaskFields(),
   detailOrder: defaultDetailOrder(),
   taskChips: 'classic',
   dashboardOrder: [],
   accentCustom: '#d1453b',
   views: {},
+  projectViews: {},
+  activeViews: {},
   upcomingHorizonDays: 15,
   weekLayout: 'unified',
   weekLabel: DEFAULT_WEEK_LABEL,
@@ -456,6 +502,7 @@ export const defaultPreferences = (locale: Locale): Preferences => ({
   eisenhowerUrgent: ['overdue', 'today'],
   eisenhowerImportant: [1, 2],
   eisenhowerShowFuture: false,
+  eisenhowerHorizon: 'week',
   eisenhowerIncludeSomeday: false,
   eisenhowerWorkspace: null,
   onboarded: false,
@@ -480,7 +527,9 @@ export const viewPrefs = (prefs: Preferences, viewKey: string): ViewPrefs => {
   if (cached) return cached;
   const base = defaultViewPrefs(viewKey);
   const saved = prefs.views[viewKey];
-  const value = saved ? { ...base, ...saved, filters: { ...base.filters, ...saved.filters } } : base;
+  const merged = saved ? { ...base, ...saved, filters: { ...base.filters, ...saved.filters } } : base;
+  /* One setting for every page: a switch set on one list is the others' too (#403). */
+  const value = merged.fullWidth === prefs.listFullWidth ? merged : { ...merged, fullWidth: prefs.listFullWidth };
   views.set(viewKey, value);
   return value;
 };
@@ -506,6 +555,7 @@ export function hydratePreferences(stored: unknown, locale: Locale): Preferences
     homepage: isHomeView(s.homepage) ? s.homepage : base.homepage,
     density: isDensity(s.density) ? s.density : base.density,
     theme: isTheme(s.theme) ? s.theme : base.theme,
+    darkStyle: isDarkStyle(s.darkStyle) ? s.darkStyle : base.darkStyle,
     accent: isAccent(s.accent) ? s.accent : base.accent,
     // Settings written by a 1.x build have neither: they get the defaults.
     layout: isLayout(s.layout) ? s.layout : base.layout,
@@ -514,6 +564,8 @@ export function hydratePreferences(stored: unknown, locale: Locale): Preferences
     sidebarNav: readSidebarNav(s.sidebarNav),
     sidebarSearch: s.sidebarSearch !== false,
     sidebarCounts: s.sidebarCounts !== false,
+    pomodoroDisplay: s.pomodoroDisplay === 'fullscreen' ? 'fullscreen' : 'discreet',
+    pomodoroAsked: s.pomodoroAsked === true,
     taskFields: readTaskFields(s.taskFields),
     detailOrder: readDetailOrder(s.detailOrder),
     // A missing choice is the published text layout, for an old account as much as a new one.
@@ -546,9 +598,14 @@ export function hydratePreferences(stored: unknown, locale: Locale): Preferences
       ? s.eisenhowerImportant.filter(isEisenhowerPriority)
       : base.eisenhowerImportant,
     eisenhowerShowFuture: s.eisenhowerShowFuture === true,
+    eisenhowerHorizon: MATRIX_HORIZONS.includes(s.eisenhowerHorizon as MatrixHorizon)
+      ? s.eisenhowerHorizon as MatrixHorizon
+      : s.eisenhowerEnabled ? (s.eisenhowerShowFuture ? 'all' : 'today') : base.eisenhowerHorizon,
     eisenhowerIncludeSomeday: s.eisenhowerIncludeSomeday === true,
     eisenhowerWorkspace: typeof s.eisenhowerWorkspace === 'string' ? s.eisenhowerWorkspace : null,
     showDustGroup: s.showDustGroup !== false,
+    /* Before it was global, each page kept its own: one already on stays on. */
+    listFullWidth: typeof s.listFullWidth === 'boolean' ? s.listFullWidth : Object.values(s.views ?? {}).some((view) => view?.fullWidth === true),
     completionSoundChoice: isCompletionChoice(s.completionSoundChoice) ? s.completionSoundChoice : base.completionSoundChoice,
     // Only the delays the Settings offers: anything else reads as the default.
     dustAfterMonths: isDustMonths(s.dustAfterMonths) ? s.dustAfterMonths : base.dustAfterMonths,
@@ -563,5 +620,7 @@ export function hydratePreferences(stored: unknown, locale: Locale): Preferences
       : null,
     hireNoteSeen: s.hireNoteSeen === true,
     views: s.views ?? {},
+    projectViews: readProjectViews(s.projectViews),
+    activeViews: readStringMap(s.activeViews),
   };
 }

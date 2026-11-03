@@ -25,12 +25,15 @@ test('table keeps task actions, editable cells, column preferences and sorting',
   await display.click();
   const menu = active(page).getByRole('dialog', { name: 'Display', exact: true });
   await menu.getByRole('button', { name: 'Table', exact: true }).click();
-  await menu.locator('.table-column-options').getByRole('button', { name: 'Description', exact: true }).click();
+  await menu.getByRole('button', { name: /^Columns/ }).click();
+  await page.locator('.sidemenu').getByRole('switch', { name: 'Description' }).click();
+  await page.keyboard.press('Escape');
   await display.click();
   const table = active(page).locator('.task-table');
   await expect(table).toBeVisible();
   await expect(table.locator('.table-description').first()).toBeAttached();
   const header = table.locator('.table-head');
+  /* A heading sorts, and again reverses (#335). */
   await header.getByRole('button', { name: /^Title/ }).click();
   const titles = await table.locator('.task:not([data-depth]) .ttitle').allTextContents();
   expect(titles.length).toBeGreaterThan(1);
@@ -39,8 +42,10 @@ test('table keeps task actions, editable cells, column preferences and sorting',
   const row = table.locator('.task').first();
   await row.locator('.table-priority').getByRole('button').click();
   await page.getByRole('option', { name: 'P1', exact: true }).click();
-  await row.locator('.table-estimate input').fill('45');
-  await row.locator('.table-estimate input').press('Enter');
+  /* The duration is the same dropdown as in a task's window (#392). */
+  await row.locator('.table-estimate .fselect-face').click();
+  await page.locator('.durationpanel input').fill('45');
+  await page.locator('.durationpanel input').press('Enter');
   await page.reload();
   await expect(table).toBeVisible();
   await expect(table.locator('.table-description').first()).toBeAttached();

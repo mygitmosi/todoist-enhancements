@@ -15,6 +15,15 @@
  * the previous public release; improvements to a feature of an earlier release
  * are one 🎨 line titled "<Feature> refinements"; the bold lead is a title in
  * sentence case; a picture shows the idea and carries no caption of its own.
+ *
+ * Wording: write for the person using the app, in the plain, warm tone of
+ * Apple's release notes. Name what they see or do, where they find it, and
+ * what it gives them. Never describe how it is built or use our own words
+ * ("frozen column", "sticky", "scroll container"). The test: someone who has
+ * never seen the screen must know exactly what the line is about. A title
+ * that makes you ask "what does that mean?" has failed, so read each one
+ * aloud before keeping it ("Title stays in view" failed; "Never lose the task
+ * in a wide table" says what it is for).
  */
 
 export type ChangeKind = 'new' | 'design' | 'fix';
@@ -142,6 +151,57 @@ export function localisedReleases(
   });
 }
 
+
+/** One change of the post-update feed, still tied to the release and entry it was written in. */
+export interface FeedEntry<V> {
+  version: string;
+  /** Where the entry sits in its own release, which is where its illustration is keyed. */
+  index: number;
+  change: Change;
+  untranslated: boolean;
+  visual: V | null;
+}
+
+/**
+ * The unseen releases as one list, for the dialog shown after an update (#336).
+ *
+ * Entries with a picture first, then the others; inside each group new things,
+ * then redesigns, then fixes, then the newest release first and the author's own
+ * order after it. The visual is looked up before sorting, against the entry's
+ * place in its own release, so no entry ever takes another's picture. The
+ * releases themselves are not touched: the full history keeps its sections.
+ */
+export function unseenFeed<V>(
+  releases: Array<Release & { untranslated?: boolean }>,
+  visualOf: (version: string, index: number) => V | null,
+): Array<FeedEntry<V>> {
+  const entries = releases.flatMap((release) => release.changes.map((change, index): FeedEntry<V> => ({
+    version: release.version, index, change, untranslated: release.untranslated === true,
+    visual: visualOf(release.version, index),
+  })));
+  return entries.sort((a, b) =>
+    Number(b.visual !== null) - Number(a.visual !== null)
+    || KIND_ORDER[a.change.kind] - KIND_ORDER[b.change.kind]
+    || compareVersions(b.version, a.version)
+    || a.index - b.index);
+}
+
+/**
+ * One release's changes as the dialog lists them: the ones with a picture
+ * first, then new, redesigned and fixed. Each keeps the index it has in the
+ * release, which is where its picture is keyed.
+ */
+export function releaseDisplay<V>(
+  release: Release,
+  visualOf: (version: string, index: number) => V | null,
+): Array<{ index: number; change: Change; visual: V | null }> {
+  return release.changes
+    .map((change, index) => ({ index, change, visual: visualOf(release.version, index) }))
+    .sort((a, b) =>
+      Number(b.visual !== null) - Number(a.visual !== null)
+      || KIND_ORDER[a.change.kind] - KIND_ORDER[b.change.kind]
+      || a.index - b.index);
+}
 
 /** Old entries predate bold leads; their first sentence serves as the title. */
 export function changePresentation(text: string): { title: string; description: string } {

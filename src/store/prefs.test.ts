@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   defaultPreferences, hydratePreferences, mergeSynced, readSettingsComment, SETTINGS_COMMENT_MARKER,
-  settingsCommentContent, settingsCommentMatches, syncedPreferences, type Preferences,
+  settingsCommentContent, settingsCommentMatches, syncedPreferences, viewPrefs, type Preferences,
 } from './prefs';
 import { defaultViewPrefs } from '@/domain/types';
 
@@ -194,7 +194,7 @@ describe('the sidebar settings', () => {
     const hydrated = hydratePreferences({ homepage: 'week' }, 'en');
     expect(hydrated.sidebarSearch).toBe(true);
     expect(hydrated.sidebarCounts).toBe(true);
-    expect(hydrated.sidebarNav.main.map((e) => e.id)).toEqual(['inbox', 'today', 'week', 'upcoming', 'someday']);
+    expect(hydrated.sidebarNav.main.map((e) => e.id)).toEqual(['inbox', 'today', 'week', 'month', 'upcoming', 'someday']);
     expect(hydrated.sidebarNav.other.map((e) => e.id)).toContain('logbook');
   });
 
@@ -223,7 +223,7 @@ describe('what a task row shows', () => {
   it('is everything, in the default order, for an account that never set it', () => {
     const hydrated = hydratePreferences({}, 'en');
     expect(Object.values(hydrated.taskFields).every(Boolean)).toBe(true);
-    expect(hydrated.detailOrder).toEqual(['estimate', 'date', 'deadline', 'labels', 'project']);
+    expect(hydrated.detailOrder).toEqual(['estimate', 'date', 'deadline', 'labels', 'project', 'comments']);
   });
 
   it('travels with the account, and a damaged value is the default', () => {
@@ -232,7 +232,7 @@ describe('what a task row shows', () => {
     const merged = mergeSynced(prefs(), stored!, 'en');
     expect(merged.taskFields.description).toBe(false);
     expect(merged.detailOrder[0]).toBe('project');
-    expect(hydratePreferences({ taskFields: 'x', detailOrder: 3 }, 'en').detailOrder).toHaveLength(5);
+    expect(hydratePreferences({ taskFields: 'x', detailOrder: 3 }, 'en').detailOrder).toHaveLength(6);
   });
 
   it('reads a comment from before the 2.0 setup as not yet set up, and keeps a stored answer', () => {
@@ -246,5 +246,73 @@ describe('what a task row shows', () => {
     expect(hydratePreferences({}, 'en').workspaceOrder).toEqual([]);
     expect(hydratePreferences({ workspaceOrder: 'w1' }, 'en').workspaceOrder).toEqual([]);
     expect(hydratePreferences({ workspaceOrder: ['w1', 3, 'personal'] }, 'en').workspaceOrder).toEqual(['w1', 'personal']);
+  });
+});
+
+describe('saved views of a project (#333)', () => {
+  const filtered = () => {
+    const view = defaultViewPrefs('project:site~a1');
+    view.filters.priorities = [1, 2];
+    return view;
+  };
+
+  it('shares the names and order of the views, and not which one is open here', () => {
+    const synced = syncedPreferences(prefs({
+      projectViews: { site: { tabs: [{ id: 'main', name: 'All' }, { id: 'a1', name: 'Focus' }] } },
+      activeViews: { site: 'a1' },
+    }));
+    expect(synced.projectViews.site.tabs).toHaveLength(2);
+    expect(synced).not.toHaveProperty('activeViews');
+  });
+
+  it("shares a saved view's filters, which the project's first view keeps on the device", () => {
+    const synced = syncedPreferences(prefs({ views: { 'project:site~a1': filtered(), 'project:site': defaultViewPrefs('project:site') } }));
+    expect(synced.views['project:site~a1'].filters?.priorities).toEqual([1, 2]);
+    expect(synced.views['project:site']).not.toHaveProperty('filters');
+  });
+
+  it('brings them to another device, and keeps that device\'s open view', () => {
+    const local = prefs({ activeViews: { site: 'main' } });
+    const merged = mergeSynced(local, {
+      projectViews: { site: { tabs: [{ id: 'main', name: 'All' }, { id: 'a1', name: 'Focus' }] } },
+      views: { 'project:site~a1': { mode: 'board', group: 'step', sort: 'priority', showSubtasks: true, showCompleted: false, filters: filtered().filters } },
+    }, 'en');
+    expect(merged.projectViews.site.tabs.map((tab) => tab.name)).toEqual(['All', 'Focus']);
+    expect(merged.views['project:site~a1']).toMatchObject({ mode: 'board', group: 'step' });
+    expect(merged.views['project:site~a1'].filters.priorities).toEqual([1, 2]);
+    expect(merged.activeViews).toEqual({ site: 'main' });
+  });
+
+  it('reads settings from before saved views existed', () => {
+    const hydrated = hydratePreferences({ theme: 'dark' }, 'en');
+    expect(hydrated.projectViews).toEqual({});
+    expect(hydrated.activeViews).toEqual({});
+  });
+});
+
+
+describe('matrix horizon migration', () => {
+  it('preserves earlier enabled matrix settings and gives new users the week', () => {
+    expect(defaultPreferences('en').eisenhowerHorizon).toBe('week');
+    expect(hydratePreferences({ eisenhowerEnabled: true, eisenhowerShowFuture: false }, 'en').eisenhowerHorizon).toBe('today');
+    expect(hydratePreferences({ eisenhowerEnabled: true, eisenhowerShowFuture: true }, 'en').eisenhowerHorizon).toBe('all');
+    expect(mergeSynced(defaultPreferences('en'), { eisenhowerEnabled: true, eisenhowerShowFuture: true }, 'en').eisenhowerHorizon).toBe('all');
+    expect(mergeSynced(defaultPreferences('en'), { eisenhowerEnabled: true, eisenhowerShowFuture: false }, 'en').eisenhowerHorizon).toBe('today');
+  });
+});
+
+describe('the Full width switch (#403)', () => {
+  it('is one setting for every page', () => {
+    const on = prefs({ listFullWidth: true });
+    expect(viewPrefs(on, 'today').fullWidth).toBe(true);
+    expect(viewPrefs(on, 'label:work').fullWidth).toBe(true);
+    expect(viewPrefs(prefs(), 'today').fullWidth).toBeFalsy();
+  });
+
+  it('keeps a page that had it on, from before it was global', () => {
+    const stored = { views: { today: { ...viewPrefs(prefs(), 'today'), fullWidth: true } } };
+    expect(hydratePreferences(stored, 'en').listFullWidth).toBe(true);
+    expect(hydratePreferences({}, 'en').listFullWidth).toBe(false);
+    expect(hydratePreferences({ listFullWidth: false, ...stored }, 'en').listFullWidth).toBe(false);
   });
 });

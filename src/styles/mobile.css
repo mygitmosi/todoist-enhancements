@@ -230,7 +230,8 @@
   .composer-chips > *{flex:none}
   .composer-chips .fselect-face.chipface{min-height:36px;padding:0 13px;font-size:14px}
   .composer-chips .tagpicker{position:fixed;left:12px;right:12px;top:auto;bottom:calc(var(--kb,0px) + 76px);max-height:40dvh;z-index:90}
-  .composerbox .composer-subs{margin:0 18px}
+  /* The foot's blur reaches 22px up into the sheet: the last subtask line needs that much below it, or its box is washed out (#379). */
+  .composerbox .composer-subs{margin:0 18px;padding-bottom:24px}
   .composerbox .composer-actions{justify-content:space-between;gap:10px;padding:10px 14px;border-top:1px solid var(--border-strong)}
   .composerbox .composer-actions .btn.quiet,.composerbox .composer-actions .composer-hint{display:none}
   .composer-place{display:flex;align-items:center;gap:6px;min-width:0;flex:1;overflow:hidden}
@@ -278,7 +279,6 @@
   .task-table{--table-title-min:150px;--table-title-max:150px;min-width:0!important;width:max-content}
   .task-table .task{min-height:58px}
   .task-table .task .ttitle{-webkit-line-clamp:2;line-height:1.25}
-  .task-table .tmain{box-shadow:6px 0 10px -6px rgba(0,0,0,.28)}
 
   /* ---- Calendar: the page is the one thing that scrolls (#295) ---- */
   .calendar-body{min-height:0;max-height:none}
@@ -367,3 +367,5 @@
   .phead:has(.dash-layout-edit) .ptitle,[data-density="compact"] .phead:has(.dash-layout-edit) .ptitle{font-size:21px}
   .whatsnew-refresh .whatsnew-release h3{font-size:19px}
 }
+/* Keep the contextual Insights button aligned with the other mobile actions. */
+@media(max-width:720px){.pactions .btn.insights-control{width:40px;height:40px;min-height:40px}}

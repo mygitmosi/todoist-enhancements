@@ -272,6 +272,7 @@
 .sidebar .navitem:hover{background:var(--side-hover)}
 .sidebar .navitem[aria-current="page"]{background:var(--side-sel);box-shadow:var(--side-sel-shadow);color:var(--text);font-weight:600}
 .sidebar .navitem[aria-current="page"] .ic{color:var(--side-icon-sel)}
+.sidebar .navitem .hash .ic,.sidebar .navitem[aria-current="page"] .hash .ic{color:inherit}
 .sidebar .navitem[aria-current="page"] .count{color:var(--faint)}
 .sidebar .navitem .count{font-size:12px;font-weight:400;color:var(--faint)}
 .sidebar .nav-gap{height:14px}
@@ -284,6 +285,35 @@
 .sidebar .side-foot .addbtn:hover{filter:brightness(1.05);background:var(--accent)}
 .sidebar .footrow{width:100%;justify-content:center}
 .sidebar .footrow .syncstatus{flex:0 1 auto;font-size:11.5px;color:var(--muted)}
+/* A new version waiting: one quiet row under the sync line, never a message over the page. */
+.updatebtn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;min-height:30px;margin-top:4px;padding:0 10px;
+  border-radius:var(--r-ctl);font-size:11.5px;color:var(--muted);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.updatebtn .ic{color:var(--accent)}
+.updatebtn strong{font-weight:600;color:var(--accent-dark)}
+.updatebtn:hover{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+:root[data-background="colored"] .sidebar .updatebtn{color:rgba(255,255,255,.82);background:rgba(255,255,255,.14)}
+:root[data-background="colored"] .sidebar .updatebtn .ic,:root[data-background="colored"] .sidebar .updatebtn strong{color:#fff}
+.hasdot{position:relative}
+/* The same new version announced once, over the line it leaves behind and pointing at it. */
+.updatewrap{position:relative;width:100%}
+.updatecard{position:absolute;z-index:5;left:0;right:0;bottom:calc(100% + 12px);display:grid;gap:3px;padding:14px 16px 12px;
+  background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--sh-lg);
+  text-align:left;animation:updateIn .22s ease-out both}
+.updatecard strong{font-size:14px;font-weight:600;letter-spacing:-.01em}
+.updatecard p{margin:0;font-size:12.5px;line-height:1.45;color:var(--muted);text-wrap:pretty}
+.updatecard-actions{display:flex;align-items:center;gap:6px;margin-top:9px}
+.updatecard-apply{height:30px;padding:0 14px;border-radius:var(--r-full);background:var(--accent);color:var(--on-accent,#fff);font-size:12.5px;font-weight:600;white-space:nowrap}
+.updatecard-apply:hover{background:var(--accent-dark)}
+.updatecard-later{height:30px;padding:0 10px;border-radius:var(--r-full);color:var(--muted);font-size:12.5px;white-space:nowrap}
+.updatecard-later:hover{background:var(--hover);color:var(--text)}
+.updatecard:not(.floating)::after{content:"";position:absolute;left:calc(50% - 6px);bottom:-7px;width:12px;height:12px;background:var(--surface);
+  border-right:1px solid var(--border);border-bottom:1px solid var(--border);transform:rotate(45deg)}
+.updatebtn.announced{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 45%,transparent)}
+/* Phone, or a collapsed sidebar: no line to point at, so the card stands on its own. */
+.updatecard.floating{position:fixed;z-index:19;left:16px;right:auto;bottom:16px;width:300px}
+@media (max-width:720px){.updatecard.floating{left:12px;right:12px;width:auto;bottom:calc(64px + 12px + env(safe-area-inset-bottom))}}
+@keyframes updateIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.updatecard{animation:none}}
 
 /* ==========================================================================
    Shared controls, as the design file draws them: a pill track with a white
@@ -333,9 +363,9 @@
 .ttitle{font-weight:450}
 .check{border-radius:5px}
 /* The box sits on the title's first line, whatever the size: half of what is left of the line's height once
-   the 16px box is in it, then .6px lower, onto the middle of the lowercase letters, which is where the eye
-   reads a line's centre. A fixed 3px offset sat too low (#244). */
-.task > .check{margin-top:calc((1.4 * var(--fs-14) - 16px) / 2 + .6px)}
+   the 16px box is in it, less .3px. Measured, that puts the box's centre on the line's centre, and half a
+   pixel under it reads as level, because lowercase letters sit lower than the middle of their line (#388). */
+.task > .check{margin-top:calc((1.4 * var(--fs-14) - 16px) / 2 - .3px)}
 .gcount{min-width:22px;padding:1px 7px;text-align:center;background:var(--btn-soft)}
 
 /* ==========================================================================
@@ -349,6 +379,17 @@
 .col.accent-late{background:var(--late-wash)}
 .col.accent-late .chead strong{color:var(--late-dark)}
 .chead{padding:0 6px 8px;margin-bottom:0}
+/* A column is a heading, the cards, and "Add task". Only the cards scroll (#300).
+   The body reaches out over the column's side padding so a card's ring and
+   shadow are never clipped and the scrollbar sits on the column's edge. */
+.board .col{display:flex;flex-direction:column;max-height:var(--board-h,none);padding-bottom:6px}
+.board .col .chead,.board .col .coladd{flex:none}
+.board .col .coladd{margin-top:2px}
+.colbody{flex:1 1 auto;min-height:0;margin:0 -4px;padding:0 4px;border-radius:var(--r-lg);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+/* The shadow a card casts needs a few pixels of room on every side. */
+.colcards{padding:3px 0 4px}
+/* The board fills what is left of the window, so nothing is left to scroll under it. */
+@media(min-width:721px){.page:has(> .mode > .board){padding-bottom:20px}}
 .chead-title{display:block}
 .chead strong{font-size:14px}
 .chead-title small{display:block;margin-top:1px;color:var(--faint);font-size:12px}
@@ -879,7 +920,9 @@ html.dragging-row .task,html.dragging-row .subtaskrow{transition:margin .16s eas
   background:var(--card-bg);box-shadow:0 0 0 1px var(--border),0 4px 12px -4px rgba(0,0,0,.25);
 }
 .col .trow-end .trow-actions > button{width:26px;height:26px;border-radius:8px}
-.col .taskwrap .task ~ .task .trow-end{top:0}
+.col .taskwrap .task ~ .task .trow-end{top:6px}
+/* The pill is centred on the title's first line (the checkbox's middle), not on the card's top edge. */
+.col .task .trow-end{top:13px}
 
 /* Drag and drop, same everywhere: what is carried leaves a faint, dashed place behind, and the
    rows (cards, in a board) part where it will land. */
@@ -934,6 +977,7 @@ html.dragging-row .col .taskwrap{transition:margin .16s ease}
 .hash{background:transparent}
 .navitem .hash{width:16px;height:16px;font-size:16px;line-height:1;border-radius:0}
 .navitem .hash .ic{width:16px;height:16px}
+.navitem .hash .project-progress{transform:scale(1.15)}
 .ptitle-mark{width:auto;height:auto;border-radius:8px;padding:2px}
 .ptitle-mark .hash{width:28px;height:28px;font-size:26px}
 .ptitle-mark .hash .ic{width:26px;height:26px}
@@ -1169,27 +1213,35 @@ img.notifav{display:block;width:34px;height:34px;object-fit:cover}
 }
 .reactionchip small{font-size:12px;font-weight:600}
 .reactionchip.mine{background:var(--accent-soft);color:var(--accent-dark)}
-.comment-image{display:block;margin-top:8px;width:max-content;max-width:100%}
+.comment-image{position:relative;display:block;margin-top:8px;width:max-content;max-width:100%}
+.comment-image > a:first-child{display:block}
 .comment-image img{display:block;max-width:280px;max-height:210px;border-radius:12px;object-fit:cover}
 .comment-file{
   display:inline-flex;align-items:center;gap:8px;margin-top:8px;padding:8px 12px;border-radius:12px;
   background:var(--subtle);color:var(--text);font-size:13px;max-width:100%;
 }
 .comment-file small{color:var(--faint)}
+/* Todoist's solid mark is heavier than the line icons around it: a softer grey keeps the menu even. */
+.menu-mark{color:var(--muted)}
 .comment-edit{display:grid;gap:8px;margin-top:4px}
 .comment-edit .comment-field{border-radius:14px}
+.comment-edit .comment-field:focus{outline:none;border-color:color-mix(in srgb,var(--text) 30%,var(--border-strong));box-shadow:none}
 .comment-edit-actions{display:flex;gap:8px;justify-content:flex-end}
 
 .comment-box{
   display:grid;gap:4px;min-width:0;padding:3px 5px 3px 15px;border:1px solid var(--border-strong);
   border-radius:22px;background:var(--surface);
 }
-.comment-row{display:flex;align-items:flex-end;gap:6px}
+.comment-box{position:relative;transition:border-color .12s ease}
+/* Typing darkens the frame's own grey (no extra ring), so Esc, which hands the keyboard back, is seen as the frame lightening again. */
+.comment-box:focus-within{border-color:color-mix(in srgb,var(--text) 30%,var(--border-strong))}
+/* The row scrolls, not the field: a long comment's scrollbar sits at the frame's right edge, past the buttons. */
+.comment-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;column-gap:6px;max-height:160px;overflow-y:auto;margin-right:-5px;padding-right:5px;scrollbar-width:thin}
 .comment-box .comment-field{
   flex:1;min-width:0;width:auto;min-height:0;padding:7px 0;border:0;border-radius:0;background:transparent;
-  line-height:1.4;max-height:160px;field-sizing:content;outline:none;box-shadow:none;
+  line-height:1.4;max-height:none;overflow:hidden;field-sizing:content;outline:none;box-shadow:none;
 }
-.comment-tools{display:flex;align-items:center;gap:6px;padding-bottom:2px;flex:none}
+.comment-tools{display:flex;align-items:center;gap:6px;padding-bottom:2px;flex:none;position:sticky;bottom:0}
 .comment-tools .iconbtn{width:28px;height:28px}
 .roundbtn{
   width:28px;height:28px;border:0;border-radius:50%;display:grid;place-items:center;cursor:pointer;flex:none;
@@ -1377,6 +1429,8 @@ img.notifav{display:block;width:34px;height:34px;object-fit:cover}
   .side-sheet:has(.icard),.side-sheet:has(> .detail-top){top:0;right:0;bottom:auto}
 }
 .side-headbtn{display:inline-flex;align-items:center;gap:7px}
+/* A 28px target to fold a section (#385), in the 22px the heading row already takes: the extra height is given back in negative margin, so nothing in the sidebar moves. */
+.side-headbtn{min-height:28px;margin-block:-3px}
 /* The workspace's picture, or its initial, sits in the same 20px marker slot as a project's hash, and the title starts where the project names do, so the icons share one vertical line (#262). */
 .workspace-avatar.small{width:18px;height:18px;font-size:10px;margin:0 2px 0 -7px}
 .chead-title .gnamefield{display:block;width:100%;max-width:100%;padding:0;border:0;background:transparent;font-size:14px;font-weight:700;color:inherit}
@@ -1615,22 +1669,25 @@ img.notifav{display:block;width:34px;height:34px;object-fit:cover}
 /* #34 The comment ⋯ menu floats over the window, measured like the reaction palette. */
 .popover.rowmenu.comment-menu{position:fixed;z-index:110;right:auto}
 
-/* #25 Task window. Tags in the right column are drawn like a list row's tags,
-   wrapping with the same gap. */
+/* #25, #408 Task window. A tag is a chip in the tag's own colour, whatever the
+   task-chips setting: its glyph, its name (cut with an ellipsis, never wider
+   than the column) and a button of its own to take it off. They wrap. */
 .detail-side .pills:has(> .tagpill){display:flex;flex-wrap:wrap;gap:6px}
 .detail-side .pill.tagpill{
-  --chip-fg:var(--muted);--chip-bg:var(--subtle);
-  display:inline-flex;align-items:center;gap:4px;height:auto;min-height:0;padding:1px 6px;border:0;border-radius:var(--r-xs);
-  background:var(--chip-bg);color:var(--chip-fg);font-size:var(--fs-12);line-height:18px;box-shadow:none;cursor:pointer;
+  --ink:var(--marker-ink-l,var(--marker,var(--muted)));
+  display:inline-flex;align-items:center;gap:4px;max-width:100%;height:auto;min-height:0;padding:2px 3px 2px 7px;border:0;
+  border-radius:var(--r-xs);background:var(--marker-soft,var(--subtle));color:var(--text);font-size:var(--fs-12);line-height:18px;box-shadow:none;
 }
-.detail-side .pill.tagpill .ic{width:12px;height:12px;color:inherit;flex:none}
-.detail-side .pill.tagpill .ic:last-child{opacity:0;width:0;margin-left:-4px;transition:opacity .12s,width .12s,margin .12s}
-.detail-side .pill.tagpill:is(:hover,:focus-visible) .ic:last-child{opacity:.8;width:12px;margin-left:0}
-:root[data-chips="inherited"] .detail-side .pill.tagpill{
-  --chip-fg:color-mix(in srgb,var(--marker,var(--muted)) 72%,var(--text));
-  --chip-bg:color-mix(in srgb,var(--marker,var(--muted)) 8%,var(--surface));
+:root[data-theme="dark"] .detail-side .pill.tagpill{--ink:var(--marker-ink-d,var(--marker,var(--muted)))}
+.detail-side .pill.tagpill > .ic{width:12px;height:12px;color:var(--ink);flex:none}
+.detail-side .pill.tagpill .tagname{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail-side .pill.tagpill .tagremove{
+  display:inline-grid;place-items:center;flex:none;width:18px;height:18px;padding:0;border:0;border-radius:var(--r-xs);
+  background:transparent;color:var(--muted);cursor:pointer;
 }
-:root[data-chips="classic"] .detail-side .pill.tagpill{background:transparent;color:var(--marker,var(--muted));padding:1px 0}
+.detail-side .pill.tagpill .tagremove .ic{width:12px;height:12px}
+.detail-side .pill.tagpill .tagremove:is(:hover,:focus-visible){background:color-mix(in srgb,var(--marker,var(--muted)) 22%,transparent);color:var(--text)}
+@media(pointer:coarse){.detail-side .pill.tagpill .tagremove{width:28px;height:28px}}
 /* The picture beside the new comment is centred on the one-line field, and
    stays level with its first line when the field grows. */
 .comment.comment-new{align-items:start}
@@ -1782,7 +1839,7 @@ img.notifav{display:block;width:34px;height:34px;object-fit:cover}
 .pactions .btn.insights-control:active{background:color-mix(in srgb,var(--accent) 22%,var(--surface));transform:none;box-shadow:none}
 .pactions .btn.insights-control:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 .search-destinations{display:flex;flex-wrap:wrap;gap:8px;margin:var(--s4) 0}
-.search-place{display:inline-flex;align-items:center;gap:6px;max-width:100%;border:1px solid transparent;border-radius:999px;padding:6px 11px;background:color-mix(in srgb,var(--marker,var(--muted)) 10%,var(--surface));color:var(--marker,var(--text));font:inherit;font-size:var(--fs-13);cursor:pointer;text-align:left}
+.search-place{display:inline-flex;align-items:center;gap:6px;max-width:100%;border:1px solid transparent;border-radius:999px;padding:6px 11px;background:color-mix(in srgb,var(--marker,var(--muted)) 10%,var(--surface));color:var(--ink,var(--marker,var(--text)));font:inherit;font-size:var(--fs-13);cursor:pointer;text-align:left}
 .search-place span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .search-place .ic{color:inherit;flex:none}
 .search-place .hash{color:inherit;background:none}
@@ -2005,6 +2062,13 @@ html{-webkit-tap-highlight-color:transparent}
 }
 @media (max-width:720px){
   .reviewrow .reviewactions .btn{padding:0 9px;font-size:var(--fs-12);white-space:nowrap}
+  /* #377 The four moves are a 2 x 2 grid of equal targets, 44px high, rather than a pill that wraps and leaves
+     one word alone on a second line. An odd one out (the next occurrence) takes the whole last row. The thumb
+     of the chosen one still follows its button: it is placed from the button's own offsets. */
+  .reviewrow .reviewactions{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:16px;grid-column:1/-1;justify-self:stretch}
+  .reviewrow .reviewactions .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;font-size:var(--fs-13);border-radius:12px}
+  .reviewrow .reviewactions.seg-slide::before{border-radius:12px}
+  .reviewrow .reviewactions > .btn:last-child:nth-child(odd){grid-column:1/-1}
 }
 
 /* The logbook on a phone: the controls stand closer together, and a row is
@@ -2033,7 +2097,6 @@ html{-webkit-tap-highlight-color:transparent}
 @media (max-width:720px){
   .task-table{--table-title-min:150px;--table-title-max:170px}
   .table-scroll{-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
-  .task-table .tmain,.task-table .table-head > div:first-of-type{box-shadow:6px 0 6px -6px rgba(0,0,0,.18)}
 }
 
 /* Sign-in on a phone: the form first, then the same pitch and picture the
@@ -2173,3 +2236,186 @@ html[data-navigation="pointer"] .task:focus-visible::after{content:none}
 .privacy-status{padding:10px 12px;border-radius:var(--r-sm);background:var(--subtle);color:var(--text)}
 .privacy-links{display:flex;flex-wrap:wrap;gap:8px 16px}
 @media(max-width:720px){.settings{grid-template-columns:minmax(0,1fr);gap:var(--s4)}.privacy-disclosure{min-width:0;width:100%}}
+
+/* An opened subtask says so above its title, with its parent one click away (#339). */
+.subtaskof{display:flex;align-items:center;gap:6px;min-width:0;margin:0 0 6px;font-size:12.5px;color:var(--muted)}
+.subtaskof .ic{color:var(--faint)}
+.subtaskof .crumblink{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;color:var(--text)}
+
+/* #340 Several files wait together; #344 the order switch sits beside the count. */
+.comment-attachments{display:flex;flex-wrap:wrap;gap:0 6px;min-width:0}
+.comment-order{margin-left:auto;display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:500;cursor:pointer}
+.comment-order:hover{background:var(--btn-soft);color:var(--text)}
+.comment-order[aria-pressed="true"]{color:var(--text)}
+.detail-section.comments > .sectionlabel{display:flex;align-items:center;gap:6px}
+
+/* #340 A sent picture shows a download button while the pointer or the keyboard is on it. */
+.comment-download{position:absolute;left:8px;bottom:8px;display:inline-grid;place-items:center;width:30px;height:30px;border-radius:8px;
+  background:rgba(0,0,0,.6);color:#fff;opacity:0;transition:opacity .12s}
+.comment-image:hover .comment-download,.comment-download:focus-visible{opacity:1}
+.comment-download:hover{background:rgba(0,0,0,.8)}
+@media(hover:none){.comment-download{opacity:1}}
+
+/* The sidebar project ring uses the project's own colour, including at 100% open. */
+.project-progress .project-progress-track{stroke:currentColor}
+.project-progress .project-progress-fill{fill:currentColor;stroke:none}
+
+/* #386 A row's actions line up with the first line of its title, not the middle of the whole row,
+   which on a row with a description and chips floated between the two. The title's first line
+   sits 8px below the row's top padding; the buttons are 30px tall. The phone keeps its swipe tray. */
+@media (min-width:721px){
+  .task:not(.hirenote) > .trow-end{align-self:start;margin-top:-6px}
+}
+
+/* #387 In a group drawn as a card, the drag handle stays inside the card: the card takes 10px
+   more on its left, so the text keeps its place and the handle has room between its edge and the checkbox. */
+@media (min-width:721px){
+  .group:is(.accent-late,.accent-quick,.accent-dust,.tinted-late,.tinted-quick){margin-left:-30px;padding-left:30px}
+  .group:is(.accent-late,.accent-quick,.accent-dust,.tinted-late,.tinted-quick) .task .drag{left:-26px}
+}
+
+/* #380 The tooltip of an icon-only button (IconTooltips), on tokens so it follows every theme:
+   the page's text colour as its ground and the page itself as its ink. */
+.icontip{
+  position:fixed;z-index:400;max-width:260px;padding:5px 8px;border-radius:var(--r-xs);pointer-events:none;
+  background:var(--text);color:var(--surface);font-size:var(--fs-12);line-height:1.3;box-shadow:var(--sh-sm);
+}
+@media (hover:none){.icontip{display:none}}
+
+/* Table: columns on either side of the title, columns the user can resize, icons in the headings,
+   the parent of a subtask, and text that wraps when asked. */
+.table-head>div.head-title{grid-column:span 2}
+.table-head>div.head-title button.head-sort{padding-left:0}
+.table-head[class] > div:not(.head-title) .head-sort{padding-inline:6px;margin-left:-6px}
+.table-head .head-icon{flex:none;opacity:.8}
+.table-head .head-resize{position:absolute;right:-8px;top:2px;bottom:2px;width:12px;z-index:3;cursor:col-resize;touch-action:none;border-radius:var(--r-xs);outline:0}
+.table-head .head-resize::after{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:2px;border-radius:1px;background:transparent;transition:background .12s}
+.table-head>div:hover .head-resize::after{background:var(--border-strong)}
+.table-head .head-resize:hover::after,.table-head .head-resize:focus-visible::after,.table-head .head-resize:active::after{background:var(--accent)}
+@media(hover:none){.table-head .head-resize::after{background:var(--border-strong)}}
+.table-head .head-more{right:6px}
+.colrow .switch:disabled{opacity:.5;cursor:default}
+.task-table .parentchip{display:inline-flex;align-items:center;gap:5px;flex:0 8 auto;min-width:2.4em;max-width:12em;margin:2px 0 2px 6px;padding:3px 10px 3px 8px;
+  border-radius:999px;background:var(--subtle);color:var(--muted);font-size:var(--fs-12);line-height:18px}
+.task-table .trow-title{min-width:4em}
+.task-table .parentchip .ic{flex:none;width:12px;height:12px}
+.task-table .parentchip-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-table.wrap .task{align-items:start;padding-block:8px}
+.task-table.wrap .task>.check{margin-top:2px}
+.task-table.wrap .ttitle{-webkit-line-clamp:unset;display:block;overflow:visible;white-space:normal;overflow-wrap:anywhere}
+.task-table.wrap .trow-title{white-space:normal}
+.task-table.wrap .tmain{align-items:flex-start;flex-wrap:wrap}
+.task-table.wrap .table-cell{max-height:none}
+.task-table.wrap .table-description{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+.task-table.wrap .table-cell{margin-top:-4px}
+
+/* The sidebar's disclosure caret sits in the middle of its hover square, not 2px to the right of it. */
+.side-disclose{padding:0}
+
+/* The remove button of a checklist item hangs from a holder that takes no room (see RemoveWidget). */
+.mdedit .checkdel-holder{display:inline-block;width:0;height:0;overflow:visible}
+
+/* AMOLED: a search field in a menu draws its frame on the wrapper; the raised tone the theme gives every
+   input must not fill the input inside it, or a grey square shows in the pill. */
+:root[data-dark="amoled"] :is(.pickersearch, .searchfield) input:not([type="checkbox"]):not([type="radio"]){background-color:transparent}
+
+/* #392 The duration chooser opened from the task panel is a floating panel, not a row's menu. */
+.durationpanel{position:fixed;z-index:110}
+.durationbody{width:288px;max-width:calc(100vw - 16px);padding:var(--s3)}
+.durationbody .estfield{display:flex;width:100%;margin-top:0}
+.durationbody .estfield .estinput{flex:1 1 auto;width:auto;height:32px}
+.durationfield{position:relative}
+.durationfield .est-feedback{right:30px}
+
+/* The sidebar's three-dot button has no padding of its own either: its icon sits in the middle of its hover. */
+.navmore{padding:0}
+.task-table button.parentchip{border:0;font:inherit;font-size:var(--fs-12);cursor:pointer}
+.task-table button.parentchip:hover,.task-table button.parentchip:focus-visible{background:var(--btn-soft-hover);color:var(--text)}
+/* Table's Display: Columns, colour and wrap share one rhythm. */
+.dfield-stack>.display-fullwidth{margin:0;padding-block:var(--s2)}
+
+/* #411 The composer's description scrolls (overflow auto), and what scrolls clips: the cursor of an empty
+   field sits a pixel left of the text, so it was cut off entirely. The text gets 2px of room on its left,
+   taken back by the editor's margin so it does not move. */
+.descedit.composer .cm-editor{margin-left:-2px}
+.descedit.composer .cm-content{padding-left:2px}
+
+/* CodeMirror draws its own cursor and hides the native one, but only once it has registered the focus.
+   When the field has the focus and CodeMirror has not noticed (a window that is activated after the field
+   was focused, as with Quick Add on macOS), the native caret is shown until it does. */
+.mdedit .cm-editor:not(.cm-focused) .cm-content:focus{caret-color:var(--text)!important}
+
+.asSheet.durationbody{width:auto;max-width:none}
+/* A heading's text gives way before the menu chevron that appears over its end. */
+.table-head>div:not(.head-title) .head-sort{max-width:calc(100% - 22px)}
+/* An empty duration in a table says so, quietly. */
+.task-table .table-estimate .durationfield .fselect-face.empty{color:var(--faint)}
+
+/* Table rows centre everything on one line: the checkbox without the list's nudge, and the meta that holds
+   the comment badge without the list's gap above it and its full width. */
+.task-table .task>.check{margin-top:0}
+.task-table .tmain .meta{margin-top:0;width:auto;flex:0 0 auto}
+.task-table.wrap .task>.check{margin-top:2px}
+
+/* A heading's name shrinks before its sort arrow does. */
+.table-head .head-label{min-width:0;overflow:hidden;text-overflow:ellipsis}
+
+/* Tags: one chip and a count when the column is narrow, two chips and a count when it has room. */
+.task-table .table-cell.table-labels{container-type:inline-size}
+.cell-tags .tag-more-narrow{display:none}
+@container (max-width:150px){
+  .cell-tags .tag:nth-child(n+2){display:none}
+  .cell-tags .tag-more-wide{display:none}
+  .cell-tags .tag-more-narrow{display:inline}
+}
+.cell-tags .tag:first-child{max-width:100%}
+
+.listbox .opt .listbox-search-hint{flex:0 1 45%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:12px;font-weight:400;text-align:right}
+/* Align the project marker and section glyph on the same optical column. */
+.composer-place-menu .opt > .hash,
+.composer-place-menu .opt > .ic:first-child{width:18px;height:18px;flex:0 0 18px}
+.composer-place-menu .opt[aria-selected="true"] > .ic:first-child{margin-left:0}
+.sheet > .detail-top{flex:none}
+
+
+/* Release polish: keep the cards and their controls while reducing visual noise. */
+.tagcard { box-shadow:none; }
+.tagcard-mark { background:transparent; width:24px; }
+.tagcard-grip { color:color-mix(in srgb, var(--faint) 70%, transparent); }
+.filtercard-query { white-space:normal; overflow-wrap:anywhere; overflow:visible; }
+.metrics .sep { display:inline; color:var(--muted); }
+.metrics { gap:6px; }
+.pactions .btn.insights-control { width:36px; height:36px; padding:0; display:inline-grid; place-items:center; }
+.propkey { border:0; background:transparent; box-shadow:none; }
+.detail-side .priopills { position:relative; isolation:isolate; display:flex; gap:0; padding:3px; border-radius:12px; background:var(--hover); }
+.detail-side .priopills::before { content:""; position:absolute; z-index:-1; top:3px; bottom:3px; left:3px; width:calc((100% - 6px)/4); border-radius:9px; background:var(--surface); box-shadow:0 1px 4px #0002; transform:translateX(calc((var(--selected) - 1) * 100%)); transition:transform .2s ease; }
+.detail-side .priopills[data-priority="1"] { --selected:1; }.detail-side .priopills[data-priority="2"] { --selected:2; }.detail-side .priopills[data-priority="3"] { --selected:3; }.detail-side .priopills[data-priority="4"] { --selected:4; }
+.detail-side .priopill, .detail-side .priopill[aria-checked="true"] { background:transparent; box-shadow:none; }
+.detail-side .priopill[aria-checked="true"] { text-decoration:underline; text-underline-offset:3px; }
+@media (prefers-reduced-motion:reduce) { .detail-side .priopills::before { transition:none; } }
+.dfields .panelrow > span { display:inline-flex; align-items:center; gap:8px; }
+.dfields .fselect-face { border-radius:12px; }
+.dfields .columnsrow + .fselect { margin-top:calc(-1 * var(--s2)); }
+.columns-caret { transform:rotate(-90deg); }
+.columnsrow .fselect-face[aria-expanded="true"] .columns-caret { transform:rotate(0); }
+
+.dfields .multiselect .fselect-label { display:none; }
+
+.summary-time:not(:disabled):hover { text-decoration:underline solid; text-decoration-thickness:1px; text-decoration-color:color-mix(in srgb,currentColor 45%,transparent); text-underline-offset:4px; }
+.summary-time:not(:disabled) { transition:text-decoration-color .18s ease,color .18s ease; }
+.pactions .btn.insights-control { color:var(--accent-dark); }
+:root[data-theme="dark"] .pactions .btn.insights-control { color:var(--accent-dark); }
+.detail-side .priopill[aria-checked="true"] { text-decoration:none; }
+.propadd { padding:0; line-height:1; }
+.propadd .ic { display:block; }
+.estrow { align-items:start; }
+.estrow > .check { margin-top:9px; }
+.estname { padding-top:7px; }
+.estname .meta { display:flex; align-items:center; gap:4px; }
+.estname .meta .hash { width:auto; height:auto; margin:0; }
+.estrow .durationfield .fselect-face { min-width:125px; }
+
+/* Underline the duration as one uninterrupted phrase. */
+.summary-time:not(:disabled):hover { text-decoration:none; }
+.summary-time:not(:disabled) > span { border-bottom:1px solid transparent; transition:border-color .18s ease; }
+.summary-time:not(:disabled):hover > span { border-bottom-color:color-mix(in srgb,currentColor 45%,transparent); }

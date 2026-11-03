@@ -168,7 +168,7 @@ test.describe('#165 subtasks reorder by drag where they are listed', () => {
       .filter((r) => (r as HTMLElement).dataset.depth)
       .map((r) => (r as HTMLElement).dataset.taskId ?? ''));
 
-  for (const [name, hash] of [['a project', '#/project/site'], ['My week', '#/week']] as const) {
+  for (const [name, hash] of [['a project', '#/project/site'], ['This week', '#/week']] as const) {
     test(`in ${name}`, async ({ demo: page }) => {
       await go(page, hash);
       const subs = await subtaskIds(page);
@@ -284,9 +284,9 @@ const openKickoff = async (page: Page) => {
 test.describe('#157 a checklist in the description', () => {
   test('shows the lines as boxes, ticks in place, and a row never shows raw markers', async ({ demo: page }) => {
     await go(page, '#/week');
-    // The row's own preview skips the checklist lines: only the text before them.
+    // The row's own preview skips the checklist lines, and follows the text with the items still to tick (#393).
     const preview = row(page, 'Prepare the kick-off meeting').locator('.tdesc');
-    await expect(preview).toHaveText('Before the call:');
+    await expect(preview).toHaveText('Before the call: Walk through the plan, List the decisions needed');
     await expect(row(page, 'Prepare the kick-off meeting')).not.toContainText('[ ]');
 
     await openKickoff(page);
@@ -510,7 +510,7 @@ test.describe('#174 and #172 the dashboard', () => {
     await page.locator('.periodbar .spanbar button', { hasText: /^Quarter$/ }).click();
     await expect(page.getByRole('heading', { name: 'Completed per month' })).toBeVisible();
     const total = Number((await page.locator('.metric-card').first().locator('.stat-value').innerText()).trim());
-    const bars = await page.locator('[data-card="trend"] .slot, [data-card="trend"] [role="img"]').count();
+    const bars = await page.locator('[data-card="trend"] .barslot').count();
     expect(bars).toBeGreaterThan(0);
     expect(total).toBeGreaterThan(0);
     // Half width for a quarter's heatmap, the whole row for a year's.

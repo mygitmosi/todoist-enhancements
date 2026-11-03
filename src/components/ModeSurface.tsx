@@ -1,3 +1,5 @@
+import { useDataSnapshot } from '@/hooks/useDataSnapshot';
+import { useBoardSelection } from '@/hooks/useBoardSelection';
 import { type Step } from '@/domain/steps';
 import { TableSurface } from './TableSurface';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -17,6 +19,7 @@ import { Droppable } from './dnd/Droppable';
 import { RowListContext } from './dnd/RowList';
 import type { DropTarget, RowOrder } from '@/domain/dnd';
 import type { TranslationKey } from '@/i18n';
+import { intlDate } from '@/lib/intl';
 
 interface ModeSurfaceProps {
   items: Item[];
@@ -85,7 +88,7 @@ export function ModeSurface(props: ModeSurfaceProps) {
 
 function useGrouped(props: ModeSurfaceProps) {
   const { t, locale } = useT();
-  const snapshot = useStore((s) => s.snapshot);
+  const snapshot = useDataSnapshot();
   const { items, group, sort, childrenOf, order, viewKey } = props;
 
   return useMemo(() => {
@@ -107,11 +110,11 @@ function useGrouped(props: ModeSurfaceProps) {
         if (weeks === 0) return t('group.thisWeek');
         if (weeks === 1) return t('date.nextWeek');
         return t('group.weekOf', {
-          date: new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(monday),
+          date: intlDate(locale, { day: 'numeric', month: 'short' }).format(monday),
         });
       },
       month: (first) => {
-        const name = new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(first);
+        const name = intlDate(locale, { month: 'long', year: 'numeric' }).format(first);
         return name.charAt(0).toUpperCase() + name.slice(1);
       },
       year: (first) => String(first.getFullYear()),
@@ -172,6 +175,15 @@ function ListSurface(props: ModeSurfaceProps) {
   );
 }
 
+/**
+ * The cards of one column. It scrolls on its own when the column is taller than
+ * the board. The heading and "Add task" keep the column's grey, and the cards
+ * are cut at the edge of a tray with small rounded corners (#300).
+ */
+function ColumnBody({ children }: { children: ReactNode }) {
+  return <div className="colbody"><div className="colcards">{children}</div></div>;
+}
+
 /** A board column is never narrower than 272px, Todoist's own width, so a wide screen shows as many columns as Todoist does (#279). */
 const COLUMN_MIN = 272;
 /** Nor wider than this, past which a column stops reading as a column. They
@@ -191,6 +203,9 @@ const columnGap = (board: HTMLElement): number =>
 function BoardSurface(props: ModeSurfaceProps) {
   const { t, locale } = useT();
   const groups = useGrouped(props);
+  const draggingId = useStore((s) => s.draggingTaskId);
+  const selected = useStore((s) => s.selection);
+  const movingIds = draggingId ? (selected.includes(draggingId) ? selected : [draggingId]) : [];
   // Columns derived from a grouping are not drop destinations: dropping onto
   // "priority" or "tag" has no single unambiguous meaning.
   const columns: NonNullable<ModeSurfaceProps['boardColumns']> =
@@ -199,6 +214,7 @@ function BoardSurface(props: ModeSurfaceProps) {
       dropTarget: props.group === 'step' ? { kind: 'step' as const, step: g.key as Step } : undefined }));
 
   const boardRef = useRef<HTMLDivElement>(null);
+  const selectionBox = useBoardSelection(boardRef);
   const beforeAddScroll = useRef(0);
   const [reach, setReach] = useState({ left: false, right: false });
   /** Which column is in front, for the dots under a phone's board (#295). */
@@ -229,11 +245,22 @@ function BoardSurface(props: ModeSurfaceProps) {
       setAt(Math.round(board.scrollLeft / Math.max(1, width + gap)));
       const max = board.scrollWidth - board.clientWidth;
       setReach({ left: board.scrollLeft > 1, right: board.scrollLeft < max - 1 });
+      /* A column is as tall as the room left under the page header, and scrolls
+         inside itself beyond that, its heading kept in view (#300). */
+      const screen = board.closest<HTMLElement>('.screen');
+      if (screen) {
+        const top = board.getBoundingClientRect().top - screen.getBoundingClientRect().top + screen.scrollTop;
+        /* On a phone the tab bar and the page dots stand over the bottom of the screen. */
+        const below = window.matchMedia('(max-width:720px)').matches ? 120 : 52;
+        board.style.setProperty('--board-h', `${Math.max(320, screen.clientHeight - top - below)}px`);
+      }
     };
     measure();
     board.addEventListener('scroll', measure, { passive: true });
     const observer = new ResizeObserver(measure);
     observer.observe(board);
+    const page = board.closest('.page');
+    if (page) observer.observe(page);
     return () => {
       board.removeEventListener('scroll', measure);
       observer.disconnect();
@@ -337,7 +364,7 @@ function BoardSurface(props: ModeSurfaceProps) {
           // An empty column has nothing to measure; "0 %" under it is noise.
           if (column.items.length === 0) parts.length = 0;
           const body = (isOver: boolean) => (
-            <section className={`col${column.accent ? ` accent-${column.accent}` : ''}${isOver ? ' dropping' : ''}`}>
+            <section className={`col${column.accent ? ` accent-${column.accent}` : ''}${isOver ? ` dropping${props.sort !== 'manual' ? ' sorted-drop' : ''}` : ''}`}>
             <div className="chead">
               <div className="chead-title">
                 {column.onRename ? (
@@ -359,8 +386,11 @@ function BoardSurface(props: ModeSurfaceProps) {
               {column.action}
             </div>
             {/* A column is a list its cards take a place in, like a list's
-                group: the place follows the pointer between the cards (#20). */}
-            <RowListContext.Provider value={column.dropTarget ? {
+                group: the place follows the pointer between the cards (#20).
+                Its heading and its "Add task" stay put; the cards between
+                them are what scrolls (#300). */}
+            <ColumnBody>
+            <RowListContext.Provider value={column.dropTarget && props.sort === 'manual' ? {
               order: props.order ?? 'project',
               ids: column.items.filter((item) => !item.projection).map((item) => item.id),
               target: column.dropTarget,
@@ -378,9 +408,10 @@ function BoardSurface(props: ModeSurfaceProps) {
               />
             ))}
             </RowListContext.Provider>
-            {isOver && <div className="dropbar" aria-hidden="true" />}
+            {isOver && props.sort === 'manual' && <div className="dropbar" aria-hidden="true" />}
             {/* While a card hovers an empty column, its place stands where the text was. */}
-            {column.items.length === 0 && !isOver && <p className="empty">{t('group.empty')}</p>}
+            {column.items.length === 0 && (!isOver || props.sort !== 'manual') && <p className="empty">{t('group.empty')}</p>}
+            </ColumnBody>
             {/* Not a card: a card is a task, and the thing that makes one is
                 the end of the column rather than something sitting in it. */}
             {(column.onAddTask ?? props.addToGroup?.(column.id)) && (
@@ -396,8 +427,8 @@ function BoardSurface(props: ModeSurfaceProps) {
           );
 
           return column.dropTarget ? (
-            <Droppable target={column.dropTarget} key={column.id}>
-              {({ isOver }) => body(isOver)}
+            <Droppable target={column.dropTarget} scope={`board:${props.viewKey}:${column.id}`} key={column.id}>
+              {({ isOver }) => body(isOver && (props.sort === 'manual' || movingIds.some((id) => !column.items.some((it) => it.id === id))))}
             </Droppable>
           ) : (
             <div key={column.id}>{body(false)}</div>
@@ -441,6 +472,7 @@ function BoardSurface(props: ModeSurfaceProps) {
           />
         )}
       </div>
+      {selectionBox}
       {/* Where the swiping is: drawn on a phone only, where the board is one column wide. */}
       {slots > 1 && (
         <div className="boarddots" aria-hidden="true">

@@ -8,6 +8,144 @@ Chaque ligne est marquée :
 - 🎨 Amélioré : ce qui existait et fonctionne ou se présente mieux,
 - 🐛 Corrigé : un bug ou une régression corrigés.
 
+## 2.28.0
+
+🆕 **Choisissez votre raccourci d’ajout rapide.** Dans l’app Mac, ouvrez les Réglages, cliquez sur le raccourci, puis appuyez sur les touches de votre choix. Le raccourci qui ouvre l’ajout rapide au-dessus de n’importe quelle app n’est plus figé sur Option + Espace. Il faut la version 1.1 de l’app Mac ; les Réglages vous disent où la trouver.
+
+🎨 **Le détail des sous-tâches, d’un coup d’œil.** Ouvrez une tâche : chaque sous-tâche affiche sa description, sa durée, sa date et ses tags sous son nom, dans l’ordre choisi dans Affichage. Plus besoin de les ouvrir une à une.
+
+🎨 **Des tableaux à la hauteur de votre fenêtre.** Chaque colonne prend la hauteur de la fenêtre et défile seule, avec son nom et son bouton Ajouter une tâche toujours en place. La page ne défile plus sous le tableau.
+
+🎨 **Ne perdez plus la tâche dans une grande table.** Quand une table a plus de colonnes que la place disponible, la case et le nom de la tâche restent à gauche pendant que vous faites défiler sur le côté : vous savez toujours quelle ligne vous lisez.
+
+🐛 **Un avertissement avant qu’une tâche récurrente perde sa date.** Déplacer plusieurs tâches vers Ce mois-ci demande maintenant confirmation quand l’une d’elles se répète, comme pour Cette semaine et Un jour. Avant, la répétition était supprimée sans rien dire.
+
+## 2.27.2
+
+🐛 **Supprimez ce que vous avez choisi.** Après avoir retiré une tâche d’une sélection avec ⌘-clic, ⌘⌫ supprime les tâches encore sélectionnées, et non celle que vous venez de décocher. E, T, V et les touches de priorité suivent la même règle.
+
+## 2.27.1
+
+🎨 **Finitions de l’interface.** Les résumés de page et Analyses sont plus lisibles. Le menu Affichage, les détails des tâches et les pages Tags et Filtres sont épurés ; l’ajout des estimations manquantes est simplifié. La visite présente désormais le minuteur Pomodoro.
+
+## 2.27.0
+
+🆕 **Découvrez le minuteur Pomodoro.** Appuyez sur la pastille 25 min en haut d’une page pour 25 minutes de concentration. Le temps défile dans la pastille, avec la pause à côté. Ouvrez une tâche et appuyez sur la pastille pour lier le minuteur à cette tâche, puis passez en plein écran pour travailler dessus.
+
+🆕 **Planifiez le mois avec À tout moment ce mois-ci.** Ce mois-ci est une nouvelle page pour ce que vous voulez faire ce mois-ci, sans jour précis. Glissez une tâche dessus, ou choisissez À tout moment ce mois-ci dans un sélecteur de date. Dans une liste, une telle tâche affiche À tout moment cette semaine ou ce mois-ci à la place de sa date.
+
+🐛 **Retrouvez plus vite un projet ou une section.** Pendant que vous tapez dans le sélecteur de projet, les projets viennent d’abord, puis les sections, et chaque section indique son projet.
+
+## 2.26.1
+
+🎨 **Les gros comptes s’allègent.** Cocher ou modifier une tâche dans une longue liste, ou recevoir une mise à jour de Todoist, ne redessine plus toutes les autres lignes. L’app charge aussi moins de code au démarrage : les gros projets et Ma semaine restent réactifs.
+
+## 2.25.0
+
+🆕 **Organisez votre table à votre façon.** Tirez le bord d’un en-tête pour redimensionner une colonne, et déplacez n’importe laquelle, le titre compris, où vous voulez. Chaque en-tête a son icône, et un réglage d’Affichage passe à la ligne les titres et descriptions longs au lieu de les couper.
+
+🆕 **Sachez de qui dépend une sous-tâche.** Dans une table, une sous-tâche affiche maintenant le nom de sa tâche parente à côté de son titre.
+
+🆕 **Chaque icône a un nom.** Posez le pointeur sur un bouton qui n’a qu’une icône, comme les actions qui apparaissent sur une tâche : son nom s’affiche tout de suite. Le clavier y a droit aussi.
+
+🎨 **La durée comme le reste.** Dans une tâche, la durée ressemble à la date et au projet à côté d’elle. Choisissez 30 minutes ou tapez 1h30, puis appuyez sur E pour l’ouvrir au clavier.
+
+🎨 **Les tags ressemblent à des tags.** Ouvrez une tâche : chaque tag est une pastille de sa couleur, avec son icône et une croix pour le retirer. En créer ou en choisir un ajoute sa pastille tout de suite.
+
+🎨 **Créez une vue avec toutes les options.** La fenêtre qui ajoute une vue à un projet propose aussi Inclure les tâches planifiées, comme Affichage.
+
+🎨 **À venir indique la date de chaque jour.** Les titres affichent Demain · jeu. 29 oct., puis ven. 30 oct., au lieu d’un jour de semaine seul qu’il fallait compter.
+
+🎨 **Une liste de contrôle reste en vue.** Sous une tâche, la ligne après « Avant l’appel : » montre maintenant les éléments restant à cocher, au lieu de finir sur deux-points.
+
+🎨 **Plus lisible.** Les noms de projet gardent leur couleur et restent nets : un peu plus profonds sur une page claire, un peu plus clairs sur une page sombre. Le gris des textes secondaires est aussi un peu plus marqué.
+
+🎨 **Des lignes et une barre latérale plus nettes.** La case est à hauteur du titre, les actions s’alignent sur sa première ligne et la poignée de glisser reste dans les groupes teintés. Les titres de section de la barre latérale se cliquent plus facilement.
+
+🎨 **Date de début partout.** La date à laquelle vous prévoyez une tâche s’appelle Date de début dans la saisie, les sélections et Affichage, comme dans la fenêtre de la tâche. L’échéance garde son nom.
+
+🎨 **La Revue sur téléphone.** Les quatre déplacements forment une grille de grands boutons, sans aucun seul sur une deuxième ligne. La ligne de sous-tâche de la saisie est entièrement visible.
+
+🐛 **Des compteurs fidèles à la page.** Les nombres à côté de Cette semaine, Aujourd’hui et À venir suivent ce que la page liste, avec son regroupement et son réglage Afficher les sous-tâches.
+
+🐛 **Un curseur là où vous tapez.** La description d’une nouvelle tâche affiche toujours son curseur, et dans la liste de contrôle d’une tâche, un nouvel élément vide ne l’affiche plus tout à droite.
+
+🐛 **Un champ de recherche net en noir pur.** La zone de recherche des menus d’Affichage n’a plus de tache grise dans le thème sombre AMOLED.
+
+## 2.24.0
+
+🎨 **Choisissez la pleine largeur une fois.** Dans Affichage, activez Pleine largeur et toutes vos listes suivent, sans le régler page par page.
+
+🎨 **Une liste de colonnes plus claire.** Dans Affichage, Colonnes d’un tableau, chaque colonne a désormais son icône, le nombre de colonnes affichées disparaît et les poignées pour les déplacer sont plus discrètes.
+
+🐛 **Retrouvez les sous-tâches là où elles vont.** Quand une page est groupée par priorité, tag, projet ou jour, une sous-tâche apparaît aussi dans son propre groupe, comme dans Todoist, et reste sous sa tâche parente.
+
+🐛 **Les tags retrouvent leurs sous-tâches.** La page d’un tag et la page Tags comptent désormais toutes les tâches qui le portent, sous-tâches comprises. Un tag créé depuis la fenêtre d’une tâche est aussitôt sélectionné sur elle.
+
+🐛 **Les tâches du même jour et de même priorité suivent votre barre latérale.** Leur ordre respecte désormais celui de vos espaces de travail et de vos projets.
+
+## 2.23.0
+
+🎨 **Des détails plus clairs.** Les textes secondaires sont plus lisibles, l’aide à la recherche de projet est plus courte et les colonnes des graphiques sont plus faciles à sélectionner.
+
+🐛 **Améliorations des performances.** L’application charge moins de code au démarrage et reste plus réactive quand vous ouvrez une tâche, écrivez ou faites défiler une liste. La synchronisation travaille moins quand rien n’a changé, et la Revue ne sollicite plus le processeur au repos.
+
+## 2.22.0
+
+🆕 **Voyez la progression d’un projet.** Un cercle à côté des projets sans icône personnalisée se remplit à mesure que vous terminez des tâches.
+
+🆕 **Filtrez votre tableau de bord.** Dans Affichage, choisissez les priorités et les tags pour vous concentrer sur le travail à examiner. Les filtres s’appliquent aussi aux tâches terminées et à la période précédente.
+
+🎨 **Choisissez une icône de projet ou de filtre.** Retrouvez une sélection resserrée d’icônes familières par leur nom ou des mots associés. Les icônes déjà choisies restent en place.
+
+🎨 **Matrice d’Eisenhower affinée.** Choisissez jusqu’à quelle date afficher les tâches et définissez séparément l’urgence et l’importance. La barre latérale indique leur nombre dans la matrice ; Prochainement n’a plus de compteur.
+
+🐛 **Alignez le texte des sous-tâches.** Le champ de sous-tâche dans la fenêtre d’ajout est aligné avec sa case.
+
+## 2.21.0
+
+🆕 **Choisissez le noir pur en mode sombre.** Dans Réglages, Apparence, réglez Style sombre sur AMOLED. Les pages et la barre latérale deviennent noires, avec n'importe quelle couleur d'accent, tandis que menus et fenêtres restent un ton plus clairs pour rester lisibles.
+
+🆕 **Joignez plusieurs fichiers à un commentaire.** Choisissez-en autant que vous voulez avec le trombone, ou collez une capture ou un GIF n'importe où dans la tâche. Les fichiers attendent sous forme de pastilles, puis chacun devient son propre commentaire, votre texte sur le premier. Cliquez sur un fichier pour l'ouvrir dans Todoist.
+
+🆕 **Retournez une longue discussion.** À partir de quatre commentaires, un bouton Plus récents d'abord affiche le dernier en haut. C'est seulement pour le moment : la tâche suivante s'ouvre comme écrite, du plus ancien au plus récent.
+
+🎨 **Tables affinées.** Cliquez sur un titre pour trier, cliquez encore pour inverser. Son chevron filtre, déplace ou masque la colonne, et vous pouvez glisser les titres pour les réordonner. Une nouvelle colonne Assignée à, dans Affichage, Colonnes, montre qui s'occupe de chaque tâche.
+
+🎨 **Écrivez les dates comme dans Todoist.** Dans le champ d'ajout, tmr, tmrw et tmw signifient demain, et tod et tom en minuscules signifient aujourd'hui et demain. Un prénom comme Tom avec une majuscule reste dans votre tâche.
+
+🎨 **Rattrapez plusieurs versions d'un coup.** Après quelques versions d'absence, Nouveautés devient une seule liste au lieu d'une page par version, les images d'abord, puis le nouveau, l'amélioré et le corrigé, chacun avec sa version. Réglages, Journal des modifications garde chaque version à part.
+
+## 2.20.0
+
+🆕 **Repérez les tâches avec des commentaires.** Une icône et leur nombre apparaissent dans les listes, tableaux et tables. Cliquez dessus pour ouvrir la discussion. Vous pouvez masquer ce détail depuis Affichage.
+
+🎨 **Changez les dates et priorités plus vite.** Le menu clic droit propose les priorités et les raccourcis de date en accès direct. Le calendrier reste accessible en un clic pour choisir une date précise.
+
+🎨 **Voyez où ira une carte.** Quand le tableau utilise un tri automatique, la colonne de destination se teinte pendant le déplacement. Le tri manuel conserve un indicateur de position précis.
+
+🎨 **Écrivez sans envoyer trop tôt.** Entrée passe à la ligne. Cmd+Entrée ou Ctrl+Entrée envoie le commentaire ou enregistre sa modification. Le bouton d’envoi reste disponible. Le cadre du commentaire devient plus gris pendant la saisie : vous voyez que Échap l’a quitté.
+
+🎨 **Voyez le retard d’un coup d’œil.** À partir de deux jours, une tâche en retard l’affiche (« 3 j de retard », « 45 j de retard ») au lieu de sa date. Survolez-la pour voir la date.
+
+🎨 **Repérez une sous-tâche.** Une sous-tâche ouverte affiche « Sous-tâche de » au-dessus de son titre, avec un lien vers sa tâche parente.
+
+🐛 **Sélectionnez les cartes à la souris.** Partez de n’importe quel espace vide de la page pour sélectionner plusieurs cartes sans surligner de texte. Un geste commencé sur une carte continue de la déplacer.
+
+🐛 **Refermez les menus de tâche facilement.** Un clic à côté ou Échap ferme le menu ouvert. Le clic de fermeture ne déclenche plus une action dessous et ouvrir un autre menu ferme le précédent.
+
+🐛 **Gardez la maîtrise des répétitions.** Déplacer une tâche récurrente vers À faire cette semaine ou Un jour demande désormais confirmation avant d’arrêter sa répétition. Annulez pour la conserver, ou annulez le déplacement ensuite.
+
+🐛 **Restez connecté malgré les erreurs temporaires.** Un échec temporaire de renouvellement ou un refus de permission n’efface plus votre connexion. Les requêtes d’un ancien onglet utilisent les identifiants renouvelés lorsqu’ils sont disponibles.
+
+🐛 **Mettez à jour quand vous voulez.** Quand une nouvelle version sort, une carte l’annonce en bas de la barre latérale, ou au-dessus des onglets sur téléphone. Rien ne se recharge avant « Mettre à jour » ; « Plus tard » laisse un rappel dans la barre. Sinon, elle arrive à la prochaine ouverture de l’app.
+
+## 2.19.0
+
+🆕 **Créez des vues pour vos projets.** Appuyez sur + sous le titre d'un projet pour ajouter une vue : son nom, sa disposition, son regroupement et ses filtres. Passez d'une vue à l'autre en un clic, sans rien reconfigurer. Appuyez sur la vue ouverte pour la modifier. Vos vues suivent votre compte.
+
+🎨 **Affichage affiné.** Affichage et chaque vue se présentent en trois parties : type de vue, regrouper et trier, filtres. Priorité, estimation, tags et assignation sont des menus à cases à cocher. Dans une table, Colonnes ouvre une liste sur le côté : activez ou désactivez les colonnes et glissez-les pour les réordonner.
+
 ## 2.18.0
 
 🆕 **Mentionnez quelqu'un dans un commentaire.** Dans un projet partagé, tapez @ dans le commentaire d'une tâche pour choisir une personne dans la liste. Notifier, au-dessus du champ, choisit qui est prévenu : tout le monde ou une seule personne. Une personne mentionnée est toujours prévenue.

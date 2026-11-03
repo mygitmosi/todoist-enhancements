@@ -12,6 +12,11 @@ try {
   var dark = choice === 'dark' ||
     (choice !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  if (dark && localStorage.getItem('darkStyle') === 'amoled') document.documentElement.dataset.dark = 'amoled';
+  // Match the browser canvas before the application stylesheet is available.
+  // Otherwise a dark system can briefly paint black despite a saved light theme.
+  var schemeMeta = document.querySelector('meta[name="color-scheme"]');
+  if (schemeMeta) schemeMeta.content = dark ? 'dark' : 'light';
   /* The accent, for the same reason: a red flash before the green
      arrives is the same wrong first paint in a different colour. */
   var accent = localStorage.getItem('accent');
@@ -32,5 +37,6 @@ try {
     for (var token in set) {
       document.documentElement.style.setProperty('--' + token, set[token]);
     }
+    if (dark && localStorage.getItem('darkStyle') === 'amoled') document.documentElement.style.setProperty('--sidebar', '#000');
   }
 } catch { /* Storage may be unavailable; keep the default theme. */ }

@@ -42,6 +42,7 @@ const tourPreferences = (prefs: Preferences): Preferences => ({
   showQuickGroup: true,
   weekLayout: 'unified',
   views: {},
+  projectViews: {},
 });
 
 export function schedulePreferencesWrite(get: () => AppState) {
@@ -171,17 +172,35 @@ export const createPreferencesSlice: Slice<PreferencesSlice> = (set, get) => ({
     if (tourPrefsBackup) {
       /* A view arranged during the tour is the demo's: nothing is kept. */
       const current = readViewPrefs(get().prefs, viewKey);
-      set({ prefs: { ...get().prefs, views: { ...get().prefs.views, [viewKey]: { ...current, ...patch } } } });
+      const { fullWidth, ...own } = patch;
+      set({ prefs: { ...get().prefs, ...(fullWidth === undefined ? {} : { listFullWidth: fullWidth }), views: { ...get().prefs.views, [viewKey]: { ...current, ...own } } } });
       return;
     }
     const current = readViewPrefs(get().prefs, viewKey);
+    /* Full width belongs to no page: it is the lists' as a whole (#403). */
+    const { fullWidth, ...own } = patch;
     const prefs = {
       ...get().prefs,
-      views: { ...get().prefs.views, [viewKey]: { ...current, ...patch } },
+      ...(fullWidth === undefined ? {} : { listFullWidth: fullWidth }),
+      views: { ...get().prefs.views, [viewKey]: { ...current, ...own } },
     };
     set({ prefs });
     void idb.savePrefs(PREFS_KEY, prefs);
     schedulePreferencesWrite(get);
+  },
+  setProjectViews(projectId, tabs) {
+    const projectViews = { ...get().prefs.projectViews };
+    if (tabs) projectViews[projectId] = { tabs }; else delete projectViews[projectId];
+    get().setPrefs({ projectViews });
+  },
+  setActiveView(projectId, viewId) {
+    if (get().prefs.activeViews[projectId] === viewId) return;
+    get().setPrefs({ activeViews: { ...get().prefs.activeViews, [projectId]: viewId } });
+  },
+  removeViewPrefs(keys) {
+    const views = { ...get().prefs.views };
+    for (const key of keys) delete views[key];
+    get().setPrefs({ views });
   },
   setLocale(locale) {
     get().setPrefs({ locale });
@@ -209,6 +228,9 @@ export const createPreferencesSlice: Slice<PreferencesSlice> = (set, get) => ({
       if (!inbox) return;
 
       let comments = settingsComments(snapshot);
+      // Offline edits may update a known, readable comment; never create or
+      // overwrite one while its account state is unknown or unreadable.
+      if (!get().settingsChecked && (!localChange || comments.length === 0 || comments.some((note) => !readSettingsComment(note.content)))) return;
       if (comments.length === 0) {
         const fetched = await fetchSettingsComments(inbox);
         if (fetched === null) return; // unreachable: try again on the next sync

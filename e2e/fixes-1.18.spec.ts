@@ -123,12 +123,12 @@ test('#153 the date menu: shortcuts first, Next occurrence with its date, the ca
   const repeating = rows(page).filter({ has: page.locator('.repeatdot') }).first();
   const title = await repeating.locator('.ttitle').innerText();
   await repeating.hover();
-  await row(page, title).getByRole('button', { name: 'Schedule' }).click();
+  await row(page, title).getByRole('button', { name: 'Start date' }).click();
 
   const menu = page.locator('.rowmenu.schedulemenu');
   const labels = menu.locator('.datepicker-options .opt > span');
   await expect(labels).toHaveText([
-    /Today/, /Tomorrow/, /Next week/, /This week/, /Someday/,
+    /Today/, /Tomorrow/, /Next week/, /Anytime this week/, /Anytime this month/, /Someday/,
     /Skip to next occurrence/, /Remove the date/, /Pick a date/,
   ]);
   await expect(menu.locator('.datepanel-grid')).toHaveCount(0);

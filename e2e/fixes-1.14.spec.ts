@@ -52,7 +52,7 @@ test('every row menu on a short board uses the whole page, never the column (#87
   // The shortest column: its last card sits near the board's own bottom edge.
   const last = board.locator('.col').last().locator('[data-task-id]').last();
   const viewport = page.viewportSize()!;
-  for (const name of ['Schedule', 'Move to project', 'More actions']) {
+  for (const name of ['Start date', 'Move to project', 'More actions']) {
     await last.hover();
     await last.getByRole('button', { name }).click();
     const menu = page.locator('.rowmenu');
@@ -90,7 +90,7 @@ test('keys on a selection act on all of it; a priority keeps the selection', asy
 
   // T and V open the bar's own panels for the whole selection.
   await page.keyboard.press('t');
-  await expect(page.getByRole('menu', { name: 'Date' })).toBeVisible();
+  await expect(page.getByRole('menu', { name: 'Start date' })).toBeVisible();
   await page.keyboard.press('Escape');
   await page.keyboard.press('v');
   await expect(page.getByRole('menu', { name: 'Move' })).toBeVisible();
@@ -107,7 +107,7 @@ test('after a priority change, T and V still reach the selection, and the panels
   await page.keyboard.press('4');
   await page.keyboard.press('1');
   await page.keyboard.press('t');
-  const date = page.getByRole('menu', { name: 'Date' });
+  const date = page.getByRole('menu', { name: 'Start date' });
   await expect(date).toBeVisible();
   // The one date picker (#110), inside the panel itself: its field has the
   // caret, ↓ walks the quick choices, and "Pick a date" opens the month.
@@ -220,7 +220,7 @@ test('⌘↓ at the end of a section carries the task into the next one, ⌘↑ 
   expect(new Map(await sectionTitles(page)).get(toName)).toEqual(toTasks);
 });
 
-test('in My week, ⌘↓ passes over the timed tasks into Anytime, and ⌘↑ never makes a task late', async ({ demo: page }) => {
+test('in This week, ⌘↓ passes over the timed tasks into Anytime, and ⌘↑ never makes a task late', async ({ demo: page }) => {
   const today = new Map(await groupTitles(page)).get('Today') ?? [];
   expect(today.length).toBeGreaterThan(0);
   const moving = today[today.length - 1];

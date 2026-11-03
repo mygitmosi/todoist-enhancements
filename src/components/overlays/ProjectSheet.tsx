@@ -1,9 +1,10 @@
+import { useDataSnapshot } from '@/hooks/useDataSnapshot';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Overlay } from './Overlay';
 import { Icon } from '../Icon';
 import { Select } from '../Select';
 import { AccessChoice } from '../AccessChoice';
-import { ProjectIcon, ProjectIconGrid } from '../ProjectIconPicker';
+import { ProjectIcon, ProjectIconGrid } from '../ProjectIcon';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { colorValue, markerStyle } from '@/domain/colors';
@@ -61,7 +62,7 @@ export function ProjectSheet({ target, onClose }: ProjectSheetProps) {
   const moveProjectToWorkspace = useStore((s) => s.moveProjectToWorkspace);
   const setViewPrefs = useStore((s) => s.setViewPrefs);
   const prefs = useStore((s) => s.prefs);
-  const snapshot = useStore((s) => s.snapshot);
+  const snapshot = useDataSnapshot();
 
   const editing = target?.mode === 'edit' ? snapshot.projects[target.projectId] : undefined;
 

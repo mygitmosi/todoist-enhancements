@@ -10,6 +10,7 @@ import { ProjectMenu } from '@/components/ProjectMenu';
 import { PageHeader } from '@/components/PageHeader';
 import { SubtasksProvider } from '@/components/TaskRow';
 import { DisplayMenu } from '@/components/DisplayMenu';
+import { PomodoroButton } from '@/components/PomodoroButton';
 import { ModeSurface } from '@/components/ModeSurface';
 import { TaskGroup } from '@/components/TaskGroup';
 import { Icon } from '@/components/Icon';
@@ -22,15 +23,15 @@ import { useTimePill } from '@/hooks/useTimePill';
 import { useData } from '@/hooks/useData';
 import { useStore } from '@/store/store';
 import { viewPrefs } from '@/store/prefs';
-import { applyFilters, pullQuick, rootItems, sortItems } from '@/store/selectors';
-import { somedayItems, hasLabel, splitDust } from '@/domain/views';
+import { applyFilters, groupRoots, labelRoots, pullQuick, sortItems } from '@/store/selectors';
+import { monthItems, somedayItems, splitDust } from '@/domain/views';
 import { summariseLoad } from '@/domain/load';
 import type { TranslationKey } from '@/i18n';
-import type { Item } from '@/domain/types';
+import { SYSTEM_LABELS, type Item } from '@/domain/types';
 import type { DropTarget, RowOrder, TaskPlacement } from '@/domain/dnd';
 
 interface SimpleListViewProps {
-  kind: 'someday' | 'inbox' | 'label' | 'filter';
+  kind: 'month' | 'someday' | 'inbox' | 'label' | 'filter';
   labelName?: string;
   /** The saved filter a `filter` page shows. */
   filterId?: string;
@@ -99,10 +100,14 @@ function SimpleListBody({
   const filterPool = (ids: string[]): Item[] => filterRoots(ids, snapshot.items);
 
   const pool0 = useMemo(() => {
-    const roots = rootItems(items);
+    const subtasks = current.filters.showSubtasks;
+    /* A subtask is drawn on its own as a task is, and under its parent as well (#405). */
+    const roots = groupRoots(items, current.group === 'none' && kind === 'inbox' ? 'section' : current.group, subtasks);
     let selection: Item[];
 
-    if (kind === 'someday') {
+    if (kind === 'month') {
+      selection = monthItems(roots);
+    } else if (kind === 'someday') {
       selection = somedayItems(roots);
     } else if (kind === 'inbox') {
       const inboxId = snapshot.user?.inbox_project_id;
@@ -112,12 +117,12 @@ function SimpleListBody({
       selection = filterPool(filterResult.parts?.flatMap((part) => part.ids) ?? [])
         .filter((item) => !seen.has(item.id) && Boolean(seen.add(item.id)));
     } else {
-      selection = labelName ? roots.filter((i) => hasLabel(i, labelName)) : [];
+      selection = labelName ? labelRoots(items, labelName, snapshot, current.group, subtasks) : [];
     }
 
     return selection;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, kind, labelName, snapshot, filterResult.parts, matched]);
+  }, [items, kind, labelName, snapshot, filterResult.parts, matched, current.group, current.filters.showSubtasks]);
   const scoped = useMemo(
     () => applyFilters(pool0, current.filters, snapshot, childrenOf),
     [pool0, current.filters, snapshot, childrenOf],
@@ -180,12 +185,16 @@ function SimpleListBody({
   const inboxId = snapshot.user?.inbox_project_id;
   const dropTarget: DropTarget | undefined = kind === 'filter'
     ? undefined
+    : kind === 'month'
+    ? { kind: 'month' }
     : kind === 'someday'
     ? { kind: 'someday' }
     : kind === 'inbox'
       ? (inboxId ? { kind: 'project', projectId: inboxId } : undefined)
       : (labelName ? { kind: 'label', label: labelName } : undefined);
-  const addition = kind === 'someday' || kind === 'filter'
+  const addition = kind === 'month'
+    ? { labels: [SYSTEM_LABELS.month] }
+    : kind === 'someday' || kind === 'filter'
     ? {}
     : kind === 'inbox'
       ? { projectId: inboxId }
@@ -259,6 +268,7 @@ function SimpleListBody({
         subtitle={filter ? <FilterDescription filter={filter} /> : undefined}
         actions={
           <>
+            <PomodoroButton />
             <DisplayMenu
               viewKey={viewKey}
               pageItems={pool0}

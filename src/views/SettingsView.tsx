@@ -1,3 +1,4 @@
+import { useDataSnapshot } from '@/hooks/useDataSnapshot';
 import { PrivacyInformation } from '@/components/PrivacyInformation';
 import { HireNote } from '@/components/HireNote';
 import { MacAppCard } from '@/components/MacApp';
@@ -8,7 +9,7 @@ import { BrandIcon, Icon, type IconName } from '@/components/Icon';
 import { Select } from '@/components/Select';
 import { COMPLETION_SOUNDS, playCompletionSound, type CompletionChoice, type CompletionSound } from '@/lib/completionSound';
 import { GroupOrderEditor, SidebarNavEditor } from '@/components/SidebarNavEditor';
-import { AccentChoice, BackgroundChoice, ThemeChoice, LayoutChoice, DensityChoice, EstimateStorageChoice, TaskChipsChoice, TaskOpenChoice } from '@/components/Choosers';
+import { AccentChoice, BackgroundChoice, DarkStyleChoice, ThemeChoice, LayoutChoice, DensityChoice, EstimateStorageChoice, TaskChipsChoice, TaskOpenChoice } from '@/components/Choosers';
 import { WorkspacePreview } from '@/components/WorkspacePreview';
 import { GroupPreview } from '@/components/GroupPreview';
 import { useT } from '@/hooks/useT';
@@ -23,7 +24,9 @@ import { DUST_MONTHS, isDustMonths } from '@/domain/views';
 import type { Locale, TranslationKey } from '@/i18n';
 import { APP_NAME, AUTHOR, AUTHOR_AVATAR_URL, AUTHOR_GITHUB_URL, COFFEE_URL, GITHUB_URL, LINKEDIN_URL, VERSION, X_URL } from '@/app-info';
 import { karmaStanding } from '@/domain/karma';
+import { PomodoroDisplayChoice } from '@/components/PomodoroDisplayChoice';
 import { projectTree } from '@/store/selectors';
+import { intlDate } from '@/lib/intl';
 
 /** Where the things this app only reads are changed. */
 const TODOIST_ACCOUNT_URL = 'https://app.todoist.com/app/settings/account';
@@ -64,7 +67,7 @@ export function SettingsView() {
   /* Monday-first labels. 8 January 2024 was a Monday; the capacity array is
      indexed Sunday-first, so the two are mapped rather than assumed equal. */
   const dayNames = Array.from({ length: 7 }, (_, i) =>
-    new Intl.DateTimeFormat(intl, { weekday: 'short' }).format(new Date(2024, 0, 8 + i)),
+    intlDate(intl, { weekday: 'short' }).format(new Date(2024, 0, 8 + i)),
   );
 
   /* A day that does not read as a duration is refused out loud, and keeps the
@@ -83,7 +86,7 @@ export function SettingsView() {
   const toggle = (key: keyof typeof prefs.conflicts) =>
     setPrefs({ conflicts: { ...prefs.conflicts, [key]: !prefs.conflicts[key] } });
 
-  const groupsInSidebar = projectTree(useStore((s) => s.snapshot), prefs.workspaceOrder);
+  const groupsInSidebar = projectTree(useDataSnapshot(), prefs.workspaceOrder);
 
   const weekly = weeklyCapacity(prefs.dailyCapacity, prefs.weeklyCapacityOverride);
 
@@ -274,6 +277,11 @@ export function SettingsView() {
             <Row title={t('settings.theme')} hint={t('settings.themeHint')} wide>
               <ThemeChoice value={prefs.theme} onChange={(value) => setPrefs({ theme: value })} />
             </Row>
+            {prefs.theme !== 'light' && (
+              <Row title={t('settings.darkStyle')} hint={t('settings.darkStyleHint')} wide>
+                <DarkStyleChoice value={prefs.darkStyle} onChange={(value) => setPrefs({ darkStyle: value })} />
+              </Row>
+            )}
             <Row title={t('settings.layout')} hint={t('settings.layoutHint')} wide>
               <LayoutChoice value={prefs.layout} onChange={(value) => setPrefs({ layout: value })} />
             </Row>
@@ -331,6 +339,9 @@ export function SettingsView() {
           {/* Settings that shape the product rather than its formatting. */}
           <section className="setsection" id="features">
             <h2>{t('settings.features')}</h2>
+            <Row title={t('pomodoro.title')} hint={t('pomodoro.settingsIntro')} wide>
+              <PomodoroDisplayChoice value={prefs.pomodoroDisplay} onChange={(pomodoroDisplay) => setPrefs({ pomodoroDisplay, pomodoroAsked: true })} />
+            </Row>
             {/* How the pages are laid out, in one place, with a picture of it. */}
             <h3 className="setsubhead">{t('settings.groupOrganisation')}</h3>
             <p className="setgroup-hint">{t('settings.groupOrganisationHint')}</p>

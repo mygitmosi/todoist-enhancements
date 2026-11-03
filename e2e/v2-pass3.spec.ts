@@ -88,14 +88,14 @@ test.describe('lists and the keyboard (third pass)', () => {
     await expect(page.locator('.screen.active .board .chead small').first()).not.toContainText('unestimated');
   });
 
-  test('a duration set from the row opens empty, and Enter on nothing leaves it', async ({ demo: page }) => {
+  test('a duration set from the row opens the shared dropdown on the current value, and Enter leaves it', async ({ demo: page }) => {
     await go(page, '#/week');
     const first = rows(page).first();
     const before = await first.locator('.meta').innerText();
     await first.hover();
     await first.getByRole('button', { name: 'Set an estimate' }).click();
-    const field = first.getByRole('textbox');
-    await expect(field).toHaveValue('');
+    const field = page.locator('.durationbody').getByRole('textbox');
+    await expect(field).not.toHaveValue('');
     await field.press('Enter');
     await expect.poll(() => first.locator('.meta').innerText()).toBe(before);
   });
@@ -171,7 +171,7 @@ test.describe('the open task (third pass)', () => {
     await page.getByRole('menuitem', { name: 'Edit comment' }).click();
     const edit = comment.getByRole('textbox');
     await edit.fill('Check the new quote');
-    await edit.press('Enter');
+    await edit.press('Meta+Enter');
     await expect(comment).toContainText('Check the new quote');
 
     await comment.hover();
@@ -228,7 +228,7 @@ test.describe('settings and the panels (third pass)', () => {
     expect(new Set(tops).size).toBe(1);
     await expect(page.locator('#lists .openchoice').getByRole('radio')).toHaveCount(2);
     await expect(page.getByRole('link', { name: 'Open the website' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Today and My week' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Today and This week' })).toHaveCount(0);
     await expect(page.locator('.coffee-callout').getByRole('link', { name: 'Buy me a coffee' })).toBeVisible();
   });
 

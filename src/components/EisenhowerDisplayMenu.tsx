@@ -1,3 +1,4 @@
+import { useDataSnapshot } from '@/hooks/useDataSnapshot';
 import { defaultViewPrefs } from '@/domain/types';
 import { viewPrefs } from '@/store/prefs';
 import { AssigneeFilter } from '@/components/AssigneeFilter';
@@ -6,13 +7,16 @@ import { Icon } from './Icon';
 import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { PERSONAL_WORKSPACE } from '@/store/selectors';
+import { Select } from './Select';
 import { WorkspaceFilter } from './WorkspaceFilter';
 import {
+  MATRIX_HORIZONS,
   EISENHOWER_PRIORITIES,
   EISENHOWER_URGENCY_RULES,
   type EisenhowerPriority,
   type EisenhowerUrgencyRule,
   type MatrixLayout,
+  type MatrixHorizon,
 } from '@/store/prefs';
 import type { TranslationKey } from '@/i18n';
 import { PanelSheet } from '@/components/SheetChrome';
@@ -26,7 +30,7 @@ export function EisenhowerDisplayMenu() {
   const { t } = useT();
   const prefs = useStore((s) => s.prefs);
   const setPrefs = useStore((s) => s.setPrefs);
-  const snapshot = useStore((s) => s.snapshot);
+  const snapshot = useDataSnapshot();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const workspaceSelection = viewPrefs(prefs, 'matrix').filters.workspaces;
@@ -35,7 +39,7 @@ export function EisenhowerDisplayMenu() {
      shows: like list or board on the other pages, it does not count. */
   const changed = Number(JSON.stringify(viewPrefs(prefs, 'matrix').filters.assignees) !== JSON.stringify(defaultViewPrefs('matrix').filters.assignees)) + Number(prefs.eisenhowerUrgent.join('|') !== 'overdue|today')
     + Number(prefs.eisenhowerImportant.join('|') !== '1|2')
-    + Number(prefs.eisenhowerShowFuture)
+    + Number(prefs.eisenhowerHorizon !== 'week')
     + Number(prefs.eisenhowerIncludeSomeday)
     + Number(workspaceChanged || prefs.eisenhowerWorkspace !== null);
 
@@ -62,6 +66,7 @@ export function EisenhowerDisplayMenu() {
     eisenhowerUrgent: ['overdue', 'today'],
     eisenhowerImportant: [1, 2],
     eisenhowerShowFuture: false,
+    eisenhowerHorizon: 'week',
     eisenhowerIncludeSomeday: false,
     eisenhowerWorkspace: null,
   });
@@ -118,16 +123,9 @@ export function EisenhowerDisplayMenu() {
 
           <hr />
           <h5>{t('matrix.visible')}</h5>
-          <div className="panelrow">
-            <span>{t('matrix.showFuture')}</span>
-            <button
-              className="switch"
-              role="switch"
-              aria-checked={prefs.eisenhowerShowFuture}
-              aria-label={t('matrix.showFuture')}
-              onClick={() => setPrefs({ eisenhowerShowFuture: !prefs.eisenhowerShowFuture })}
-            />
-          </div>
+          <Select ariaLabel={t('matrix.dateHorizon')} value={prefs.eisenhowerHorizon}
+            options={MATRIX_HORIZONS.map(value => ({ value, label: t(`matrix.horizon.${value}` as TranslationKey), face: `${t('matrix.dateHorizon')}: ${t(`matrix.horizon.${value}` as TranslationKey)}` }))}
+            onChange={value => setPrefs({ eisenhowerHorizon: value as MatrixHorizon })} />
           <div className="panelrow">
             <span>{t('matrix.includeSomeday')}</span>
             <button
@@ -139,6 +137,7 @@ export function EisenhowerDisplayMenu() {
             />
           </div>
 
+
           {/* Toggle pills, like the filters of every other Display panel (#23). */}
           <h5>{t('matrix.urgent')}</h5>
           <div className="chiprow">
@@ -149,7 +148,7 @@ export function EisenhowerDisplayMenu() {
                 aria-pressed={prefs.eisenhowerUrgent.includes(rule)}
                 onClick={() => toggleUrgent(rule)}
               >
-                {t(`matrix.urgent.${rule}` as TranslationKey)}
+                {rule === 'week' ? t('matrix.urgent.week', { label: prefs.weekLabel }) : t(`matrix.urgent.${rule}` as TranslationKey)}
               </button>
             ))}
           </div>
@@ -168,7 +167,6 @@ export function EisenhowerDisplayMenu() {
               </button>
             ))}
           </div>
-          <p className="displayhelp">{t('matrix.settings.help')}</p>
         </PanelSheet>
       )}
     </div>

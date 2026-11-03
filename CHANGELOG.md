@@ -26,6 +26,8 @@ translation lives in CHANGELOG.fr.md.
   or see ("Resize your sidebar"), in sentence case, ending with a full stop.
   What follows is one or two short sentences: where it is and what it does
   for them.
+- The title names what the person sees or gets, never how it is built. If
+  someone who has not seen the screen would ask "what does that mean?", rewrite it.
 - A picture is added only when it helps to understand the idea. It shows the
   thing itself and carries no title, caption or hint of its own: the entry
   already says what it is. Pictures all sit in the same 16:10 frame.
@@ -39,6 +41,144 @@ translation lives in CHANGELOG.fr.md.
   its X" chains.
 - Only what a person using the app can see or do. No technical work, no
   intermediate states of the same release.
+
+## 2.28.0
+
+🆕 **Choose your Quick Add shortcut.** In the Mac app, open Settings, click the shortcut, then press the keys you want. The shortcut that opens Quick Add over any app is no longer fixed to Option + Space. Needs version 1.1 of the Mac app; Settings shows you where to get it.
+
+🎨 **See a subtask's details at a glance.** Open a task and every subtask now shows its description, duration, date and tags under its name, in the order you chose in Display. No need to open them one by one.
+
+🎨 **Boards that fit your window.** Each column now takes the height of your window and scrolls on its own, with its name and its Add task button always in place. The page itself no longer scrolls under the board.
+
+🎨 **Never lose the task in a wide table.** When a table has more columns than fit, the checkbox and the task's name stay on the left while you scroll sideways, so you always know which row you are reading.
+
+🐛 **A warning before a repeating task loses its date.** Moving several tasks to This month now asks first when one of them repeats, as This week and Someday already did. Before, the repeat rule was removed without a word.
+
+## 2.27.2
+
+🐛 **Delete what you picked.** After ⌘-clicking a task off a selection, ⌘⌫ now deletes the tasks still selected, not the one you just unticked. E, T, V and the priority keys follow the same rule.
+
+## 2.27.1
+
+🎨 **Design polishes.** Page summaries and Insights are easier to read. The Display menu, task details, Tags and Filters pages are clearer, with a simpler way to estimate tasks missing a duration. The guided tour now introduces the Pomodoro timer.
+
+## 2.27.0
+
+🆕 **Meet the Pomodoro timer.** Press the 25 min pill at the top of a page to start 25 minutes of focus. It counts down in the pill, with pause beside it. Open a task and press the pill to link the timer to that task, and open it full screen to work on it.
+
+🆕 **Plan the month with Anytime this month.** This month is a new page for what you want to do this month, with no set day. Drag a task there, or pick Anytime this month in a date picker. In a list, such a task shows Anytime this week or Anytime this month where its date would be.
+
+🐛 **Find a project or section faster.** While you type in the project picker, projects come first, then sections, and each section shows the project it belongs to.
+
+## 2.26.1
+
+🎨 **Large accounts feel lighter.** Ticking or editing a task in a long list, or an update arriving from Todoist, no longer redraws every other row. The app also loads less code when it starts, so big projects and My week stay responsive.
+
+## 2.25.0
+
+🆕 **Arrange your table your way.** Drag the edge of a heading to resize a column, and move any column, the title included, where you want it. Every heading now has an icon, and a Display switch wraps long titles and descriptions instead of cutting them.
+
+🆕 **See whose subtask it is.** In a table, a subtask now shows the name of its parent beside its title.
+
+🆕 **Every icon has a name.** Rest the pointer on a button that shows only an icon, such as the actions that appear on a task, and its name shows up right away. The keyboard gets it too.
+
+🎨 **Duration looks like the rest.** In a task, Duration now looks like the date and the project beside it. Pick 30 minutes, or type 1h30, then press E to open it from the keyboard.
+
+🎨 **Tags look like tags.** Open a task and each tag is a chip in its own colour, with its icon and an x to take it off. Creating or choosing a tag adds its chip straight away.
+
+🎨 **Create a view with every option.** The window that adds a view to a project now has Include scheduled tasks too, like Display.
+
+🎨 **Upcoming shows the date of each day.** Headings read Tomorrow · Thu 29 Oct, then Fri 30 Oct, instead of a bare weekday you had to count from.
+
+🎨 **A checklist stays in view.** Under a task, the line after "Before the call:" now shows the items still to tick, instead of ending on a colon.
+
+🎨 **Easier to read.** Project names keep their colour and stay clear: a little deeper on a light page, a little lighter on a dark one. The grey of secondary text is a touch stronger as well.
+
+🎨 **Neater rows and sidebar.** The checkbox sits level with the title, the actions line up with its first line, and the drag handle stays inside tinted groups. Sidebar section titles are easier to click.
+
+🎨 **Start date everywhere.** The date you plan to do a task is called Start date in the composer, in selections and in Display, like in the task window. The deadline keeps its name.
+
+🎨 **Review on a phone.** The four moves are a grid of large buttons, with none left alone on a second line. The subtask line of the composer is fully visible.
+
+🐛 **Counts that match the page.** The numbers beside My week, Today and Upcoming follow what the page lists, with its grouping and its Show subtasks switch.
+
+🐛 **A cursor where you type.** The description of a new task always shows its cursor, and in a task's checklist a new empty item no longer shows it at the far right.
+
+🐛 **A clean search field in pure black.** The search box in Display menus no longer shows a grey patch in the AMOLED dark theme.
+
+## 2.24.0
+
+🎨 **Choose full width once.** In Display, turn on Full width and every list follows, instead of setting it page by page.
+
+🎨 **A clearer list of columns.** In a table's Display, Columns, each column now has its icon, the count of shown columns is gone, and the handles to drag them are lighter.
+
+🐛 **See subtasks where they belong.** When a page is grouped by priority, tag, project or day, a subtask also appears in its own group, as in Todoist, and stays under its parent.
+
+🐛 **Tags find their subtasks.** A tag's page and the Tags page now count every task carrying it, subtasks included. A tag created from a task's window is selected on that task straight away.
+
+🐛 **Tasks that share a day and a priority follow your sidebar.** Their order now respects the order of your workspaces and projects.
+
+## 2.23.0
+
+🎨 **Clearer details.** Secondary text is easier to read, the project search hint is shorter, and chart columns are easier to select.
+
+🐛 **Performance improvements.** The app loads less code on startup and stays more responsive when you open a task, type or scroll. Synchronization does less work when nothing has changed, and Review no longer keeps the processor busy while idle.
+
+## 2.22.0
+
+🆕 **See a project’s progress.** A circle beside projects without a custom icon fills as you complete tasks.
+
+🆕 **Filter your dashboard.** In Display, choose priorities and tags to focus the dashboard on the work you want to review. The filters apply to completed work and the previous period too.
+
+🎨 **Choose a project or filter icon.** Pick from a focused set of familiar icons, and find them by name or related words. Icons already chosen remain in place.
+
+🎨 **Eisenhower Matrix refinements.** Choose how far ahead to show dated tasks, and define urgent and important separately. The sidebar shows the matrix task count; Upcoming no longer shows one.
+
+🐛 **Align subtask text.** The subtask field in the task composer lines up with its checkbox.
+
+## 2.21.0
+
+🆕 **Choose pure black in dark mode.** In Settings, Appearance, set Dark style to AMOLED. Pages and the sidebar turn true black with any accent colour, while menus and dialogs stay a shade lighter so they remain easy to read.
+
+🆕 **Attach several files to a comment.** Pick as many as you like with the paperclip, or paste a screenshot or GIF anywhere in the task. Files wait as chips, then each is posted as its own comment, your words on the first. Click a file to open it in Todoist.
+
+🆕 **Turn a long thread over.** From four comments on, a Newest first button in the header shows the latest at the top. It is only for the moment: the next task you open reads as written, oldest first.
+
+🎨 **Table refinements.** Click a heading to sort, click again to reverse. Its chevron filters, moves or hides the column, and you can drag headings to reorder them. A new Assigned to column, in Display, Columns, shows who owns each task.
+
+🎨 **Type dates the Todoist way.** In the composer, tmr, tmrw and tmw mean tomorrow, and tod and tom in lower case mean today and tomorrow. A name such as Tom with a capital stays part of your task.
+
+🎨 **Catch up on several versions at once.** After a few versions away, What's new is one list instead of one page per release, pictures first, then new, better and fixed, each with its version. Settings, Changelog still keeps every release apart.
+
+## 2.20.0
+
+🆕 **See which tasks have comments.** A comment icon and count appear on tasks in lists, boards and tables. Click the icon to open the discussion. Hide it from Display when you prefer fewer details.
+
+🎨 **Change dates and priorities faster.** Right-click a task to choose a priority or a date shortcut directly in the menu. The calendar remains one click away for a specific date.
+
+🎨 **See where a card will go.** When a board is sorted automatically, the destination column is shaded as you drag. Manual sorting keeps the precise position indicator.
+
+🎨 **Write comments without sending too soon.** Enter starts a new line. Cmd+Enter or Ctrl+Enter sends your comment or saves an edit; the send button works as before. The comment frame turns greyer while you type, so you can tell when Escape has let go of it.
+
+🎨 **See how late a task is.** Two days late or more, a task says so ("3d late", "45d late") instead of showing its date. Hover the chip to see the date.
+
+🎨 **Spot a subtask at a glance.** An opened subtask says "Subtask of" above its title, with its parent one click away.
+
+🐛 **Select board cards with the mouse.** Drag from any empty spot on the page to select several cards without highlighting text. Starting on a card still moves it.
+
+🐛 **Close task pickers reliably.** Click outside a picker or press Escape to dismiss it. A dismissing click no longer triggers an action underneath, and opening another picker closes the first.
+
+🐛 **Keep control of repeating tasks.** Moving a recurring task to Anytime this week or Someday now asks before removing its repeat. Cancel to keep it, or undo the move afterwards.
+
+🐛 **Keep your connection through temporary errors.** Temporary token renewal failures and permission refusals no longer erase your sign-in. Requests from an older tab use renewed credentials when available.
+
+🐛 **Update when you choose.** When a new version is out, a card says so at the foot of the sidebar, or above the tabs on a phone. Nothing reloads until you press Update; Later leaves a reminder in the sidebar. Otherwise, the new version arrives the next time you open the app.
+
+## 2.19.0
+
+🆕 **Create views for your projects.** Press + under a project's title to add a view: its own name, layout, grouping and filters. Switch between views in one click, nothing to set up again. Press the open view to change it. Your views follow your account.
+
+🎨 **Display refinements.** Display and each view now have three parts: view type, group and sort, filters. Priority, estimate, tags and assignee are dropdowns with checkboxes. In a table, Columns opens a list at the side: switch columns on or off and drag any of them to reorder.
 
 ## 2.18.0
 
