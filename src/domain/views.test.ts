@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ageInMonths, bucketOf, groupWeek, keptDay, monthItems, pruneKept, readKept, somedayItems, splitDust, splitQuick,
+  ageInMonths, bucketOf, groupWeek, keptDay, monthItems, pruneKept, readKept, somedayItems, splitDust, splitQuick, weekItems,
 } from './views';
 import { due, item } from '@/test/items';
 
@@ -8,6 +8,27 @@ import { due, item } from '@/test/items';
 const NOW = new Date(2026, 9, 7, 12, 0, 0);
 
 const ids = (list: { id: string }[]) => list.map((task) => task.id);
+
+describe('deadline today', () => {
+  it('puts deadline-only and future-start tasks into today without changing their dates', () => {
+    const noStart = item({ id: 'deadline', deadline: { date: '2026-10-07', lang: 'en' } });
+    const future = item({ id: 'future', due: due('2026-10-09'), deadline: { date: '2026-10-07', lang: 'en' } });
+    expect(bucketOf(noStart, NOW)).toBe('today');
+    expect(bucketOf(future, NOW)).toBe('today');
+    expect(ids(weekItems([noStart, future], NOW))).toEqual(['deadline', 'future']);
+    expect(future.due?.date).toBe('2026-10-09');
+  });
+});
+
+describe('deadline in the past', () => {
+  it('makes the task overdue, whatever its start date', () => {
+    const noStart = item({ id: 'a', deadline: { date: '2026-10-05', lang: 'en' } });
+    const future = item({ id: 'b', due: due('2026-10-09'), deadline: { date: '2026-10-05', lang: 'en' } });
+    expect(bucketOf(noStart, NOW)).toBe('overdue');
+    expect(bucketOf(future, NOW)).toBe('overdue');
+    expect(ids(groupWeek([noStart, future], NOW).overdue)).toEqual(['a', 'b']);
+  });
+});
 
 describe('splitQuick', () => {
   it.each([

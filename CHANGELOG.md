@@ -42,6 +42,34 @@ translation lives in CHANGELOG.fr.md.
 - Only what a person using the app can see or do. No technical work, no
   intermediate states of the same release.
 
+## 2.30.0
+
+🆕 **See a project as a Matrix.** In Display, pick Matrix next to List, Board, Table and Calendar, on a project, a tag, a filter or the Inbox. Its tasks fall into the four quadrants of the Eisenhower Matrix, with the same urgent and important rules, set right in Display, and it works in a saved view too.
+
+🎨 **The Eisenhower Matrix can be your homepage.** In Settings, pick Eisenhower Matrix as your homepage and the app opens on it. If you turn the Matrix off, the app opens on This week instead.
+
+🎨 **Matrix refinements.** Display now has a Sort option for the four quadrants, kept between visits. A subtask with its own date or priority gets its own card, with its parent's name on it, and every parent keeps all its subtasks folded under it. A new Show subtasks switch lists top-level tasks only.
+
+🐛 **A past deadline makes a task late.** A task whose deadline has passed now counts as late in My week, on the Matrix and in the sidebar counts, even when its start date is still ahead. Its chip says Yesterday or how many days late.
+
+🐛 **Selected cards stay fully highlighted.** On the Matrix, a card you ⌘-click is tinted edge to edge, and it keeps its tint when you hover it.
+
+## 2.29.0
+
+🎨 **Sidebar sections remember how you left them.** Fold Favourites, My projects, a workspace or a folder in the sidebar, and it is still folded after you reload or come back. Each account keeps its own.
+
+🎨 **Deadlines show up on their day.** A task whose deadline is today now appears in Today and My week, and under its deadline day in Upcoming, even when its start date is another day. It never appears twice on the same page.
+
+🎨 **Compact tasks.** A task with only a title now takes less room in lists, so more of them fit on the screen. Tables and the phone layout keep their size.
+
+🐛 **Delete a project of your workspace.** Todoist only deletes an archived project in a workspace, which used to end in an error. The confirmation now says so, and the app archives the project and deletes it in one go.
+
+🐛 **Keep your sort when you sign in again.** The grouping and sort you chose on a tag, a filter or Upcoming now follow your account, so they are still there after signing out and back in.
+
+🐛 **Filters with commas keep their groups.** A filter made of several queries separated by commas now shows each query as its own group in Table and Board, as it already does in a list.
+
+🐛 **The date menu closes when you choose.** In the new task window, picking Today or any quick date now closes the menu, as the deadline menu does.
+
 ## 2.28.0
 
 🆕 **Choose your Quick Add shortcut.** In the Mac app, open Settings, click the shortcut, then press the keys you want. The shortcut that opens Quick Add over any app is no longer fixed to Option + Space. Needs version 1.1 of the Mac app; Settings shows you where to get it.

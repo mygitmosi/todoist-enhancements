@@ -8,6 +8,34 @@ Chaque ligne est marquée :
 - 🎨 Amélioré : ce qui existait et fonctionne ou se présente mieux,
 - 🐛 Corrigé : un bug ou une régression corrigés.
 
+## 2.30.0
+
+🆕 **Voyez un projet en matrice.** Dans Affichage, choisissez Matrice à côté de Liste, Tableau, Table et Calendrier, sur un projet, un tag, un filtre ou la Boîte de réception. Ses tâches se répartissent dans les quatre cadrans d'Eisenhower, avec les mêmes règles d'urgence et d'importance, réglables dans Affichage, même dans une vue enregistrée.
+
+🎨 **La matrice d'Eisenhower peut être votre page d'accueil.** Dans les Réglages, choisissez la matrice d'Eisenhower comme page d'accueil et l'app s'ouvre dessus. Si vous désactivez la matrice, l'app s'ouvre sur Cette semaine.
+
+🎨 **La matrice s'affine.** Affichage propose un tri pour les quatre cadrans, retenu d'une visite à l'autre. Une sous-tâche avec sa propre date ou priorité a sa carte, avec le nom de son parent, et chaque parent garde toutes ses sous-tâches repliées dessous. Un interrupteur Afficher les sous-tâches ne garde que le premier niveau.
+
+🐛 **Une deadline dépassée met la tâche en retard.** Une tâche dont la deadline est passée compte maintenant comme en retard dans Ma semaine, sur la matrice et dans les compteurs de la barre latérale, même si sa date de début est à venir. Sa pastille indique Hier ou le nombre de jours de retard.
+
+🐛 **Les cartes sélectionnées restent colorées.** Sur la matrice, une carte sur laquelle vous faites ⌘-clic est teintée d'un bord à l'autre, et garde sa teinte quand vous la survolez.
+
+## 2.29.0
+
+🎨 **La barre latérale retient ses sections repliées.** Repliez Favoris, Mes projets, un espace de travail ou un dossier dans la barre latérale : ils restent repliés après un rechargement ou à votre retour. Chaque compte garde les siens.
+
+🎨 **Les échéances apparaissent le bon jour.** Une tâche dont l’échéance est aujourd’hui s’affiche maintenant dans Aujourd’hui et Ma semaine, et sous le jour de son échéance dans À venir, même si sa date de début est un autre jour. Elle n’apparaît jamais deux fois sur la même page.
+
+🎨 **Des tâches plus compactes.** Une tâche qui n’a qu’un titre prend moins de place dans les listes : plus de tâches tiennent à l’écran. Les tables et la version téléphone gardent leur taille.
+
+🐛 **Supprimez un projet de votre espace de travail.** Todoist ne supprime un projet d’espace de travail que s’il est archivé, ce qui finissait par une erreur. La confirmation le dit maintenant, et l’app archive puis supprime le projet d’un seul geste.
+
+🐛 **Gardez votre tri en vous reconnectant.** Le regroupement et le tri choisis sur un tag, un filtre ou À venir suivent maintenant votre compte : ils sont toujours là après une déconnexion et une reconnexion.
+
+🐛 **Les filtres à virgules gardent leurs groupes.** Un filtre composé de plusieurs requêtes séparées par des virgules montre chaque requête comme un groupe dans Table et Tableau, comme il le fait déjà en liste.
+
+🐛 **Le menu de date se ferme quand vous choisissez.** Dans la fenêtre de nouvelle tâche, choisir Aujourd’hui ou une date rapide ferme maintenant le menu, comme celui de l’échéance.
+
 ## 2.28.0
 
 🆕 **Choisissez votre raccourci d’ajout rapide.** Dans l’app Mac, ouvrez les Réglages, cliquez sur le raccourci, puis appuyez sur les touches de votre choix. Le raccourci qui ouvre l’ajout rapide au-dessus de n’importe quelle app n’est plus figé sur Option + Espace. Il faut la version 1.1 de l’app Mac ; les Réglages vous disent où la trouver.
