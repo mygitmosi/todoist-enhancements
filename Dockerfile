@@ -1,5 +1,5 @@
 # Stage 1: Install dependencies and source code
-FROM node:20-alpine AS builder
+FROM node:lithium-slim AS builder
 
 WORKDIR /app
 
@@ -9,10 +9,12 @@ RUN npm ci
 COPY . .
 
 # Stage 2: Runtime image with Node + Nginx
-FROM node:20-alpine
+FROM node:lithium-slim
 
-# Install Nginx
-RUN apk add --no-cache nginx
+# Install Nginx via apt-get (Debian/Ubuntu)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends nginx && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
