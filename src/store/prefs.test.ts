@@ -321,3 +321,4 @@ describe('the Full width switch (#403)', () => {
     expect(hydratePreferences({ listFullWidth: false, ...stored }, 'en').listFullWidth).toBe(false);
   });
 });
+

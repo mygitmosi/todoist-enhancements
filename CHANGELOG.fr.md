@@ -8,9 +8,65 @@ Chaque ligne est marquée :
 - 🎨 Amélioré : ce qui existait et fonctionne ou se présente mieux,
 - 🐛 Corrigé : un bug ou une régression corrigés.
 
+## 2.32.4
+
+🎨 **Estimez plus vite dans les notifications.** Une tâche sans estimation propose maintenant un menu des durées habituelles (15 min, 30 min, 1 h…) à la place d’un champ vide. Vous pouvez toujours saisir une autre durée.
+
+🎨 **Les liens vers d’autres applications sont reconnus.** Un lien qui ouvre une application, comme une note UpNote, Evernote, OneNote ou Notion, se clique maintenant dans un titre, une description ou un commentaire, et ouvre cette application. Un lien très long passe à la ligne au lieu de dépasser.
+
+🐛 **Coller un lien sur du texte sélectionné garde le texte.** Sélectionnez des mots dans un titre, une description ou un commentaire, puis collez un lien : les mots restent et deviennent le lien au lieu d’être remplacés. Dans un titre, les crochets et l’adresse restent visibles en grisé autour des mots soulignés.
+
+## 2.32.3
+
+🐛 **Améliorations de fiabilité.** La synchronisation tient mieux : plus de blocage sur « Échec de la synchronisation », aucune modification envoyée deux fois ni annulée un instant à l’écran, et un réglage changé juste avant de fermer l’app est gardé. En cas d’échec, cliquez sur le statut pour voir la raison et copier le détail.
+
+## 2.32.2
+
+🐛 **L’ajout rapide utilise toujours votre compte.** Dans l’app Mac, une tâche ajoutée avec le raccourci global arrive désormais toujours sur le compte connecté dans la fenêtre principale. Si la fenêtre d’ajout rapide est un jour sur un autre compte, elle le dit, se recharge sur le bon et n’envoie rien.
+
+🐛 **L’ajout rapide s’ouvre sans flash.** Dans l’app Mac, le raccourci ouvre maintenant tout de suite la fenêtre d’ajout rapide, sans que l’app apparaisse un instant avant.
+
+🐛 **Se connecter remplace un ancien jeton collé.** Se connecter avec Todoist efface maintenant un jeton collé auparavant, pour que le compte que vous venez de choisir soit bien celui utilisé.
+
+## 2.32.1
+
+🐛 **Voyez où tombe la prochaine occurrence d’une tâche en retard.** Sur une tâche récurrente en retard, Prochaine occurrence indique maintenant le jour où elle va tomber, dans le menu de date et dans le menu de la ligne. Un jour déjà passé devient demain.
+
+## 2.32.0
+
+🆕 **Ouvrez les liens Todoist depuis une tâche.** Quand le titre, la description ou un commentaire d’une tâche contient un lien vers une autre tâche, un projet, un tag ou un filtre à vous, un clic l’ouvre dans Enhanced au lieu de Todoist. Dans l’éditeur de description, ⌘-clic (Ctrl-clic sous Windows) le suit. Les autres liens s’ouvrent comme avant.
+
+🆕 **Sachez quand une nouvelle app Mac est sortie.** Dans l’app Mac, une carte vous prévient maintenant qu’une version plus récente peut être téléchargée, avec un bouton pour la récupérer. Remplacez l’ancienne app dans Applications. Elle ne s’affiche qu’une fois par version.
+
+🎨 **Planifiez n’importe quelle tâche depuis Cette semaine.** Dans le Calendrier de Cette semaine et de Ce mois-ci, le panneau Sans date peut lister les tâches sans date de la page ou de tous vos projets, pour donner un jour à n’importe laquelle. Sur Cette semaine, la liste de la page se limite désormais à ce que vous avez marqué pour la semaine.
+
+🎨 **Choisissez les tags que vous voulez voir.** Dans Affichage, cochez les tags à montrer au lieu de décocher ceux dont vous ne voulez pas. « Tous les tags » reste coché tant que vous n’en choisissez pas, et le recocher efface votre choix.
+
+🎨 **La recherche trouve d’abord projets et tags.** Tapez quelques lettres : le projet ou le tag que vous cherchez, avec son icône, passe avant une tâche qui correspond aussi bien. Les sections sont aussi cherchées par défaut.
+
+🎨 **Améliorations de la configuration.** La première configuration commence avec Boîte de réception, Cette semaine, Ce mois-ci, Prochainement et Un jour dans votre barre latérale. Activez le reste quand vous en avez besoin.
+
+🎨 **Améliorations de la barre latérale.** Les réglages montrent l’image de chaque espace à côté de son nom quand vous les classez, et Mes projets affiche votre photo, dans la barre latérale et dans cette liste.
+
+🐛 **Les tags d’un tableau suivent l’ordre de Todoist.** Le menu des tags d’une tâche dans un tableau les liste dans l’ordre de votre liste de tags Todoist, dans un menu plus petit qui s’accorde au tableau.
+
+🐛 **Déplacez les sections sur téléphone.** Maintenez le doigt sur le titre d’une section, puis glissez-la ailleurs. La poignée laisse la place au titre sur téléphone et dans une fenêtre étroite.
+
+## 2.31.0
+
+🆕 **Passez facilement d’Aujourd’hui aux autres jours.** Un petit chevron à côté du titre d’Aujourd’hui, et d’Aujourd’hui dans Cette semaine, ouvre un sélecteur de date. Un autre jour liste ce qui y est prévu, vous pouvez y ajouter ou y déposer des tâches, et Aujourd’hui dans le sélecteur vous ramène au jour même.
+
+🎨 **Déplacez plusieurs événements du Calendrier d’un coup.** ⌘-clic (Ctrl-clic sous Windows) sur des événements pour les choisir, puis glissez-en un : tous changent de jour ensemble, chacun gardant son horaire, et ceux sur la journée y restent. Un événement seul se déplace toujours où vous voulez, heure comprise.
+
+🎨 **Une deadline peut rendre une tâche urgente dans la matrice d’Eisenhower.** Les règles d’urgence de la matrice lisent désormais la deadline d’une tâche en plus de sa date de début : une tâche prévue plus tard avec une deadline demain tombe dans les cadrans urgents. « Sans date, avec @semaine » devient simplement « Dans la semaine ».
+
+🎨 **Voyez où tombe « Prochaine occurrence ».** La date de début d’une tâche récurrente propose Prochaine occurrence et, comme le menu de la ligne, indique le jour où elle tombe. Les répétitions par mois et par an sont lues aussi.
+
+🐛 **Les tâches récurrentes comptent dans Analyses et le Tableau de bord.** Chaque fois que vous terminez une tâche récurrente, elle apparaît dans les graphiques, la série, le score de concentration et « terminées cette semaine », comme dans Todoist. Le total de tâches terminées d’un projet ne change pas.
+
 ## 2.30.0
 
-🆕 **Voyez un projet en matrice.** Dans Affichage, choisissez Matrice à côté de Liste, Tableau, Table et Calendrier, sur un projet, un tag, un filtre ou la Boîte de réception. Ses tâches se répartissent dans les quatre cadrans d'Eisenhower, avec les mêmes règles d'urgence et d'importance, réglables dans Affichage, même dans une vue enregistrée.
+🆕 **Vue Matrice dans les projets.** Dans Affichage, choisissez Matrice à côté de Liste, Tableau, Table et Calendrier, sur un projet, un tag, un filtre ou la Boîte de réception. Ses tâches se répartissent dans les quatre cadrans d'Eisenhower, avec les mêmes règles d'urgence et d'importance, réglables dans Affichage, même dans une vue enregistrée.
 
 🎨 **La matrice d'Eisenhower peut être votre page d'accueil.** Dans les Réglages, choisissez la matrice d'Eisenhower comme page d'accueil et l'app s'ouvre dessus. Si vous désactivez la matrice, l'app s'ouvre sur Cette semaine.
 

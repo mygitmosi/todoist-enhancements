@@ -12,8 +12,10 @@ import {
 } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, isolateHistory } from '@codemirror/commands';
 import { useT } from '@/hooks/useT';
+import { openTodoistLink } from '@/hooks/useTodoistLinks';
 import { inlineSpans, type InlineSpan } from '@/domain/inlineMarks';
 import { richEnter, normalizeLink } from '@/domain/editorInput';
+import { isWebUrl } from '@/domain/markdown';
 import { pressEnter, readLine, type NoteLine } from '@/domain/descriptionLines';
 import { itemText, pasteIntoItem, parseLines } from '@/domain/checklist';
 
@@ -533,7 +535,10 @@ export function MarkdownEditor({
             const link = (event.target as HTMLElement).closest<HTMLElement>('.md-link[data-href]');
             if ((event.metaKey || event.ctrlKey) && link?.dataset.href) {
               event.preventDefault();
-              window.open(link.dataset.href, '_blank', 'noopener,noreferrer');
+              /* ⌘-click on a link to a Todoist item the app has opens it here (#419). */
+              if (openTodoistLink(link.dataset.href)) return true;
+              if (isWebUrl(link.dataset.href)) window.open(link.dataset.href, '_blank', 'noopener,noreferrer');
+              else window.location.assign(link.dataset.href);
               return true;
             }
             return false;

@@ -42,9 +42,65 @@ translation lives in CHANGELOG.fr.md.
 - Only what a person using the app can see or do. No technical work, no
   intermediate states of the same release.
 
+## 2.32.4
+
+🎨 **Set an estimate faster in Notifications.** A task without an estimate now offers a menu of the usual durations (15 min, 30 min, 1 h…) instead of an empty box. You can still type any other duration.
+
+🎨 **Links to other apps are recognized.** A link that opens an app, such as an UpNote, Evernote, OneNote or Notion note, is now clickable in a title, a description or a comment, and opens that app. A very long link wraps instead of running past the edge.
+
+🐛 **Pasting a link over selected text keeps the text.** Select words in a title, a description or a comment, then paste a link: the words stay and become the link instead of being replaced. In a title, the brackets and the address show faintly around the underlined words.
+
+## 2.32.3
+
+🐛 **Reliability improvements.** Syncing with Todoist holds up better: it no longer stays on “Sync failed” over one workspace or an old session, a change is never sent twice or undone on screen for a moment, and a setting changed just before closing the app is kept. When a sync does fail, click the status to see why and copy the details.
+
+## 2.32.2
+
+🐛 **Quick Add always uses your own account.** In the Mac app, a task added with the global shortcut now always lands on the account you are signed in with in the main window. If the Quick Add window is ever on another account, it says so, reloads on the right one and sends nothing.
+
+🐛 **Quick Add opens without a flash.** In the Mac app, the shortcut now opens the Quick Add window straight away, without the app appearing for a moment first.
+
+🐛 **Signing in replaces an old pasted token.** Signing in with Todoist now clears a token you pasted earlier, so the account you just chose is the one that is used.
+
+## 2.32.1
+
+🐛 **See where Next occurrence lands on a late task.** On a repeating task that is behind schedule, Next occurrence now says on which day it will land, in the date menu and in the row menu. A day that has already passed becomes tomorrow.
+
+## 2.32.0
+
+🆕 **Open Todoist links from inside a task.** When a task's title, description or comment holds a link to another task, project, tag or filter of yours, a click opens it in Enhanced instead of Todoist. In the description editor, ⌘-click (Ctrl-click on Windows) follows it. Other links open as before.
+
+🆕 **Know when a new Mac app is out.** In the Mac app, a card now tells you when a newer version can be downloaded, with a button to get it. Put the new app over the old one in Applications. It shows once per version.
+
+🎨 **Plan any task from Anytime this week.** In the Calendar of Anytime this week and Anytime this month, the No date panel can list the undated tasks of the page or of all your projects, so you can give a day to any of them. On Anytime this week, the page's own list is now just what you tagged for the week.
+
+🎨 **Choose the tags you want to see.** In Display, pick the tags to show instead of unticking the ones you do not want. Any tag is ticked until you pick one, and ticking it again clears your choice.
+
+🎨 **Search finds projects and tags first.** Type a few letters and the project or tag you are after, with its own icon, now comes before a task that matches just as well. Sections are searched by default too.
+
+🎨 **Setup improvements.** The first setup now begins with Inbox, Anytime this week, Anytime this month, Upcoming and Someday in your sidebar. Switch on the rest when you need them.
+
+🎨 **Sidebar improvements.** Settings shows each workspace's picture beside its name when you order them, and My projects shows your own photo, in the sidebar and in that list.
+
+🐛 **Tags in a table follow your Todoist order.** The tag menu of a task in a table lists your tags in the order of your Todoist tag list, in a smaller menu that fits the table.
+
+🐛 **Move sections on your phone.** Hold a section's heading with your finger, then drag it to another place. The grip gives way to the heading on a phone and in a narrow window.
+
+## 2.31.0
+
+🆕 **Switch from Today to other days easily.** A small chevron beside the title of Today, and beside Today in This week, opens a date picker. Another day lists what is planned on it, you can add or drop tasks into it, and Today in the picker takes you back.
+
+🎨 **Move several Calendar events at once.** ⌘-click (Ctrl-click on Windows) events to pick them, then drag one: they all change day together, each keeping its time, and all-day events stay all day. A single event still moves anywhere, time included. Esc lets go of the selection.
+
+🎨 **Deadlines can make a task urgent in the Eisenhower Matrix.** The urgent rules of the Matrix now read a task's deadline as well as its start date, so a task planned for later with a deadline tomorrow lands in the urgent quadrants. "No date, tagged @week" is now simply Anytime this week.
+
+🎨 **See when Next occurrence lands.** The start date of a repeating task now offers Next occurrence, and, like the row menu, it says on which day the next occurrence falls. Repeats by month and by year are read too.
+
+🐛 **Repeating tasks count in Insights and the Dashboard.** Each time you complete a repeating task, it shows in the charts, the streak, the focus score and "completed this week", as it does in Todoist. A project's total of completed tasks stays as it was.
+
 ## 2.30.0
 
-🆕 **See a project as a Matrix.** In Display, pick Matrix next to List, Board, Table and Calendar, on a project, a tag, a filter or the Inbox. Its tasks fall into the four quadrants of the Eisenhower Matrix, with the same urgent and important rules, set right in Display, and it works in a saved view too.
+🆕 **Matrix view in projects.** In Display, pick Matrix next to List, Board, Table and Calendar, on a project, a tag, a filter or the Inbox. Its tasks fall into the four quadrants of the Eisenhower Matrix, with the same urgent and important rules, set right in Display, and it works in a saved view too.
 
 🎨 **The Eisenhower Matrix can be your homepage.** In Settings, pick Eisenhower Matrix as your homepage and the app opens on it. If you turn the Matrix off, the app opens on This week instead.
 

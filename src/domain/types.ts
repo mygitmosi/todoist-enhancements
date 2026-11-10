@@ -407,6 +407,11 @@ export interface CalendarPrefs {
   futureOccurrences: boolean;
   completed: boolean;
   coloration: 'priority' | 'project' | 'tag';
+  /**
+   * Where the No date panel takes its tasks from (#429): the page the
+   * calendar belongs to (`view`) or `all`. Kept per view, like the rest.
+   */
+  undatedSource?: 'view' | 'all';
 }
 
 export type GroupKey =
@@ -478,7 +483,8 @@ export type TableColumn = 'title' | 'date' | 'deadline' | 'priority' | 'estimate
  * page, so a page only ever holds what the user changed on it.
  */
 export interface MatrixOverrides {
-  urgent?: ('overdue' | 'today' | 'tomorrow' | 'after-tomorrow' | 'next-seven' | 'week')[];
+  urgent?: ('overdue' | 'today' | 'tomorrow' | 'after-tomorrow' | 'next-seven' | 'week'
+    )[];
   important?: (1 | 2 | 3 | 4)[];
   layout?: 'list' | 'matrix';
 }

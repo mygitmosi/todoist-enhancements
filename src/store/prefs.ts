@@ -294,6 +294,7 @@ export const isTaskChips = (value: unknown): value is TaskChips =>
 export const MATRIX_LAYOUTS = ['list', 'matrix'] as const;
 export type MatrixLayout = (typeof MATRIX_LAYOUTS)[number];
 
+/** Each rule reads the date and the deadline alike: either one can make a task urgent (#329). */
 export const EISENHOWER_URGENCY_RULES = [
   'overdue', 'today', 'tomorrow', 'after-tomorrow', 'next-seven', 'week',
 ] as const;
@@ -502,7 +503,7 @@ export const defaultPreferences = (locale: Locale): Preferences => ({
   weekLayout: 'unified',
   weekLabel: DEFAULT_WEEK_LABEL,
   quietAfterDays: 14,
-  includeSectionsInSearch: false,
+  includeSectionsInSearch: true,
   eisenhowerEnabled: false,
   eisenhowerLayout: 'matrix',
   eisenhowerUrgent: ['overdue', 'today'],
@@ -592,7 +593,7 @@ export function hydratePreferences(stored: unknown, locale: Locale): Preferences
     quietAfterDays: Number.isFinite(s.quietAfterDays) && (s.quietAfterDays as number) > 0
       ? Math.round(s.quietAfterDays as number)
       : base.quietAfterDays,
-    includeSectionsInSearch: s.includeSectionsInSearch === true,
+    includeSectionsInSearch: s.includeSectionsInSearch !== false,
     eisenhowerEnabled: s.eisenhowerEnabled === true,
     eisenhowerLayout: isMatrixLayout(s.eisenhowerLayout)
       ? s.eisenhowerLayout

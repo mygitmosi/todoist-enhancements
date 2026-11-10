@@ -12,6 +12,7 @@ import { BulkBar } from './components/BulkBar';
 import { DragProvider } from './components/dnd/DragProvider';
 import { Composer } from './components/overlays/Composer';
 import { TaskDetail } from './components/overlays/TaskDetail';
+import { useTodoistLinks } from './hooks/useTodoistLinks';
 import { Issues } from './components/overlays/Issues';
 import { Search } from './components/overlays/Search';
 import { Shortcuts } from './components/overlays/Shortcuts';
@@ -67,6 +68,7 @@ import type { TranslationKey } from './i18n';
 import { useUpdateReady } from './lib/appUpdate';
 import { usePhone } from './hooks/usePhone';
 import { UpdateCard } from './components/UpdateCard';
+import { MacUpdateCard } from './components/MacUpdateCard';
 
 export function App() {
   useLabelRenames();
@@ -374,7 +376,16 @@ export function App() {
     return () => window.removeEventListener('enhanced:changelog', show);
   }, []);
 
+  /* theme-boot.js marks the Quick Add window transparent before its first
+     paint; the sign-in page it shows before there is an account needs its
+     background back. */
+  useEffect(() => {
+    if (QUICK_ADD) document.documentElement.classList.toggle('quickadd', !ready || connected);
+  }, [ready, connected]);
+
   if (!ready) {
+    // The Quick Add window stays clear until the composer can be drawn.
+    if (QUICK_ADD) return null;
     return <div className="connect"><p className="empty">{t('common.loading')}</p></div>;
   }
 
@@ -438,6 +449,7 @@ export function App() {
       <EstimateConversion target={conversionRequest.target} openRequest={conversionRequest.request} hideTrigger />
       <ShareSheet projectId={shareProject} onClose={() => setShareProject(null)} />
       <PomodoroFocus />
+      <MacUpdateCard enabled={!QUICK_ADD && ready && (connected || demo) && !tourOpen && !walkthroughOpen && !whatsNew} />
       <PomodoroAsk open={askPomodoro && !pomodoroAsked} onClose={() => setAskPomodoro(false)} />
       <Walkthrough
         open={walkthroughOpen}
@@ -843,6 +855,8 @@ function AppShell({
   }, [route.view, route.id]);
 
   const openTask = useCallback((id: string) => setOpenTaskId(id), [setOpenTaskId]);
+  // A link to a Todoist item the app has opens here instead of in Todoist (#419).
+  useTodoistLinks(openTask, useCallback(() => setOpenTaskId(null), [setOpenTaskId]));
   const addTask = () => {
     setPlacement(placementForPage(route, snapshot.user?.inbox_project_id));
     setComposerOpen(true);
