@@ -1,5 +1,10 @@
 node_modules
 dist
+build
 .git
 .github
+.gitignore
+.env
+npm-debug.log
 README.md
+Dockerfile

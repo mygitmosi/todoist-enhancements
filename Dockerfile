@@ -1,5 +1,5 @@
-# Stage 1: Install dependencies and source code
-FROM node:lithium-slim AS builder
+# Stage 1: Build der statischen Vite-App
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -8,21 +8,19 @@ RUN npm ci
 
 COPY . .
 
-# Stage 2: Runtime image with Node + Nginx
-FROM node:lithium-slim
+# Build mit Platzhalter für spätere Runtime-Ersetzung
+RUN PUBLIC_URL="__PUBLIC_URL_PLACEHOLDER__" npm run build
 
-# Install Nginx via apt-get (Debian/Ubuntu)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends nginx && \
-    rm -rf /var/lib/apt/lists/*
+# Stage 2: Minimales Nginx Runtime-Image (~25 MB)
+FROM nginx:alpine
 
-WORKDIR /app
+# Gebaute Dateien aus Stage 1 übernehmen
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy full application code & dependencies
-COPY --from=builder /app /app
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Haupt-Nginx-Konfiguration direkt ersetzen
+COPY nginx.conf /etc/nginx/nginx.conf
 
-# Copy entrypoint script
+# Entrypoint-Script kopieren und ausführbar machen
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
