@@ -53,7 +53,7 @@
     width:18px;height:18px;border-radius:6px;display:grid;place-items:center;flex:none;
     background:rgba(255,255,255,.95);color:var(--accent);
   }
-  .signin-check .ic{width:12px;height:12px;stroke-width:3}
+  .signin-check .ic{width:12px;height:12px;stroke-width:2.5}
   .signin-mock{
     margin-top:auto;height:min(560px,calc(100dvh - 300px));border-radius:20px 20px 0 0;overflow:hidden;
     box-shadow:0 -10px 40px rgba(0,0,0,.25);margin-bottom:-2px;
@@ -2117,7 +2117,7 @@ html{-webkit-tap-highlight-color:transparent}
   .signin-checks{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:14px}
   .signin-checks li{display:flex;gap:10px;align-items:center}
   .signin-check{width:18px;height:18px;border-radius:6px;display:grid;place-items:center;flex:none;background:rgba(255,255,255,.95);color:var(--accent)}
-  .signin-check .ic{width:12px;height:12px;stroke-width:3}
+  .signin-check .ic{width:12px;height:12px;stroke-width:2.5}
   .signin-mock{margin-top:8px;height:230px;border-radius:16px 16px 0 0;overflow:hidden;box-shadow:0 -10px 40px rgba(0,0,0,.25)}
   .signin-mock .polish-preview{border:0;border-radius:0}
 }
@@ -2430,3 +2430,13 @@ html[data-navigation="pointer"] .task:focus-visible::after{content:none}
 .quadrant .parentchip:hover,.quadrant .parentchip:focus-visible{background:var(--btn-soft-hover);color:var(--text)}
 .quadrant .parentchip .ic{flex:none;width:12px;height:12px}
 .quadrant .parentchip-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.ptitle-icons .iconpickergrid { height: 124px; padding-bottom: 0; mask-image: none; -webkit-mask-image: none; }
+.project-picker-color-label { display: block; margin: 12px 0 8px; }
+
+.ptitle-icons .swatches { display:grid; grid-template-columns:repeat(10, 22px); justify-content:space-between; gap:9px 0; overflow:visible; padding:5px 3px; margin:0; }
+.ptitle-icons .swatch { width:22px; }
+.ptitle-icons .swatch .ic { width:11px; height:11px; }
+.deadline-pro-notice { padding:14px; max-width:260px; font-size:var(--fs-13); }
+.deadline-pro-notice p { margin:0; }
+.deadline-pro-notice a { color:var(--accent); text-decoration:underline; text-underline-offset:2px; }
