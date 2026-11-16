@@ -1,5 +1,5 @@
 <!-- Matomo Image Tracker-->
-<img referrerpolicy="no-referrer-when-downgrade" src="http://192.168.66.10:5000/matomo.php?idsite=2&amp;rec=1" style="border:0" alt="" />
+<img referrerpolicy="no-referrer-when-downgrade" src="http://analytics.mosburgers.cloud/matomo.php?idsite=2&amp;rec=1" style="border:0" alt="" />
 <!-- End Matomo -->
 
 <div align="center">
