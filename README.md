@@ -1,9 +1,3 @@
-<!-- Matomo Image Tracker-->
-<img referrerpolicy="no-referrer-when-downgrade" src="http://analytics.mosburgers.cloud/matomo.php?idsite=2&amp;rec=1" style="border:0" alt="" />
-<!-- End Matomo -->
-
-<div align="center">
-
 # Enhanced for Todoist
 
 **Todoist just got even more powerful, with a new front end to display your tasks.** The data stays in Todoist, but now you can plan a week, have a review, and get a lot of new features and visual enhancements.
