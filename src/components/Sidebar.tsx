@@ -1,3 +1,4 @@
+import { isUncompletable } from '@/domain/types';
 import { useSafeDisconnect } from '@/hooks/useSafeDisconnect';
 import { readFolderState, writeFolderState } from '@/domain/folderState';
 import { matrixRoots, matrixSettings } from '@/domain/eisenhower';
@@ -32,6 +33,7 @@ import { Droppable } from './dnd/Droppable';
 import { ProjectDropRow, ProjectRowSortable } from './dnd/ProjectRowSortable';
 import { COFFEE_URL, FEEDBACK_URL } from '@/app-info';
 import { ProjectMenu } from './ProjectMenu';
+import { FolderMenu } from './FolderMenu';
 import { DraggableTag } from './dnd/DraggableTag';
 import { dragClock } from './dnd/DragProvider';
 import type { ProjectSheetTarget } from './overlays/ProjectSheet';
@@ -181,7 +183,7 @@ export function Sidebar({
       const dated = (group: GroupKey, layout: boolean) =>
         datedRoots(openItems(scoped), scoped, group, { subtasks: filters.showSubtasks, layout, quick: prefs.showQuickGroup });
       const list = key === 'upcoming' ? dated('none', false) : ['today', 'week'].includes(key) ? dated(viewPrefs(prefs, key).group, viewPrefs(prefs, key).group === 'none') : key === 'inbox' ? openItems(scoped) : rootItems(openItems(scoped));
-      return applyFilters(list, ['today', 'week', 'upcoming'].includes(key) ? { ...filters, includeScheduled: true } : filters, snapshot, makeChildrenOf(childIndex(scoped)));
+      return applyFilters(list, ['today', 'week', 'upcoming'].includes(key) ? { ...filters, includeScheduled: true } : filters, snapshot, makeChildrenOf(childIndex(scoped))).filter((item) => !isUncompletable(item));
     };
     return {
       inbox: inboxId ? scope('inbox').filter((i) => i.project_id === inboxId).length : 0,
@@ -196,7 +198,7 @@ export function Sidebar({
         const filters = viewPrefs(prefs, 'matrix').filters;
         const scoped = assigneeItems(snapshot, filters.assignees);
         const workspaceItems = filters.workspaces.length ? Object.fromEntries(Object.entries(scoped).filter(([, item]) => filters.workspaces.includes(snapshot.projects[item.project_id]?.workspace_id ?? 'personal'))) : scoped;
-        return matrixRoots(openItems({ ...snapshot, items: workspaceItems }), snapshot.projects, matrixSettings(prefs, snapshot.user?.start_day)).cards.length;
+        return matrixRoots(openItems({ ...snapshot, items: workspaceItems }), snapshot.projects, matrixSettings(prefs, snapshot.user?.start_day)).cards.filter((item) => !isUncompletable(item)).length;
       })(),
       month: monthItems(scope('month')).length,
       someday: somedayItems(scope('someday')).length,
@@ -350,12 +352,29 @@ export function Sidebar({
           {/* A folder takes a project dropped on it, which is the only thing a
               folder is for and was the one place in the sidebar you could not
               drag a project into. */}
-          {node.nativeFolder ? <div className="navrow">
+          {node.nativeFolder ? <div className={`navrow folderrow${rowMenu?.key === `folder-${project.id}` ? ' menuopen' : ''}`}>
             <button className="navitem folderitem" aria-expanded={isOpen}
               onClick={() => toggleFolder(project.id)}>
               <Icon name="project" /><span className="label">{project.name}</span>
               <Icon name={isOpen ? 'caret-up' : 'caret'} size="sm" className="disclose" />
             </button>
+            {/* A folder can be renamed, and deleted once it is empty (#463). */}
+            <span className="navend">
+              <button
+                className="navmore"
+                aria-label={t('folder.actions')}
+                title={t('folder.actions')}
+                aria-haspopup="menu"
+                aria-expanded={rowMenu?.key === `folder-${project.id}`}
+                onClick={(event) => setRowMenu(rowMenu?.key === `folder-${project.id}` ? null
+                  : { key: `folder-${project.id}`, anchor: event.currentTarget })}
+              >
+                <Icon name="more" size="sm" />
+              </button>
+            </span>
+            {rowMenu?.key === `folder-${project.id}` && (
+              <FolderMenu folderId={project.id} anchor={rowMenu.anchor} onClose={() => setRowMenu(null)} />
+            )}
           </div> : <ProjectDropRow projectId={project.id}>
             <button
               className="navitem folderitem"
@@ -615,7 +634,7 @@ export function Sidebar({
             {favourites.projects.map((p) =>
               projectNode({ project: p, children: [] }, 'fav-'))}
             {favourites.labels.map((l) =>
-              tagItem(l.name, l.color, labelRoots(items, l.name, snapshot).length))}
+              tagItem(l.name, l.color, labelRoots(items, l.name, snapshot).filter((item) => !isUncompletable(item)).length))}
             {/* The count is Todoist's answer to the query, asked again when
                 the tasks change; it shows once Todoist has answered. */}
             {favourites.filters.map((f) => (

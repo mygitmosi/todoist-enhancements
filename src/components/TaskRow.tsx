@@ -23,7 +23,7 @@ import { usePhoneBehaviour } from '@/hooks/useTouchLayout';
 import { useRowGesture } from '@/hooks/useRowGesture';
 import { useStore } from '@/store/store';
 import { completionTick } from '@/store/tick';
-import { SYSTEM_LABELS, displayTaskContent, isUncompletable, toDisplayPriority, weekLabel, type Item } from '@/domain/types';
+import { displayTaskContent, isUncompletable, toDisplayPriority, weekLabel, type Item, monthLabel } from '@/domain/types';
 import { effectiveEstimate, formatDuration } from '@/domain/estimates';
 import { dateTone, deadlineDate, dueDate, formatRelativeDay, formatTime, hasTime, isOverdue, isToday, overdueBy } from '@/domain/dates';
 import { markerStyle } from '@/domain/colors';
@@ -249,7 +249,8 @@ function TaskRowView({
   const uncompletable = isUncompletable(item);
   const children = childrenOf(item.id);
   const openChildren = children.filter((c) => !c.checked);
-  const doneChildren = children.length - openChildren.length;
+  const countableChildren = children.filter((c) => !isUncompletable(c));
+  const doneChildren = countableChildren.filter((c) => c.checked).length;
 
   const { minutes, computed } = effectiveEstimate(item, childrenOf);
   const priority = toDisplayPriority(item.priority);
@@ -296,9 +297,9 @@ function TaskRowView({
      date would be, not by the tag that carries it. */
   const horizon = item.due ? null : item.labels.some((l) => l.toLowerCase() === weekLabel().toLowerCase())
     ? 'review.to.anytime' as const
-    : item.labels.some((l) => l.toLowerCase() === SYSTEM_LABELS.month) ? 'review.to.month' as const : null;
+    : item.labels.some((l) => l.toLowerCase() === monthLabel().toLowerCase()) ? 'review.to.month' as const : null;
   const visibleLabels = item.labels.filter((l) => !l.toLowerCase().startsWith('est-')
-    && !(horizon && [weekLabel().toLowerCase(), SYSTEM_LABELS.month].includes(l.toLowerCase())));
+    && !(horizon && [weekLabel().toLowerCase(), monthLabel().toLowerCase()].includes(l.toLowerCase())));
 
   /* A tag carries a colour in Todoist, so it carries it here too. The task
      stores names, and the colour lives on the label, which is the lookup. */
@@ -402,16 +403,20 @@ function TaskRowView({
         }}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        <ProgressRing done={doneChildren} total={children.length} />
-        {t('task.subtaskProgress', { done: doneChildren, total: children.length })}
+        {countableChildren.length > 0 && <>
+          <ProgressRing done={doneChildren} total={countableChildren.length} />
+          {t('task.subtaskProgress', { done: doneChildren, total: countableChildren.length })}
+        </>}
         <Icon name="caret" size="sm" className="subprog-chev" />
       </button>
-    ) : (
+    ) : countableChildren.length > 0 ? (
       <span className="subprog" key="subtasks">
-        <ProgressRing done={doneChildren} total={children.length} />
-        {t('task.subtaskProgress', { done: doneChildren, total: children.length })}
+        {countableChildren.length > 0 && <>
+          <ProgressRing done={doneChildren} total={countableChildren.length} />
+          {t('task.subtaskProgress', { done: doneChildren, total: countableChildren.length })}
+        </>}
       </span>
-    )
+    ) : null
   ) : null;
 
   return (
@@ -437,6 +442,7 @@ function TaskRowView({
         data-tour-extend={
           showSubtasks && expanded && openChildren.length > 0 ? 'siblings' : undefined
         }
+        data-uncompletable={uncompletable ? '' : undefined}
         data-table-colored={table && tableRowColor(item, table.coloration, project?.color) ? '' : undefined}
         data-depth={depth > 0 ? depth : undefined}
         style={{
@@ -500,13 +506,8 @@ function TaskRowView({
 
         {table && columnsBefore.length > 0 && <TableCells item={item} hideProject={!projectVisible} columns={columnsBefore} childrenOf={childrenOf} />}
 
-        {item.projection ? (
+        {uncompletable ? null : item.projection ? (
           <span className={`check forecast-check p${fields.priority ? priority : 4}`} role="checkbox" aria-checked="false" aria-disabled="true" aria-label={t('upcoming.projected')} onClick={(e) => e.stopPropagation()} />
-        ) : uncompletable ? (
-          /* Todoist gives a "* " task no checkbox at all, so this one does
-             not click, focus, or announce itself as one — it only holds the
-             row's alignment. */
-          <span className={`check p${priority} nocheck`} aria-hidden="true" />
         ) : (
           <span
             className={`check p${fields.priority ? priority : 4}`}

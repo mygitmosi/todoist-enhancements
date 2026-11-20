@@ -111,6 +111,7 @@ export function parseShorthand(
   /** Who a task of this project can be given to, for `+name`. Asked once the project is known. */
   peopleOf?: (projectId: string | null) => Array<{ id: string; name: string }>,
   baseDate?: string,
+  locale?: 'en' | 'fr',
 ): Shorthand {
   const ranges: Highlight[] = [];
   const claim = (start: number, length: number, kind: HighlightKind, tone?: string, keep?: boolean) =>
@@ -203,13 +204,24 @@ export function parseShorthand(
   /* A tag starts a word: `@work` after a space or at the start. Glued to
      something, it is not one: `@@link0@@` is text, and so is the `@example` of
      an address like `me@example.com`, which used to make a tag out of it. */
-  for (const label of raw.matchAll(/(?<=^|\s)@((?:[\p{L}\p{N}\p{Extended_Pictographic}_-]|\u200d|\ufe0f)+)/gu)) {
-    if (isOff(label.index!, label[0].length)) continue;
-    labels.push(label[1]);
-    const tag = Object.values(snapshot.labels).find(
-      (l) => !l.is_deleted && fold(l.name) === fold(label[1]),
-    );
-    claim(label.index!, label[0].length, 'label', tag ? colorValue(tag.color) : undefined);
+  const findLabel = (text: string) => Object.values(snapshot.labels).find(
+    (l) => !l.is_deleted && fold(l.name) === fold(text),
+  );
+  /* A tag name is words joined by slashes: `@Status/Waiting` is one tag, whether
+     or not it exists yet (#477). A slash with nothing after it is not part of it. */
+  const tagChar = '(?:[\\p{L}\\p{N}\\p{Extended_Pictographic}_-]|\\u200d|\\ufe0f)';
+  const tagPattern = new RegExp(`(?<=^|\\s)@(${tagChar}+(?:/${tagChar}+)*)`, 'gu');
+  for (const label of raw.matchAll(tagPattern)) {
+    /* A name with characters beyond these is still read when it is a tag that
+       exists, as before. */
+    const run = /^\S+/u.exec(raw.slice(label.index! + 1))?.[0] ?? '';
+    const whole = run.length > label[1].length ? readName(run, findLabel) : null;
+    const typed = whole && whole.length > label[1].length ? run.slice(0, whole.length) : label[1];
+    const length = 1 + typed.length;
+    if (isOff(label.index!, length)) continue;
+    labels.push(typed);
+    const tag = findLabel(typed);
+    claim(label.index!, length, 'label', tag ? colorValue(tag.color) : undefined);
   }
 
   /* `+Anne` gives the task to a person of the project, the way Todoist does:
@@ -268,7 +280,7 @@ export function parseShorthand(
     for (let guard = 0; guard < 8; guard += 1) {
       const repeat = readRecurrence(text);
       if (!repeat) break;
-      last = { at: repeat.index, length: repeat.matched.length, reading: repeat };
+      if (!locale || repeat.lang === locale) last = { at: repeat.index, length: repeat.matched.length, reading: repeat };
       text = blank(text, repeat.index, repeat.matched.length);
     }
     if (last?.reading) {
@@ -294,7 +306,7 @@ export function parseShorthand(
     let text = mask(raw, [...ranges, ...refused, ...linkRanges]);
     let last: { at: number; length: number; date: string } | null = null;
     for (let guard = 0; guard < 8; guard += 1) {
-      const reading = readNaturalDate(text, new Date(), { dateFormat, bareTime: guard === 0 });
+      const reading = readNaturalDate(text, new Date(), { dateFormat, bareTime: guard === 0, locale });
       if (!reading) break;
       last = { at: reading.index, length: reading.matched.length, date: reading.date };
       text = blank(text, reading.index, reading.matched.length);
@@ -352,11 +364,11 @@ export function parseShorthand(
  * left alone.
  */
 export function savedRefusals(
-  raw: string, snapshot: Snapshot, naturalDates: boolean, dateFormat: DateFormat = 'dmy',
+  raw: string, snapshot: Snapshot, naturalDates: boolean, dateFormat: DateFormat = 'dmy', locale?: 'en' | 'fr',
 ): TextRange[] {
   const refused: TextRange[] = [];
   for (let guard = 0; guard < 16; guard += 1) {
-    const found = parseShorthand(raw, snapshot, naturalDates, refused, dateFormat).ranges
+    const found = parseShorthand(raw, snapshot, naturalDates, refused, dateFormat, undefined, undefined, locale).ranges
       .filter((range) => !range.keep);
     if (found.length === 0) break;
     refused.push(...found.map(({ start, end }) => ({ start, end })));

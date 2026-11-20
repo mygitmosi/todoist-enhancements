@@ -22,7 +22,7 @@ import { useT } from '@/hooks/useT';
 import { useStore } from '@/store/store';
 import { formatDuration } from '@/domain/estimates';
 import { markerStyle } from '@/domain/colors';
-import { SYSTEM_LABELS, toTodoistPriority, weekLabel, withoutHorizons, type DisplayPriority } from '@/domain/types';
+import { toTodoistPriority, weekLabel, withoutHorizons, type DisplayPriority, monthLabel } from '@/domain/types';
 import { toApiDate } from '@/domain/dates';
 import { taskShortcuts } from '../DatePicker';
 import {
@@ -189,7 +189,7 @@ export function Composer({
     const target = named || projectId || inboxId;
     return target && snapshot.projects[target]?.can_assign_tasks !== false ? assignees(snapshot, target) : [];
   };
-  const parsed = parseShorthand(name, snapshot, naturalDates, refusals, dateFormat, peopleOf, defaultDate);
+  const parsed = parseShorthand(name, snapshot, naturalDates, refusals, dateFormat, peopleOf, defaultDate, locale);
 
   /*
    * The task's tags: the ones picked by hand, and the ones the name says right
@@ -205,7 +205,7 @@ export function Composer({
   /* No day, but a horizon picked: the date chip says so in words. */
   const horizonText = date || recurrence ? null
     : allTagsHas(labels, weekLabel()) ? t('review.to.anytime')
-    : allTagsHas(labels, SYSTEM_LABELS.month) ? t('review.to.month') : null;
+    : allTagsHas(labels, monthLabel()) ? t('review.to.month') : null;
   const allTags = parsed.labels.reduce(
     (tags, read) => (tags.some((tag) => sameTag(tag, read)) ? tags : [...tags, read]),
     labels,
@@ -410,7 +410,7 @@ export function Composer({
     try {
       const inbox = snapshot.user?.inbox_project_id;
       await createTasks(lines.map((line) => {
-        const read = parseShorthand(line, snapshot, naturalDates, [], dateFormat);
+        const read = parseShorthand(line, snapshot, naturalDates, [], dateFormat, undefined, undefined, locale);
         return {
           content: read.content || line,
           project_id: read.projectId || inbox,
@@ -448,10 +448,10 @@ export function Composer({
        a subtask lives in its parent's project. */
     const lines = (pending ? [...subtasks, pending] : subtasks).map((line, index) => {
       const turnedDown = index < subtasks.length ? subtaskRefusals[index] ?? [] : draftRefusals;
-      const first = parseShorthand(line, snapshot, naturalDates, turnedDown, dateFormat);
+      const first = parseShorthand(line, snapshot, naturalDates, turnedDown, dateFormat, undefined, undefined, locale);
       const asText = first.ranges.filter((r) => r.kind === 'project').map(({ start, end }) => ({ start, end }));
       const read = asText.length > 0
-        ? parseShorthand(line, snapshot, naturalDates, [...turnedDown, ...asText], dateFormat) : first;
+        ? parseShorthand(line, snapshot, naturalDates, [...turnedDown, ...asText], dateFormat, undefined, undefined, locale) : first;
       return {
         content: read.content.trim() || line,
         ...(read.priority ? { priority: toTodoistPriority(read.priority) } : {}),
@@ -593,7 +593,7 @@ export function Composer({
               day: (day) => { setDate(toApiDate(day)); setRecurrence(null); setLabels(withoutHorizons); },
               today: () => { setDate(toApiDate(new Date())); setRecurrence(null); setLabels(withoutHorizons); },
               anytime: () => { setDate(''); setRecurrence(null); setLabels((prev) => [...withoutHorizons(prev), weekLabel()]); },
-              month: () => { setDate(''); setRecurrence(null); setLabels((prev) => [...withoutHorizons(prev), SYSTEM_LABELS.month]); },
+              month: () => { setDate(''); setRecurrence(null); setLabels((prev) => [...withoutHorizons(prev), monthLabel()]); },
               someday: () => { setDate(''); setRecurrence(null); setLabels(withoutHorizons); },
             })}
             recurrence={recurrence}

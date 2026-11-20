@@ -1,7 +1,6 @@
 import type { CSSProperties } from 'react';
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react';
 import {
-  Add02Icon,
   Alert02Icon,
   Analytics01Icon,
   ArrowDown01Icon,
@@ -47,14 +46,14 @@ import {
   KanbanIcon,
   Layers01Icon,
   LayoutDashboardIcon,
-  LayoutPanelTopIcon,
+  PanelTopIcon,
   Link04Icon,
   ListIcon,
   ListOrderedIcon,
   LockKeyholeIcon,
   LogOutIcon,
   Mail01Icon,
-  Menu11Icon,
+  Menu01Icon,
   MoreHorizontalIcon,
   Notification01Icon,
   PaletteIcon,
@@ -99,6 +98,11 @@ export type IconName =
   | 'bold' | 'italic' | 'strike' | 'heading1' | 'heading2' | 'quote' | 'code' | 'list-ordered';
 
 /** Hugeicons Free (Stroke Rounded), picked to stay close to the Lucide drawings they replace. */
+/* A plain plus, a touch heavier than the 1.5 line of the rest so that it holds at 16px. */
+const PlusIcon = [
+  ['path', { d: 'M12 5.5v13M5.5 12h13', stroke: 'currentColor', strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', key: '0' }],
+] as unknown as IconSvgElement;
+
 const ICONS: Record<IconName, IconSvgElement> = {
   'wrap-text': TextWrapIcon,
   'full-width': ArrowHorizontalIcon,
@@ -158,16 +162,16 @@ const ICONS: Record<IconName, IconSvgElement> = {
   inbox: InboxIcon,
   list: ListIcon,
   logout: LogOutIcon,
-  menu: Menu11Icon,
+  menu: Menu01Icon,
   more: MoreHorizontalIcon,
-  plus: Add02Icon,
+  plus: PlusIcon,
   project: Folder01Icon,
   repeat: RepeatIcon,
   flame: FireIcon,
   search: Search01Icon,
   settings: Settings01Icon,
   sidebar: SidebarLeftIcon,
-  section: LayoutPanelTopIcon,
+  section: PanelTopIcon,
   sliders: SlidersHorizontalIcon,
   someday: IdeaIcon,
   sort: ArrowUpDownIcon,
